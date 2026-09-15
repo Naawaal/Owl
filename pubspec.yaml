@@ -1,0 +1,41 @@
+name: owl
+description: "Owl - MOBA Companion HUD and On-Device AI Coach"
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+workspace:
+  - packages/owl_core
+  - packages/owl_network
+  - packages/owl_storage
+  - packages/owl_design
+
+dependencies:
+  dio: ^5.8.0+1
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.6.1
+  flutter_secure_storage: ^9.2.4
+  google_fonts: ^6.2.1
+  intl: ^0.20.2
+  owl_core:
+    path: packages/owl_core
+  owl_design:
+    path: packages/owl_design
+  owl_network:
+    path: packages/owl_network
+  owl_storage:
+    path: packages/owl_storage
+  shared_preferences: ^2.5.2
+  uuid: ^4.5.1
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+  melos: ^8.6.0
+
+flutter:
+  uses-material-design: true

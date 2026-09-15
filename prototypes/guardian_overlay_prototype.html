@@ -1,0 +1,2132 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" data-view="lobby">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xiaomi HyperOS Game Turbo 2026 & Guardian Tactical Overlay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* ==========================================================================
+       XIAOMI HYPEROS GAME TURBO 2026 DESIGN SYSTEM
+       Matches official OEM references (ref_settings_1 & ref_settings_2)
+       ========================================================================== */
+    :root {
+      --turbo-blue: #007AFF;
+      --turbo-blue-light: #389BFF;
+      --turbo-blue-glow: rgba(0, 122, 255, 0.45);
+      --turbo-red: #E63946;
+      --turbo-red-glow: rgba(230, 57, 70, 0.55);
+      --turbo-orange: #FF7B00;
+
+      --status-emerald: #30D158;
+      --status-emerald-glow: rgba(48, 209, 88, 0.35);
+
+      --alert-crimson: #FF453A;
+      --alert-crimson-glow: rgba(255, 69, 58, 0.4);
+
+      --bg-dark: #07090F;
+      --bg-surface: #0E121B;
+      --bg-sidebar: #0B0E17;
+      --bg-card: rgba(20, 25, 38, 0.75);
+
+      --text-white: #FFFFFF;
+      --text-muted: #8E9BAE;
+      --text-dim: #546173;
+
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-medium: rgba(255, 255, 255, 0.15);
+
+      --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #030407;
+      color: var(--text-white);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      overflow: hidden;
+      background-image: 
+        radial-gradient(circle at 50% 50%, rgba(88, 28, 135, 0.12) 0%, transparent 65%),
+        linear-gradient(to bottom, #05070B 0%, #020305 100%);
+    }
+
+    /* Top Global Switcher for Rapid Verification */
+    .top-demo-switcher {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 980px;
+      margin-bottom: 8px;
+      padding: 5px 16px;
+      background: rgba(16, 20, 28, 0.85);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 9999px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+      z-index: 50;
+    }
+
+    .demo-brand {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      font-weight: 800;
+      color: #FFFFFF;
+    }
+
+    .demo-brand span {
+      color: var(--turbo-blue-light);
+    }
+
+    .demo-tabs {
+      display: flex;
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 3px;
+      border-radius: 9999px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .demo-tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 5px 14px;
+      border-radius: 9999px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 180ms ease;
+    }
+
+    .demo-tab-btn.active {
+      background: var(--turbo-blue);
+      color: #FFFFFF;
+      box-shadow: 0 2px 10px var(--turbo-blue-glow);
+    }
+
+    /* ==========================================================================
+       SMARTPHONE BEZEL CONTAINER (20:9 Xiaomi Flagship Horizon Display)
+       ========================================================================== */
+    .gaming-device-frame {
+      width: 100%;
+      max-width: 980px;
+      height: 490px;
+      background: #000000;
+      border-radius: 34px;
+      border: 8px solid #141720;
+      box-shadow: 
+        0 25px 80px -10px rgba(0, 0, 0, 0.95),
+        0 0 0 1px rgba(255, 255, 255, 0.08),
+        inset 0 0 0 1px rgba(0, 0, 0, 0.9);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ==========================================================================
+       VIEW 1: AUTHENTIC XIAOMI GAME TURBO LOBBY (1:1 REFERENCE MATCH)
+       ========================================================================== */
+    .game-turbo-lobby {
+      position: absolute;
+      inset: 0;
+      background-color: #07090F;
+      background-image: 
+        radial-gradient(ellipse at 48% 50%, rgba(139, 43, 226, 0.18) 0%, rgba(20, 10, 40, 0.05) 50%, transparent 75%),
+        radial-gradient(circle at 90% 50%, rgba(0, 110, 255, 0.1) 0%, transparent 45%),
+        linear-gradient(180deg, #090B12 0%, #06070B 100%);
+      z-index: 10;
+      overflow: hidden;
+    }
+
+    [data-view="ingame"] .game-turbo-lobby { display: none; }
+    [data-view="lobby"] .ingame-match-view { display: none; }
+
+    /* 1. TOP STATUS BAR (Battery 71%, CPU 30%, Plus, Settings Gear) */
+    .turbo-top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 28px 0 28px;
+      height: 36px;
+      z-index: 20;
+      position: relative;
+    }
+
+    .top-status-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #E2E8F0;
+    }
+
+    .battery-metric {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .battery-icon-svg {
+      width: 20px;
+      height: 10px;
+      border: 1.5px solid rgba(255, 255, 255, 0.65);
+      border-radius: 3px;
+      padding: 1px;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .battery-icon-svg::after {
+      content: '';
+      position: absolute;
+      right: -3px;
+      top: 2px;
+      width: 2px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.65);
+      border-radius: 0 1px 1px 0;
+    }
+
+    .battery-fill {
+      width: 71%;
+      height: 100%;
+      background: #007AFF;
+      border-radius: 1px;
+    }
+
+    .cpu-metric {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .cpu-chip-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.2px solid rgba(255, 255, 255, 0.45);
+      border-radius: 3px;
+      padding: 1px 3px;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      color: #CBD5E1;
+    }
+
+    .top-status-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      color: #E2E8F0;
+    }
+
+    .btn-top-icon {
+      background: transparent;
+      border: none;
+      color: #E2E8F0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 160ms ease, color 160ms ease;
+    }
+
+    .btn-top-icon:hover {
+      color: #FFFFFF;
+      transform: scale(1.1);
+    }
+
+    /* 2. LEFT VERTICAL SIDEBAR (Gamebox & Active Game Pill) */
+    .turbo-left-sidebar {
+      position: absolute;
+      left: 24px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      z-index: 20;
+    }
+
+    .sidebar-gamebox-node {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      padding-left: 6px;
+    }
+
+    .gamebox-icon-tile {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #4338CA 0%, #6366F1 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
+      color: #FFFFFF;
+    }
+
+    .gamebox-text {
+      font-size: 12px;
+      font-weight: 600;
+      color: #CBD5E1;
+    }
+
+    .sidebar-game-pill {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 6px 14px 6px 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      transition: all 180ms ease;
+    }
+
+    .sidebar-game-pill:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(0, 122, 255, 0.4);
+    }
+
+    .game-avatar-container {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      position: relative;
+      background-size: cover;
+      background-position: center;
+      background-image: url('assets/wild_rift_splash.jpg');
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      flex-shrink: 0;
+    }
+
+    .game-5v5-badge {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      background: #EAB308;
+      color: #000000;
+      font-size: 8px;
+      font-weight: 900;
+      padding: 1px 3px;
+      border-top-left-radius: 4px;
+      line-height: 1;
+    }
+
+    .sidebar-game-title {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #FFFFFF;
+      white-space: nowrap;
+      max-width: 110px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* 3. CENTER HERO SHOWCASE CARD (1:1 from dj's reference) */
+    .turbo-center-stage {
+      position: absolute;
+      left: 50%;
+      top: 48%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      z-index: 20;
+    }
+
+    .hero-cinematic-card {
+      width: 500px;
+      height: 295px;
+      border-radius: 20px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 
+        0 20px 50px -10px rgba(0, 0, 0, 0.85),
+        0 0 35px rgba(124, 58, 237, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background-size: cover;
+      background-position: left center;
+      background-image: url('assets/wild_rift_splash.jpg');
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 16px 20px;
+    }
+
+    .hero-cinematic-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, rgba(10, 5, 20, 0.4) 40%, rgba(7, 8, 14, 0.95) 90%);
+      pointer-events: none;
+    }
+
+    .inset-gameplay-preview {
+      position: absolute;
+      top: 22px;
+      right: 22px;
+      width: 290px;
+      height: 165px;
+      border-radius: 12px;
+      border: 1.5px solid rgba(255, 215, 0, 0.45);
+      box-shadow: 
+        0 8px 30px rgba(0, 0, 0, 0.9),
+        0 0 20px rgba(255, 215, 0, 0.25);
+      background-size: cover;
+      background-position: center;
+      background-image: url('assets/moba_gameplay_bg.jpg');
+      overflow: hidden;
+    }
+
+    .inset-gameplay-preview::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, transparent 40%, rgba(0, 0, 0, 0.6) 100%);
+    }
+
+    .triple-kill-badge {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      border: 1px solid #FFD700;
+      border-radius: 4px;
+      padding: 2px 10px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 9.5px;
+      font-weight: 900;
+      color: #FFD700;
+      box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+      z-index: 5;
+    }
+
+    .hero-card-bottom-cluster {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      width: 100%;
+    }
+
+    .hero-card-headline {
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      background: linear-gradient(180deg, #FFFFFF 0%, #FFE89E 40%, #FFB703 80%, #FB8500 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 3px 12px rgba(0, 0, 0, 0.95);
+      line-height: 1.1;
+    }
+
+    .hero-card-subpill {
+      background: linear-gradient(90deg, rgba(124, 58, 237, 0.5) 0%, rgba(147, 51, 234, 0.85) 50%, rgba(124, 58, 237, 0.5) 100%);
+      border: 1px solid rgba(216, 180, 254, 0.45);
+      border-radius: 9999px;
+      padding: 3px 20px;
+      font-size: 9.5px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #FFFFFF;
+      text-transform: uppercase;
+      box-shadow: 0 0 16px rgba(147, 51, 234, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hero-pagination-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pagination-bar {
+      height: 3px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.2);
+      width: 14px;
+      transition: all 180ms ease;
+    }
+
+    .pagination-bar.active {
+      width: 22px;
+      background: var(--turbo-blue);
+      box-shadow: 0 0 8px var(--turbo-blue-glow);
+    }
+
+    /* 4. RIGHT SIDE ACTION: THE SIGNATURE GAME TURBO "PLAY" WING */
+    .turbo-play-wing {
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 175px;
+      height: 114px;
+      background: linear-gradient(90deg, rgba(0, 98, 235, 0.8) 0%, rgba(0, 136, 255, 0.96) 100%);
+      border-top-left-radius: 18px;
+      border-bottom-left-radius: 18px;
+      border-left: 1.5px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 
+        -8px 0 30px rgba(0, 122, 255, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 14px;
+      gap: 6px;
+      cursor: pointer;
+      z-index: 30;
+      transition: transform 180ms var(--ease-smooth), box-shadow 180ms ease;
+      overflow: hidden;
+    }
+
+    .turbo-play-wing:hover {
+      transform: translateY(-50%) scale(1.02);
+      box-shadow: -10px 0 40px rgba(0, 122, 255, 0.65);
+    }
+
+    .play-wing-chevrons {
+      position: absolute;
+      right: 6px;
+      top: 0;
+      bottom: 0;
+      width: 24px;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .play-title-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 19px;
+      font-weight: 800;
+      color: #FFFFFF;
+      letter-spacing: 0.4px;
+    }
+
+    .play-subtext {
+      font-size: 10.5px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.85);
+      text-align: center;
+      line-height: 1.3;
+      padding: 0 6px;
+    }
+
+    /* 5. BOTTOM TRAY: "GPU SETTINGS" BEVELED TAB */
+    .gpu-settings-tab {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 240px;
+      height: 40px;
+      background: rgba(18, 22, 32, 0.88);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(255, 255, 255, 0.14);
+      clip-path: polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 4px;
+      cursor: pointer;
+      z-index: 30;
+      transition: all 180ms ease;
+    }
+
+    .gpu-settings-tab:hover {
+      background: rgba(26, 32, 46, 0.95);
+      height: 44px;
+    }
+
+    .gpu-tab-accent-bar {
+      width: 28px;
+      height: 3px;
+      background: var(--turbo-blue);
+      border-radius: 3px;
+      margin-bottom: 4px;
+      box-shadow: 0 0 8px var(--turbo-blue-glow);
+    }
+
+    .gpu-tab-label {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #94A3B8;
+      letter-spacing: 0.2px;
+    }
+
+    /* ==========================================================================
+       AUTHENTIC TWO-PANE SETTINGS ARCHITECTURE (MATCHES ref_settings_2 1:1)
+       Left Category Column + Right Content Items with Blue Toggles
+       ========================================================================== */
+    .two-pane-settings-screen {
+      position: absolute;
+      inset: 0;
+      background: #080C14;
+      background-image: linear-gradient(135deg, #090E1A 0%, #050810 100%);
+      z-index: 120;
+      display: flex;
+      flex-direction: column;
+      transform: translateY(100%);
+      transition: transform 260ms var(--ease-smooth);
+      overflow: hidden;
+    }
+
+    .two-pane-settings-screen.open {
+      transform: translateY(0);
+    }
+
+    /* Screen Top Header */
+    .screen-header-bar {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(11, 15, 23, 0.7);
+    }
+
+    .header-back-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      color: #FFFFFF;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .header-back-title:hover {
+      color: var(--turbo-blue-light);
+    }
+
+    .two-pane-body {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* Left Categories Sidebar (Exactly like ref_settings_2) */
+    .pane-categories-sidebar {
+      width: 220px;
+      background: #090D18;
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      padding: 14px 0;
+      gap: 4px;
+      overflow-y: auto;
+    }
+
+    .pane-cat-item {
+      padding: 14px 22px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      transition: all 160ms ease;
+    }
+
+    .pane-cat-item:hover:not(.active) {
+      color: #FFFFFF;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .pane-cat-item.active {
+      color: var(--turbo-blue-light);
+      font-weight: 700;
+      background: linear-gradient(90deg, rgba(0, 122, 255, 0.08) 0%, rgba(0, 122, 255, 0.22) 100%);
+    }
+
+    /* The glowing active tab indicator bar on the right edge */
+    .pane-cat-item.active::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--turbo-blue);
+      box-shadow: 0 0 10px var(--turbo-blue-glow);
+    }
+
+    /* Right Content Pane */
+    .pane-content-area {
+      flex: 1;
+      padding: 20px 32px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Clean Setting Row (Matches ref_settings_2: Title, Description, Right Toggle) */
+    .oem-setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      gap: 20px;
+    }
+
+    .oem-setting-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .oem-setting-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #FFFFFF;
+      letter-spacing: 0.1px;
+    }
+
+    .oem-setting-desc {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* Segmented Options in Content Pane */
+    .oem-segmented-chips {
+      display: flex;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 3px;
+      gap: 4px;
+    }
+
+    .oem-chip-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 160ms ease;
+    }
+
+    .oem-chip-btn.active {
+      background: var(--turbo-blue);
+      color: #FFFFFF;
+      box-shadow: 0 0 12px var(--turbo-blue-glow);
+    }
+
+    /* MIUI / HyperOS Authentic Toggle Switch (From ref_settings_2) */
+    .miui-switch {
+      width: 44px;
+      height: 24px;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1.5px solid rgba(255, 255, 255, 0.25);
+      border-radius: 9999px;
+      position: relative;
+      cursor: pointer;
+      transition: all 180ms ease;
+      flex-shrink: 0;
+    }
+
+    .miui-switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: #FFFFFF;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+      transition: transform 180ms var(--ease-smooth);
+    }
+
+    .miui-switch.active {
+      background: var(--turbo-blue);
+      border-color: var(--turbo-blue-light);
+      box-shadow: 0 0 12px var(--turbo-blue-glow);
+    }
+
+    .miui-switch.active::after {
+      transform: translateX(20px);
+    }
+
+    /* ==========================================================================
+       VIEW 2: IN-GAME OVERLAY HUD (MATCHES ref_settings_1 XIAOMI GAME TURBO 2026)
+       ========================================================================== */
+    .ingame-match-view {
+      position: absolute;
+      inset: 0;
+      background-size: cover;
+      background-position: center;
+      background-image: url('assets/moba_gameplay_bg.jpg');
+      z-index: 10;
+    }
+
+    .overlay-hud-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    /* Slim Non-Intrusive Edge Handle at Upper-Left */
+    .turbo-edge-handle {
+      pointer-events: auto;
+      position: absolute;
+      top: 12px;
+      left: 175px;
+      background: rgba(14, 18, 26, 0.88);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: var(--radius-pill);
+      padding: 4px 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      font-weight: 800;
+      color: #FFFFFF;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+      transition: all 180ms ease;
+    }
+
+    .turbo-edge-handle:hover {
+      background: rgba(22, 28, 40, 0.95);
+      border-color: var(--turbo-blue-light);
+      transform: translateY(1px);
+    }
+
+    .handle-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--status-emerald);
+      box-shadow: 0 0 8px var(--status-emerald);
+    }
+
+    /* --------------------------------------------------------------------------
+       XIAOMI GAME TURBO 2026 IN-GAME TOOLBOX (MATCHES ref_settings_1 1:1, NO GAMES TAB)
+       -------------------------------------------------------------------------- */
+    .gameturbo-2026-toolbox {
+      pointer-events: auto;
+      position: absolute;
+      top: 14px;
+      left: 190px;
+      width: 356px;
+      background: rgba(16, 20, 30, 0.95);
+      backdrop-filter: blur(40px) saturate(190%);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 24px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transform: translateY(-15px) scale(0.96);
+      opacity: 0;
+      visibility: hidden;
+      transition: all 240ms var(--ease-smooth);
+      z-index: 100;
+    }
+
+    .gameturbo-2026-toolbox.open {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* Sleek Top Header Bar (Gaming tools - Games section removed) */
+    .toolbox-header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 16px 6px 16px;
+      background: rgba(10, 13, 20, 0.4);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .toolbox-header-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12.5px;
+      font-weight: 800;
+      color: #FFFFFF;
+      letter-spacing: -0.2px;
+    }
+
+    .toolbox-header-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toolbox-app-badge {
+      font-size: 8.5px;
+      font-weight: 700;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.06);
+      padding: 2px 7px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      letter-spacing: 0.3px;
+    }
+
+    .btn-toolbox-close {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 160ms ease;
+    }
+
+    .btn-toolbox-close:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #FFFFFF;
+      transform: scale(1.05);
+    }
+
+    /* Central Glowing Reactor FPS Gauge (1:1 from ref_settings_1) */
+    .toolbox-reactor-gauge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 16px 4px 16px;
+      position: relative;
+      background: radial-gradient(circle at center, rgba(230, 57, 70, 0.18) 0%, transparent 68%);
+    }
+
+    .gauge-top-meta {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9.5px;
+      color: rgba(255, 255, 255, 0.65);
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 0 4px;
+    }
+
+    .gauge-meta-battery {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 9.5px;
+    }
+
+    /* Center Circle with Dotted Ticks & Horizontal Laser Flares */
+    .gauge-center-circle-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      margin: 2px 0 1px 0;
+    }
+
+    /* Glowing Red Horizontal Laser Beam */
+    .gauge-laser-beam {
+      position: absolute;
+      top: 50%;
+      left: 10px;
+      right: 10px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent 0%, rgba(230, 57, 70, 0.4) 20%, #FF5A5F 50%, rgba(230, 57, 70, 0.4) 80%, transparent 100%);
+      box-shadow: 0 0 10px #FF3B30, 0 0 20px rgba(255, 59, 48, 0.5);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .gauge-center-circle {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #191E2C 0%, #0D1017 100%);
+      box-shadow: 0 0 22px rgba(230, 57, 70, 0.6), inset 0 0 15px rgba(230, 57, 70, 0.25);
+      border: 2px solid rgba(230, 57, 70, 0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      z-index: 2;
+    }
+
+    /* SVG Tick Ring inside Center Circle */
+    .gauge-tick-ring {
+      position: absolute;
+      inset: 2px;
+      width: calc(100% - 4px);
+      height: calc(100% - 4px);
+      pointer-events: none;
+    }
+
+    .gauge-cn-lbl {
+      font-size: 7.5px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.5);
+      line-height: 1;
+      margin-bottom: 1px;
+    }
+
+    .gauge-fps-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 22px;
+      font-weight: 800;
+      color: #FFFFFF;
+      line-height: 1;
+      text-shadow: 0 0 12px rgba(255, 255, 255, 0.6);
+    }
+
+    .gauge-fps-lbl {
+      font-size: 7.5px;
+      font-weight: 800;
+      color: rgba(255, 255, 255, 0.7);
+      letter-spacing: 0.8px;
+      margin-top: 1px;
+    }
+
+    /* CPU & GPU Progress Meters */
+    .gauge-bars-row {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      margin-top: 4px;
+      padding: 0 4px;
+    }
+
+    .meter-unit {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .meter-lbl-val {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 9.5px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    .meter-lbl-val strong {
+      color: #FFFFFF;
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .meter-segmented-track {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+    }
+
+    .meter-fill-bar {
+      height: 100%;
+      border-radius: 2px;
+      background: linear-gradient(90deg, #FF7B00 0%, #E63946 100%);
+      box-shadow: 0 0 8px rgba(230, 57, 70, 0.6);
+    }
+
+    /* Segmented Mode Switcher: Balanced vs Performance */
+    .toolbox-mode-pills {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.45);
+      border-radius: 10px;
+      padding: 2.5px;
+      margin: 6px 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .mode-pill-btn {
+      background: transparent;
+      border: none;
+      padding: 5px 0;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.6);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 160ms ease;
+    }
+
+    .mode-pill-btn.active {
+      background: #D32F2F;
+      color: #FFFFFF;
+      box-shadow: 0 2px 14px var(--turbo-red-glow);
+    }
+
+    /* Middle 4 Feature Cards (Enhanced visuals, Network, Memory, Voice changer) */
+    .toolbox-middle-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 0 16px;
+    }
+
+    .middle-card-tile {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 7px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 160ms ease;
+    }
+
+    .middle-card-tile:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.22);
+      transform: translateY(-1px);
+    }
+
+    .card-tile-info {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .card-tile-name {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #FFFFFF;
+    }
+
+    .card-tile-desc {
+      font-size: 8px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 95px;
+    }
+
+    .card-tile-icon {
+      color: #FFFFFF;
+      opacity: 0.85;
+      flex-shrink: 0;
+    }
+
+    /* Bottom 4x2 Tools Grid (Screenshot, Record, Mistouch, AI Guide, etc.) */
+    .toolbox-bottom-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 5px;
+      padding: 8px 16px;
+    }
+
+    .bottom-grid-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.7);
+      cursor: pointer;
+      padding: 4px 2px;
+      border-radius: 8px;
+      transition: all 160ms ease;
+    }
+
+    .bottom-grid-btn:hover {
+      color: #FFFFFF;
+      background: rgba(255, 255, 255, 0.08);
+      transform: scale(1.05);
+    }
+
+    .bottom-grid-btn.active {
+      color: var(--turbo-blue-light);
+    }
+
+    .bottom-grid-btn.active-red {
+      color: var(--turbo-red);
+    }
+
+    .grid-btn-lbl {
+      font-size: 8px;
+      font-weight: 600;
+      text-align: center;
+      line-height: 1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 68px;
+    }
+
+    /* Guardian Live Tactical Banner (Embedded inside Toolbox) */
+    .toolbox-guardian-callout {
+      background: rgba(8, 11, 18, 0.65);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .guardian-callout-cue {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .guardian-cue-title {
+      font-size: 8.5px;
+      font-weight: 800;
+      color: var(--turbo-blue-light);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .guardian-cue-msg {
+      font-size: 9.5px;
+      color: #E2E8F0;
+      line-height: 1.35;
+    }
+
+    .btn-coach-chat-sm {
+      background: rgba(0, 122, 255, 0.2);
+      border: 1px solid var(--turbo-blue);
+      color: var(--turbo-blue-light);
+      border-radius: 7px;
+      padding: 4px 8px;
+      font-size: 8.5px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 160ms ease;
+    }
+
+    .btn-coach-chat-sm:hover {
+      background: var(--turbo-blue);
+      color: #FFFFFF;
+    }
+
+    /* --------------------------------------------------------------------------
+       TACTICAL HUD OVERLAYS (Minimap Radar & Objective Timers)
+       -------------------------------------------------------------------------- */
+    .radar-threat-lens {
+      pointer-events: auto;
+      position: absolute;
+      top: 10px;
+      left: 14px;
+      width: 155px;
+      height: 155px;
+      border-radius: 16px;
+      border: 2px solid rgba(0, 122, 255, 0.55);
+      box-shadow: 0 0 25px rgba(0, 122, 255, 0.3), inset 0 0 20px rgba(0, 122, 255, 0.12);
+      background: rgba(7, 9, 14, 0.35);
+      backdrop-filter: contrast(115%);
+    }
+
+    .radar-missing-badge-pill {
+      position: absolute;
+      bottom: 6px;
+      left: 6px;
+      right: 6px;
+      background: rgba(255, 69, 58, 0.3);
+      border: 1px solid var(--alert-crimson);
+      border-radius: 6px;
+      padding: 3px;
+      font-size: 8.5px;
+      font-weight: 800;
+      color: var(--alert-crimson);
+      text-align: center;
+      animation: alertPulse 1.4s infinite;
+    }
+
+    @keyframes alertPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.98); }
+    }
+
+    .objective-timers-dock {
+      pointer-events: auto;
+      position: absolute;
+      top: 10px;
+      right: 20px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .obj-countdown-pod {
+      background: rgba(14, 17, 24, 0.88);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 5px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .obj-countdown-pod.urgent {
+      border-color: var(--alert-crimson);
+      background: rgba(255, 69, 58, 0.2);
+      box-shadow: 0 0 16px var(--alert-crimson-glow);
+    }
+
+    .obj-gauge-ring {
+      width: 26px;
+      height: 26px;
+      transform: rotate(-90deg);
+    }
+
+    .obj-name-lbl {
+      font-size: 8px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    .obj-time-lbl {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #FFFFFF;
+    }
+
+    .obj-countdown-pod.urgent .obj-time-lbl {
+      color: var(--alert-crimson);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Global Viewport Switcher -->
+  <div class="top-demo-switcher">
+    <div class="demo-brand">
+      <i data-lucide="zap" style="width: 16px; height: 16px; color: var(--turbo-blue-light);"></i>
+      GAME TURBO <span>HyperOS 6.0</span>
+    </div>
+
+    <div class="demo-tabs">
+      <button class="demo-tab-btn active" id="btn-tab-lobby" onclick="switchMode('lobby')">
+        <i data-lucide="layout-grid" style="width: 13px; height: 13px;"></i>
+        Game Space Console
+      </button>
+      <button class="demo-tab-btn" id="btn-tab-ingame" onclick="switchMode('ingame')">
+        <i data-lucide="gamepad-2" style="width: 13px; height: 13px;"></i>
+        In-Game Overlay HUD
+      </button>
+    </div>
+
+    <div style="font-size: 11px; font-weight: 700; color: #30D158; display: flex; align-items: center; gap: 5px;">
+      <i data-lucide="gauge" style="width: 13px; height: 13px;"></i>
+      120 FPS READY
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       SMARTPHONE BEZEL CONTAINER
+       ========================================================================= -->
+  <div class="gaming-device-frame">
+
+    <!-- -----------------------------------------------------------------------
+         VIEW 1: AUTHENTIC XIAOMI GAME TURBO LOBBY (1:1 MATCH TO REFERENCE)
+         ----------------------------------------------------------------------- -->
+    <div class="game-turbo-lobby">
+      <!-- 1. Top Status Bar: Battery 71%, CPU 30%, Plus, Settings Gear -->
+      <div class="turbo-top-bar">
+        <div class="top-status-left">
+          <div class="battery-metric">
+            <div class="battery-icon-svg">
+              <div class="battery-fill"></div>
+            </div>
+            <span>71%</span>
+          </div>
+
+          <div class="cpu-metric">
+            <span class="cpu-chip-badge">CPU</span>
+            <span>30%</span>
+          </div>
+        </div>
+
+        <div class="top-status-right">
+          <button class="btn-top-icon" title="Add Game" onclick="alert('Add game to Game Turbo library')">
+            <i data-lucide="plus" style="width: 19px; height: 19px; stroke-width: 2.8;"></i>
+          </button>
+          <!-- Top Gear Icon Triggers TWO-PANE APP SETTINGS SCREEN -->
+          <button class="btn-top-icon" title="General Application Settings" onclick="toggleAppSettings(true)">
+            <i data-lucide="settings" style="width: 18px; height: 18px; stroke-width: 2.4;"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. Left Vertical Sidebar: Gamebox & Active Game Pill -->
+      <div class="turbo-left-sidebar">
+        <div class="sidebar-gamebox-node" onclick="alert('Opening Gamebox list')">
+          <div class="gamebox-icon-tile">
+            <i data-lucide="gamepad-2" style="width: 18px; height: 18px;"></i>
+          </div>
+          <span class="gamebox-text">Gamebox</span>
+        </div>
+
+        <div class="sidebar-game-pill">
+          <div class="game-avatar-container">
+            <span class="game-5v5-badge">5v5</span>
+          </div>
+          <span class="sidebar-game-title">Mobile Legends:...</span>
+        </div>
+      </div>
+
+      <!-- 3. Center Hero Stage: Large Cinematic Card + Blue Pagination -->
+      <div class="turbo-center-stage">
+        <div class="hero-cinematic-card">
+          <div class="inset-gameplay-preview">
+            <div class="triple-kill-badge">
+              <i data-lucide="swords" style="width: 10px; height: 10px;"></i>
+              TRIPLE KILL
+            </div>
+          </div>
+
+          <div class="hero-card-bottom-cluster">
+            <div class="hero-card-headline">5V5 ACTION GAMEPLAY</div>
+            <div class="hero-card-subpill">
+              <i data-lucide="sparkles" style="width: 10px; height: 10px;"></i>
+              SKILL LEADS TO VICTORY
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-pagination-row">
+          <div class="pagination-bar active"></div>
+          <div class="pagination-bar"></div>
+          <div class="pagination-bar"></div>
+          <div class="pagination-bar"></div>
+          <div class="pagination-bar"></div>
+        </div>
+      </div>
+
+      <!-- 4. Right Side Action: The Signature Game Turbo "Play" Wing -->
+      <div class="turbo-play-wing" onclick="switchMode('ingame')" title="Launch Game with Turbo Overlay">
+        <div class="play-wing-chevrons">
+          <i data-lucide="chevron-right" style="width: 18px; height: 18px;"></i>
+        </div>
+        <div class="play-title-row">
+          <i data-lucide="zap" style="width: 17px; height: 17px; fill: currentColor;"></i>
+          <span>Play</span>
+        </div>
+        <div class="play-subtext">
+          Game Turbo can turn on automatically
+        </div>
+      </div>
+
+      <!-- 5. Bottom Tray: "GPU settings" Beveled Tab -->
+      <div class="gpu-settings-tab" onclick="toggleGpuSettings(true)" title="Open GPU settings for selected game">
+        <div class="gpu-tab-accent-bar"></div>
+        <span class="gpu-tab-label">GPU settings</span>
+      </div>
+
+      <!-- ---------------------------------------------------------------------
+           PANE A: GLOBAL APP SETTINGS SCREEN (EXACT MATCH TO ref_settings_2)
+           Left Categories: General settings | Performance mode | Game DND | Guardian AI
+           --------------------------------------------------------------------- -->
+      <div class="two-pane-settings-screen" id="app-settings-screen">
+        <div class="screen-header-bar">
+          <div class="header-back-title" onclick="toggleAppSettings(false)">
+            <i data-lucide="chevron-left" style="width: 20px; height: 20px;"></i>
+            <span>General settings</span>
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted);">Game Turbo System</div>
+        </div>
+
+        <div class="two-pane-body">
+          <!-- Left Categories Sidebar -->
+          <div class="pane-categories-sidebar">
+            <div class="pane-cat-item active" onclick="switchAppCat(this, 'app-general')">
+              <span>General settings</span>
+            </div>
+            <div class="pane-cat-item" onclick="switchAppCat(this, 'app-perf')">
+              <span>Performance mode</span>
+            </div>
+            <div class="pane-cat-item" onclick="switchAppCat(this, 'app-dnd')">
+              <span>Game DND</span>
+            </div>
+            <div class="pane-cat-item" onclick="switchAppCat(this, 'app-ai')">
+              <span>Guardian AI Core</span>
+            </div>
+          </div>
+
+          <!-- Right Content Pane -->
+          <div class="pane-content-area">
+            <!-- Category 1: General Settings (From ref_settings_2) -->
+            <div class="cat-content-group" id="app-general">
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Game Turbo</span>
+                  <span class="oem-setting-desc">Improve your gaming experience with hardware acceleration</span>
+                </div>
+                <div class="miui-switch active" onclick="this.classList.toggle('active')"></div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">In-game shortcuts</span>
+                  <span class="oem-setting-desc">Swipe from the top side edge of the screen to view toolbox</span>
+                </div>
+                <div class="miui-switch active" onclick="this.classList.toggle('active')"></div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Shortcut Edge Position</span>
+                  <span class="oem-setting-desc">Choose edge handle anchor on the display</span>
+                </div>
+                <div class="oem-segmented-chips">
+                  <button class="oem-chip-btn active" onclick="selectChip(this)">Top-Left</button>
+                  <button class="oem-chip-btn" onclick="selectChip(this)">Left Edge</button>
+                  <button class="oem-chip-btn" onclick="selectChip(this)">Top-Right</button>
+                </div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Content recommendations</span>
+                  <span class="oem-setting-desc">Receive gaming-related content recommendations</span>
+                </div>
+                <div class="miui-switch active" onclick="this.classList.toggle('active')"></div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Remove added games from Home screen</span>
+                  <span class="oem-setting-desc">Don't show the games that were added to the gamebox on the Home screen</span>
+                </div>
+                <div class="miui-switch" onclick="this.classList.toggle('active')"></div>
+              </div>
+            </div>
+
+            <!-- Category 2: Performance Mode -->
+            <div class="cat-content-group" id="app-perf" style="display: none;">
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Performance optimization</span>
+                  <span class="oem-setting-desc">Prioritize CPU and GPU allocation to maintain stable frame rates</span>
+                </div>
+                <div class="miui-switch active" onclick="this.classList.toggle('active')"></div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Wi-Fi speed boost</span>
+                  <span class="oem-setting-desc">Reduce network delay by switching to fastest available channel</span>
+                </div>
+                <div class="miui-switch active" onclick="this.classList.toggle('active')"></div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Aggressive Memory Cleanup</span>
+                  <span class="oem-setting-desc">Purge non-essential background services before game launch</span>
+                </div>
+                <div class="miui-switch active" onclick="this.classList.toggle('active')"></div>
+              </div>
+            </div>
+
+            <!-- Category 3: Game DND -->
+            <div class="cat-content-group" id="app-dnd" style="display: none;">
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Restrict floating notifications</span>
+                  <span class="oem-setting-desc">Don't display floating notifications during match</span>
+                </div>
+                <div class="miui-switch active" onclick="this.classList.toggle('active')"></div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Restrict buttons and gestures</span>
+                  <span class="oem-setting-desc">Prevent accidental touches of the notification bar and navigation gestures</span>
+                </div>
+                <div class="miui-switch active" onclick="this.classList.toggle('active')"></div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Answer calls hands-free</span>
+                  <span class="oem-setting-desc">Open speakerphone automatically when answering calls</span>
+                </div>
+                <div class="miui-switch active" onclick="this.classList.toggle('active')"></div>
+              </div>
+            </div>
+
+            <!-- Category 4: Guardian AI Core -->
+            <div class="cat-content-group" id="app-ai" style="display: none;">
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Guardian Tactical Engine</span>
+                  <span class="oem-setting-desc">Real-time MOBA visual parsing & enemy roam predictions</span>
+                </div>
+                <div class="miui-switch active" onclick="this.classList.toggle('active')"></div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">AI Vision Inference Backend</span>
+                  <span class="oem-setting-desc">Select on-device NPU for ultra-low latency (42ms)</span>
+                </div>
+                <div class="oem-segmented-chips">
+                  <button class="oem-chip-btn active" onclick="selectChip(this)">Local NPU</button>
+                  <button class="oem-chip-btn" onclick="selectChip(this)">Gemini 2.5</button>
+                  <button class="oem-chip-btn" onclick="selectChip(this)">Claude 3.5</button>
+                </div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Audio Tactical Callouts</span>
+                  <span class="oem-setting-desc">Voice announcements for missing enemy mid/jungler and dragon spawns</span>
+                </div>
+                <div class="miui-switch active" onclick="this.classList.toggle('active')"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------------------------------------------------------------------
+           PANE B: SELECTED GAME GPU SETTINGS SCREEN (SAME TWO-PANE CATEGORIZED)
+           Left Categories: GPU Quality | Display & Colors | Touch Controls | Game AI
+           --------------------------------------------------------------------- -->
+      <div class="two-pane-settings-screen" id="gpu-settings-screen">
+        <div class="screen-header-bar">
+          <div class="header-back-title" onclick="toggleGpuSettings(false)">
+            <i data-lucide="chevron-left" style="width: 20px; height: 20px;"></i>
+            <span>GPU settings — Mobile Legends: Bang Bang</span>
+          </div>
+          <button class="oem-chip-btn" style="background: rgba(255,255,255,0.06);" onclick="alert('Reset GPU profile to default')">Reset Default</button>
+        </div>
+
+        <div class="two-pane-body">
+          <!-- Left Categories Sidebar -->
+          <div class="pane-categories-sidebar">
+            <div class="pane-cat-item active" onclick="switchGpuCat(this, 'gpu-graphics')">
+              <span>Graphic Quality</span>
+            </div>
+            <div class="pane-cat-item" onclick="switchGpuCat(this, 'gpu-display')">
+              <span>Display & Colors</span>
+            </div>
+            <div class="pane-cat-item" onclick="switchGpuCat(this, 'gpu-touch')">
+              <span>Touch Controls</span>
+            </div>
+            <div class="pane-cat-item" onclick="switchGpuCat(this, 'gpu-ai')">
+              <span>Tactical AI Modules</span>
+            </div>
+          </div>
+
+          <!-- Right Content Pane -->
+          <div class="pane-content-area">
+            <!-- Category 1: Graphic Quality -->
+            <div class="cat-content-group" id="gpu-graphics">
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Frame Rate Target</span>
+                  <span class="oem-setting-desc">Set maximum render refresh rate for Mobile Legends</span>
+                </div>
+                <div class="oem-segmented-chips">
+                  <button class="oem-chip-btn" onclick="selectChip(this)">60 FPS</button>
+                  <button class="oem-chip-btn" onclick="selectChip(this)">90 FPS</button>
+                  <button class="oem-chip-btn active" onclick="selectChip(this)">120 FPS</button>
+                  <button class="oem-chip-btn" onclick="selectChip(this)">Max</button>
+                </div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Render Resolution</span>
+                  <span class="oem-setting-desc">Adjust internal texture rendering buffer scale</span>
+                </div>
+                <div class="oem-segmented-chips">
+                  <button class="oem-chip-btn" onclick="selectChip(this)">720p</button>
+                  <button class="oem-chip-btn active" onclick="selectChip(this)">1080p</button>
+                  <button class="oem-chip-btn" onclick="selectChip(this)">Native 2K</button>
+                </div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Anti-Aliasing (MSAA)</span>
+                  <span class="oem-setting-desc">Smooth jagged edges on 3D champion models and minions</span>
+                </div>
+                <div class="oem-segmented-chips">
+                  <button class="oem-chip-btn" onclick="selectChip(this)">Off</button>
+                  <button class="oem-chip-btn" onclick="selectChip(this)">2X</button>
+                  <button class="oem-chip-btn active" onclick="selectChip(this)">4X</button>
+                </div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Anisotropic Texture Filtering</span>
+                  <span class="oem-setting-desc">Improve texture sharpness at oblique angles in river & lanes</span>
+                </div>
+                <div class="oem-segmented-chips">
+                  <button class="oem-chip-btn" onclick="selectChip(this)">Off</button>
+                  <button class="oem-chip-btn" onclick="selectChip(this)">4X</button>
+                  <button class="oem-chip-btn active" onclick="selectChip(this)">8X</button>
+                  <button class="oem-chip-btn" onclick="selectChip(this)">16X</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Category 2: Display & Colors -->
+            <div class="cat-content-group" id="gpu-display" style="display: none;">
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Enhanced Visuals</span>
+                  <span class="oem-setting-desc">Boost saturation and dynamic contrast for enemy visibility in brush</span>
+                </div>
+                <div class="miui-switch active" onclick="this.classList.toggle('active')"></div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Color Profile Filter</span>
+                  <span class="oem-setting-desc">Select color tuning calibrated for competitive MOBA titles</span>
+                </div>
+                <div class="oem-segmented-chips">
+                  <button class="oem-chip-btn" onclick="selectChip(this)">Original</button>
+                  <button class="oem-chip-btn active" onclick="selectChip(this)">Vibrant</button>
+                  <button class="oem-chip-btn" onclick="selectChip(this)">Bright</button>
+                  <button class="oem-chip-btn" onclick="selectChip(this)">Bush Contrast</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Category 3: Touch Controls -->
+            <div class="cat-content-group" id="gpu-touch" style="display: none;">
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Touch Response Sampling</span>
+                  <span class="oem-setting-desc">Ultra-fast touch polling rate for instant skill activation</span>
+                </div>
+                <div class="oem-segmented-chips">
+                  <button class="oem-chip-btn" onclick="selectChip(this)">240Hz</button>
+                  <button class="oem-chip-btn" onclick="selectChip(this)">480Hz</button>
+                  <button class="oem-chip-btn active" onclick="selectChip(this)">720Hz Ultra</button>
+                </div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Aiming & Skill Shot Precision</span>
+                  <span class="oem-setting-desc">Fine-tune micro-drag sensitivity for skill reticles</span>
+                </div>
+                <div class="oem-segmented-chips">
+                  <button class="oem-chip-btn" onclick="selectChip(this)">Default</button>
+                  <button class="oem-chip-btn" onclick="selectChip(this)">Balanced</button>
+                  <button class="oem-chip-btn active" onclick="selectChip(this)">Extreme</button>
+                </div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Edge Mistouch Rejection Area</span>
+                  <span class="oem-setting-desc">Ignore palm touches along phone bezels during intense fights</span>
+                </div>
+                <div class="oem-segmented-chips">
+                  <button class="oem-chip-btn" onclick="selectChip(this)">Small</button>
+                  <button class="oem-chip-btn active" onclick="selectChip(this)">Medium</button>
+                  <button class="oem-chip-btn" onclick="selectChip(this)">Large</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Category 4: Tactical AI Modules -->
+            <div class="cat-content-group" id="gpu-ai" style="display: none;">
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Minimap Threat Radar</span>
+                  <span class="oem-setting-desc">Auto-highlight enemy jungler/mid pathing and missing timers</span>
+                </div>
+                <div class="miui-switch active" onclick="this.classList.toggle('active')"></div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Turtle & Lord Spawn Rings</span>
+                  <span class="oem-setting-desc">Circular countdown rings for objective respawn windows</span>
+                </div>
+                <div class="miui-switch active" onclick="this.classList.toggle('active')"></div>
+              </div>
+
+              <div class="oem-setting-row">
+                <div class="oem-setting-info">
+                  <span class="oem-setting-title">Retribution / Smite Execution Line</span>
+                  <span class="oem-setting-desc">Show exact true-damage health bar threshold on objectives</span>
+                </div>
+                <div class="miui-switch active" onclick="this.classList.toggle('active')"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- -----------------------------------------------------------------------
+         VIEW 2: IN-GAME MATCH VIEW (MATCHES ref_settings_1 XIAOMI GAME TURBO 2026)
+         ----------------------------------------------------------------------- -->
+    <div class="ingame-match-view">
+      <div class="overlay-hud-layer">
+        <!-- 1. SLIM NON-INTRUSIVE EDGE HANDLE AT TOP-LEFT -->
+        <div class="turbo-edge-handle" id="turbo-handle" onclick="toggleInGameToolbox(true)" title="Tap to expand Xiaomi Game Turbo 2026 Toolbox">
+          <span class="handle-status-dot"></span>
+          <i data-lucide="zap" style="width: 11px; height: 11px; color: var(--turbo-blue-light);"></i>
+          <span>TURBO 120 FPS</span>
+        </div>
+
+        <!-- 2. EXPANDABLE XIAOMI GAME TURBO 2026 TOOLBOX (1:1 from ref_settings_1, NO GAMES TAB) -->
+        <div class="gameturbo-2026-toolbox" id="turbo-toolbox">
+          <!-- Sleek Top Header: Gaming tools with app badge and close button -->
+          <div class="toolbox-header-bar">
+            <div class="toolbox-header-title">
+              <span style="color: var(--turbo-red); font-size: 14px;">⚡</span>
+              <span>Gaming tools</span>
+            </div>
+            <div class="toolbox-header-meta">
+              <span class="toolbox-app-badge">MLBB 120 FPS</span>
+              <button class="btn-toolbox-close" onclick="toggleInGameToolbox(false)" title="Close Toolbox">
+                <i data-lucide="x" style="width: 13px; height: 13px;"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Central Circular Reactor FPS Gauge (1:1 from ref_settings_1) -->
+          <div class="toolbox-reactor-gauge">
+            <div class="gauge-top-meta">
+              <span>15:31</span>
+              <div class="gauge-meta-battery">
+                <i data-lucide="battery-charging" style="width: 12px; height: 12px; color: #30D158;"></i>
+                <span>88%</span>
+              </div>
+            </div>
+
+            <!-- Circular Gauge with Dotted Ticks & Horizontal Laser Flares -->
+            <div class="gauge-center-circle-wrap">
+              <div class="gauge-laser-beam"></div>
+              <div class="gauge-center-circle">
+                <svg class="gauge-tick-ring" viewBox="0 0 80 80">
+                  <circle cx="40" cy="40" r="35" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.4" stroke-dasharray="2 3" />
+                </svg>
+                <span class="gauge-cn-lbl">帧率</span>
+                <span class="gauge-fps-num">120</span>
+                <span class="gauge-fps-lbl">FPS</span>
+              </div>
+            </div>
+
+            <!-- CPU & GPU Progress Meters -->
+            <div class="gauge-bars-row">
+              <div class="meter-unit">
+                <div class="meter-lbl-val">
+                  <span>CPU</span>
+                  <strong>30%</strong>
+                </div>
+                <div class="meter-segmented-track">
+                  <div class="meter-fill-bar" style="width: 30%;"></div>
+                </div>
+              </div>
+
+              <div class="meter-unit">
+                <div class="meter-lbl-val">
+                  <span>GPU</span>
+                  <strong>56%</strong>
+                </div>
+                <div class="meter-segmented-track">
+                  <div class="meter-fill-bar" style="width: 56%;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mode Switcher: Balanced vs Performance -->
+          <div class="toolbox-mode-pills">
+            <button class="mode-pill-btn" onclick="setModePill(this)">Balanced</button>
+            <button class="mode-pill-btn active" onclick="setModePill(this)">Performance</button>
+          </div>
+
+          <!-- Middle 4 Cards (From ref_settings_1) -->
+          <div class="toolbox-middle-cards">
+            <div class="middle-card-tile">
+              <div class="card-tile-info">
+                <span class="card-tile-name">Enhanced visuals</span>
+                <span class="card-tile-desc">Enhanced visuals</span>
+              </div>
+              <i data-lucide="cpu" class="card-tile-icon" style="width: 17px; height: 17px;"></i>
+            </div>
+
+            <div class="middle-card-tile">
+              <div class="card-tile-info">
+                <span class="card-tile-name">Network</span>
+                <span class="card-tile-desc">Reduce network lag</span>
+              </div>
+              <i data-lucide="globe" class="card-tile-icon" style="width: 17px; height: 17px;"></i>
+            </div>
+
+            <div class="middle-card-tile" onclick="purgeMemory(this)">
+              <div class="card-tile-info">
+                <span class="card-tile-name" id="mem-purge-title">Memory</span>
+                <span class="card-tile-desc" id="mem-purge-sub">Free up system RAM</span>
+              </div>
+              <i data-lucide="rocket" class="card-tile-icon" style="width: 17px; height: 17px; color: var(--turbo-red);"></i>
+            </div>
+
+            <div class="middle-card-tile" onclick="alert('Voice changer: Robot preset active')">
+              <div class="card-tile-info">
+                <span class="card-tile-name">Voice changer</span>
+                <span class="card-tile-desc">Spice up your voice</span>
+              </div>
+              <i data-lucide="mic" class="card-tile-icon" style="width: 17px; height: 17px;"></i>
+            </div>
+          </div>
+
+          <!-- Bottom 4x2 Tools Grid (From ref_settings_1) -->
+          <div class="toolbox-bottom-grid">
+            <button class="bottom-grid-btn" onclick="alert('Screenshot captured!')">
+              <i data-lucide="scissors" style="width: 17px; height: 17px;"></i>
+              <span class="grid-btn-lbl">Screenshot</span>
+            </button>
+            <button class="bottom-grid-btn" onclick="alert('Recording started!')">
+              <i data-lucide="video" style="width: 17px; height: 17px;"></i>
+              <span class="grid-btn-lbl">Record</span>
+            </button>
+            <button class="bottom-grid-btn active" onclick="this.classList.toggle('active')">
+              <i data-lucide="hand" style="width: 17px; height: 17px;"></i>
+              <span class="grid-btn-lbl">Mistouch</span>
+            </button>
+            <button class="bottom-grid-btn active-red" onclick="alert('Guardian AI Guide: Tracking 5 enemies')">
+              <i data-lucide="compass" style="width: 17px; height: 17px;"></i>
+              <span class="grid-btn-lbl">AI Guide</span>
+            </button>
+
+            <button class="bottom-grid-btn active" onclick="this.classList.toggle('active')">
+              <i data-lucide="bell-off" style="width: 17px; height: 17px;"></i>
+              <span class="grid-btn-lbl">DND</span>
+            </button>
+            <button class="bottom-grid-btn" onclick="alert('Floating window manager')">
+              <i data-lucide="message-square" style="width: 17px; height: 17px;"></i>
+              <span class="grid-btn-lbl">Comments</span>
+            </button>
+            <button class="bottom-grid-btn active" onclick="this.classList.toggle('active')">
+              <i data-lucide="wifi" style="width: 17px; height: 17px;"></i>
+              <span class="grid-btn-lbl">Wi-Fi</span>
+            </button>
+            <button class="bottom-grid-btn" onclick="toggleGpuSettings(true); toggleInGameToolbox(false);">
+              <i data-lucide="layout-grid" style="width: 17px; height: 17px;"></i>
+              <span class="grid-btn-lbl">More tools</span>
+            </button>
+          </div>
+
+          <!-- Integrated Guardian AI Live Tactical Callout -->
+          <div class="toolbox-guardian-callout">
+            <div class="guardian-callout-cue">
+              <span class="guardian-cue-title">
+                <i data-lucide="bot" style="width: 11px; height: 11px;"></i>
+                GUARDIAN AI COACH (12s ago)
+              </span>
+              <span class="guardian-cue-msg">
+                "Vi burned ult in top river skirmish. Bot dive is safe for next 60s."
+              </span>
+            </div>
+            <button class="btn-coach-chat-sm" onclick="alert('Opening AI Coach live tactical chat...')">
+              COACH CHAT
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. TACTICAL BATTLEFIELD OVERLAYS -->
+        <!-- Minimap Threat Radar (Top-Left) -->
+        <div class="radar-threat-lens">
+          <svg style="width: 100%; height: 100%;" viewBox="0 0 155 155">
+            <defs>
+              <linearGradient id="riverGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#007AFF" stop-opacity="0.3"></stop>
+                <stop offset="100%" stop-color="#FF9F0A" stop-opacity="0.4"></stop>
+              </linearGradient>
+            </defs>
+            <line x1="20" y1="135" x2="135" y2="20" stroke="url(#riverGrad)" stroke-width="2.5" stroke-dasharray="4 3"></line>
+            <circle cx="82" cy="74" r="16" fill="rgba(255, 69, 58, 0.25)" stroke="#FF453A" stroke-width="1.5" stroke-dasharray="3 2"></circle>
+            <circle cx="82" cy="74" r="5" fill="#FF453A"></circle>
+          </svg>
+          <div class="radar-missing-badge-pill">ENEMY MID MISSING: 18s</div>
+        </div>
+
+        <!-- Objective Countdown Rings (Top-Right) -->
+        <div class="objective-timers-dock">
+          <div class="obj-countdown-pod urgent">
+            <svg class="obj-gauge-ring" viewBox="0 0 26 26">
+              <circle cx="13" cy="13" r="10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="2.8"></circle>
+              <circle cx="13" cy="13" r="10" fill="none" stroke="#FF453A" stroke-width="2.8" stroke-dasharray="63" stroke-dashoffset="14" stroke-linecap="round"></circle>
+            </svg>
+            <div>
+              <div class="obj-name-lbl">TURTLE / DRAGON</div>
+              <div class="obj-time-lbl">00:38</div>
+            </div>
+          </div>
+
+          <div class="obj-countdown-pod">
+            <svg class="obj-gauge-ring" viewBox="0 0 26 26">
+              <circle cx="13" cy="13" r="10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="2.8"></circle>
+              <circle cx="13" cy="13" r="10" fill="none" stroke="#007AFF" stroke-width="2.8" stroke-dasharray="63" stroke-dashoffset="44" stroke-linecap="round"></circle>
+            </svg>
+            <div>
+              <div class="obj-name-lbl">LORD / BARON</div>
+              <div class="obj-time-lbl">04:12</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    function switchMode(mode) {
+      document.documentElement.setAttribute('data-view', mode);
+      document.getElementById('btn-tab-lobby').classList.toggle('active', mode === 'lobby');
+      document.getElementById('btn-tab-ingame').classList.toggle('active', mode === 'ingame');
+      lucide.createIcons();
+    }
+
+    function toggleInGameToolbox(open) {
+      const toolbox = document.getElementById('turbo-toolbox');
+      if (toolbox) toolbox.classList.toggle('open', open);
+    }
+
+    function toggleAppSettings(open) {
+      const screen = document.getElementById('app-settings-screen');
+      if (screen) screen.classList.toggle('open', open);
+      lucide.createIcons();
+    }
+
+    function toggleGpuSettings(open) {
+      const screen = document.getElementById('gpu-settings-screen');
+      if (screen) screen.classList.toggle('open', open);
+      lucide.createIcons();
+    }
+
+    // Two-pane category switchers for App Settings
+    function switchAppCat(item, catId) {
+      item.closest('.pane-categories-sidebar').querySelectorAll('.pane-cat-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      document.querySelectorAll('#app-settings-screen .cat-content-group').forEach(c => c.style.display = 'none');
+      const target = document.getElementById(catId);
+      if (target) target.style.display = 'block';
+    }
+
+    // Two-pane category switchers for GPU Settings
+    function switchGpuCat(item, catId) {
+      item.closest('.pane-categories-sidebar').querySelectorAll('.pane-cat-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      document.querySelectorAll('#gpu-settings-screen .cat-content-group').forEach(c => c.style.display = 'none');
+      const target = document.getElementById(catId);
+      if (target) target.style.display = 'block';
+    }
+
+    function selectChip(btn) {
+      const parent = btn.closest('.oem-segmented-chips');
+      if (parent) {
+        parent.querySelectorAll('.oem-chip-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+    }
+
+    function setModePill(btn) {
+      const parent = btn.closest('.toolbox-mode-pills');
+      if (parent) {
+        parent.querySelectorAll('.mode-pill-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+    }
+
+    function purgeMemory(tile) {
+      const title = document.getElementById('mem-purge-title');
+      const sub = document.getElementById('mem-purge-sub');
+      title.innerText = 'Cleaned!';
+      sub.innerText = 'Freed 480 MB RAM';
+      setTimeout(() => {
+        title.innerText = 'Memory';
+        sub.innerText = 'Free up system RAM';
+      }, 2200);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+name: owl
+packages:
+  - packages/*
+  - .
+
+scripts:
+  format:check:
+    run: dart format --set-exit-if-changed .
+    description: Check Dart formatting across all packages.
+
+  format:fix:
+    run: dart format .
+    description: Auto-fix Dart formatting across all packages.
+
+  analyze:
+    run: dart analyze --fatal-infos
+    description: Run static analysis across all packages.
+
+  test:
+    run: melos exec --concurrency=1 -- flutter test
+    description: Run unit tests across all packages.
+    packageFilters:
+      dirExists: test
