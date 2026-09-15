@@ -105,14 +105,15 @@ class _GameturboFloatingToolboxState extends State<GameturboFloatingToolbox> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
+          const Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
+              Text(
                 '⚡',
                 style: TextStyle(fontSize: 13, color: ColorSemantics.turboCrimson),
               ),
-              const SizedBox(width: 6),
-              const Text(
+              SizedBox(width: 6),
+              Text(
                 'Gaming tools',
                 style: TextStyle(
                   fontSize: 12.5,
@@ -123,45 +124,52 @@ class _GameturboFloatingToolboxState extends State<GameturboFloatingToolbox> {
               ),
             ],
           ),
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0x10FFFFFF),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: const Color(0x14FFFFFF)),
-                ),
-                child: Text(
-                  '${widget.gameTitle.split(':').first.trim()} ${widget.targetFps} FPS',
-                  style: const TextStyle(
-                    fontSize: 8.5,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0x99FFFFFF),
-                    letterSpacing: 0.2,
+          Flexible(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0x10FFFFFF),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0x14FFFFFF)),
+                    ),
+                    child: Text(
+                      '${widget.gameTitle.split(':').first.trim()} ${widget.targetFps} FPS',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0x99FFFFFF),
+                        letterSpacing: 0.2,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  widget.onClose();
-                },
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0x14FFFFFF),
-                    border: Border.all(color: const Color(0x1AFFFFFF)),
-                  ),
-                  child: const Center(
-                    child: Icon(Icons.close, size: 12, color: Color(0x99FFFFFF)),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    widget.onClose();
+                  },
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0x14FFFFFF),
+                      border: Border.all(color: const Color(0x1AFFFFFF)),
+                    ),
+                    child: const Center(
+                      child: Icon(Icons.close, size: 12, color: Color(0x99FFFFFF)),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

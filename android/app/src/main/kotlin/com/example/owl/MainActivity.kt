@@ -1,17 +1,20 @@
 package com.example.owl
 
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.os.BatteryManager
 import android.os.Build
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
@@ -60,6 +63,44 @@ class MainActivity : FlutterActivity() {
                         }
                     } catch (e: Exception) {
                         result.error("LAUNCH_FAILED", e.message, null)
+                    }
+                }
+                "getBatteryLevel" -> {
+                    try {
+                        val level = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            val bm = getSystemService(BATTERY_SERVICE) as BatteryManager
+                            bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+                        } else {
+                            val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                            val lvl = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+                            val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+                            if (lvl >= 0 && scale > 0) (lvl * 100 / scale) else -1
+                        }
+                        result.success(level)
+                    } catch (e: Exception) {
+                        result.success(-1)
+                    }
+                }
+                "getCpuUsage" -> {
+                    executor.execute {
+                        try {
+                            fun readCpuStats(): Pair<Long, Long> {
+                                val line = File("/proc/stat").readLines().firstOrNull() ?: return Pair(0L, 0L)
+                                val parts = line.trim().split("\\s+".toRegex()).drop(1).map { it.toLongOrNull() ?: 0L }
+                                val idle = if (parts.size > 3) parts[3] else 0L
+                                val total = parts.sum()
+                                return Pair(idle, total)
+                            }
+                            val (idle1, total1) = readCpuStats()
+                            Thread.sleep(250)
+                            val (idle2, total2) = readCpuStats()
+                            val diffTotal = total2 - total1
+                            val diffIdle = idle2 - idle1
+                            val usage = if (diffTotal > 0) ((diffTotal - diffIdle) * 100 / diffTotal).toInt() else 0
+                            runOnUiThread { result.success(usage) }
+                        } catch (e: Exception) {
+                            runOnUiThread { result.success(0) }
+                        }
                     }
                 }
                 else -> result.notImplemented()

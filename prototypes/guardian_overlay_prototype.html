@@ -354,10 +354,10 @@
       text-overflow: ellipsis;
     }
 
-    /* 3. CENTER HERO SHOWCASE CARD (1:1 from dj's reference) */
+    /* 3. CENTER HERO SHOWCASE CARD (Side-by-side with Play Wing) */
     .turbo-center-stage {
       position: absolute;
-      left: 50%;
+      left: calc(230px + (100% - 230px - 185px) / 2);
       top: 48%;
       transform: translate(-50%, -50%);
       display: flex;
@@ -365,10 +365,11 @@
       align-items: center;
       gap: 14px;
       z-index: 20;
+      max-width: calc(100% - 435px);
     }
 
     .hero-cinematic-card {
-      width: 500px;
+      width: min(500px, 100%);
       height: 295px;
       border-radius: 20px;
       position: relative;

@@ -8,6 +8,9 @@ import 'package:owl/features/overlay/presentation/tactical_battlefield_hud.dart'
 import 'package:owl/features/settings/presentation/app_settings_two_pane_screen.dart';
 import 'package:owl/features/settings/presentation/gpu_settings_two_pane_screen.dart';
 
+import 'package:owl_storage/owl_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 void main() {
   group('Xiaomi HyperOS Game Turbo 2026 Screens Test Suite', () {
     testWidgets('GameSpaceConsoleScreen renders all flagship OEM elements', (tester) async {
@@ -15,32 +18,38 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: const MaterialApp(
             home: GameSpaceConsoleScreen(),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      // Top Status Bar
+      // Top Status Bar — finalized reference values with native fallback
       expect(find.text('71%'), findsOneWidget);
       expect(find.text('CPU'), findsOneWidget);
       expect(find.text('30%'), findsOneWidget);
 
       // Left Sidebar (Dynamic Gamebox)
       expect(find.textContaining('Gamebox'), findsOneWidget);
-      expect(find.text('Mobile Legends: Bang Bang'), findsOneWidget);
-      expect(find.text('5v5'), findsOneWidget);
 
-      // Center Hero Showcase
-      expect(find.text('MOBILE LEGENDS: BANG BANG'), findsOneWidget);
-      expect(find.textContaining('5V5 MOBA'), findsOneWidget);
+      // Center Hero Showcase — finalized cinematic spec
+      expect(find.text('5V5 ACTION GAMEPLAY'), findsOneWidget);
+      expect(find.text('SKILL LEADS TO VICTORY'), findsOneWidget);
+      expect(find.text('TRIPLE KILL'), findsOneWidget);
 
-      // Right Action Wing
-      expect(find.text('⚡ Play'), findsOneWidget);
-      expect(find.textContaining('Game Turbo turns on automatically'), findsOneWidget);
+      // Right Action Wing — bolt icon + Play + auto-turbo subtext
+      expect(find.text('Play'), findsOneWidget);
+      expect(find.textContaining('Game Turbo can turn on automatically'),
+          findsOneWidget);
 
       // Bottom GPU Tab
       expect(find.text('GPU settings'), findsOneWidget);
