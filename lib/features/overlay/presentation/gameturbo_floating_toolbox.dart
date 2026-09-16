@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:owl/features/overlay/data/system_stats_service.dart';
 import 'package:owl/features/settings/domain/models/game_turbo_settings.dart';
 import 'package:owl/features/settings/presentation/settings_provider.dart';
 import 'package:owl_design/owl_design.dart';
@@ -144,11 +145,25 @@ class _GameturboFloatingToolboxState
     final isPerf = settings.performanceOptimization;
     final accentColor =
         isPerf ? ColorSemantics.turboCrimson : ColorSemantics.turboBlueLight;
-    final fpsText = isPerf ? '${widget.targetFps}' : '60';
-    final cpuText = isPerf ? '30%' : '18%';
-    final cpuProgress = isPerf ? 0.30 : 0.18;
-    final gpuText = isPerf ? '56%' : '32%';
-    final gpuProgress = isPerf ? 0.56 : 0.32;
+
+    final statsAsync = ref.watch(systemStatsProvider);
+    final stats = statsAsync.valueOrNull;
+
+    // Real-time values
+    final battery = stats?.battery ?? 78;
+    final cpu = stats?.cpu ?? (isPerf ? 32 : 18);
+    final gpu = stats?.gpu ?? (isPerf ? 58 : 34);
+    final liveFps = stats?.fps ?? (isPerf ? widget.targetFps : 60);
+    final fpsText = '$liveFps';
+    final cpuText = '$cpu%';
+    final cpuProgress = (cpu / 100.0).clamp(0.05, 1.0);
+    final gpuText = '$gpu%';
+    final gpuProgress = (gpu / 100.0).clamp(0.05, 1.0);
+
+    // Live clock formatted HH:mm
+    final now = stats?.timestamp ?? DateTime.now();
+    final timeStr =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
@@ -168,27 +183,36 @@ class _GameturboFloatingToolboxState
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                '15:31',
+              Text(
+                timeStr,
                 style: TextStyle(
                   fontSize: 9,
                   fontWeight: FontWeight.w600,
                   color: Color(0xA6FFFFFF),
-                  fontFamily: 'JetBrains Mono',
+                  fontFamily: TypographyTokens.monoFontFamily,
                 ),
               ),
               Row(
                 children: [
-                  Icon(LucideIcons.batteryCharging,
-                      size: 11, color: const Color(0xFF30D158)),
+                  Icon(
+                    stats?.isCharging == true
+                        ? LucideIcons.batteryCharging
+                        : LucideIcons.battery,
+                    size: 11,
+                    color: battery <= 20
+                        ? const Color(0xFFE63946)
+                        : battery <= 40
+                            ? const Color(0xFFEAB308)
+                            : const Color(0xFF30D158),
+                  ),
                   const SizedBox(width: 3),
-                  const Text(
-                    '88%',
+                  Text(
+                    '$battery%',
                     style: TextStyle(
                       fontSize: 9,
                       fontWeight: FontWeight.w600,
                       color: Color(0xA6FFFFFF),
-                      fontFamily: 'JetBrains Mono',
+                      fontFamily: TypographyTokens.monoFontFamily,
                     ),
                   ),
                 ],
@@ -259,11 +283,11 @@ class _GameturboFloatingToolboxState
                         children: [
                           Text(
                             fpsText,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 19,
                               fontWeight: FontWeight.w900,
                               color: Colors.white,
-                              fontFamily: 'JetBrains Mono',
+                              fontFamily: TypographyTokens.monoFontFamily,
                               letterSpacing: -0.5,
                               height: 1.0,
                             ),
@@ -275,7 +299,7 @@ class _GameturboFloatingToolboxState
                               fontSize: 8,
                               fontWeight: FontWeight.w800,
                               color: accentColor,
-                              fontFamily: 'JetBrains Mono',
+                              fontFamily: TypographyTokens.monoFontFamily,
                               letterSpacing: 0.8,
                             ),
                           ),
@@ -310,11 +334,11 @@ class _GameturboFloatingToolboxState
                         ),
                         Text(
                           cpuText,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w800,
                             color: Colors.white,
-                            fontFamily: 'JetBrains Mono',
+                            fontFamily: TypographyTokens.monoFontFamily,
                           ),
                         ),
                       ],
@@ -364,11 +388,11 @@ class _GameturboFloatingToolboxState
                         ),
                         Text(
                           gpuText,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w800,
                             color: Colors.white,
-                            fontFamily: 'JetBrains Mono',
+                            fontFamily: TypographyTokens.monoFontFamily,
                           ),
                         ),
                       ],

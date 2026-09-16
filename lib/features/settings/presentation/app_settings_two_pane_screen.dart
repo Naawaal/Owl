@@ -184,11 +184,40 @@ class _AppSettingsTwoPaneScreenState
                         // Vertical Divider
                         Container(width: 1, color: const Color(0x1AFFFFFF)),
 
-                        // Right Content Pane
+                        // Right Content Pane — styled scrollbar + fade transition
                         Expanded(
                           child: Container(
                             color: const Color(0xFF07090E),
-                            child: _buildContentPane(settings, notifier),
+                            child: ScrollbarTheme(
+                              data: const ScrollbarThemeData(
+                                thumbColor: WidgetStatePropertyAll(Color(0x4400E5FF)),
+                                trackColor: WidgetStatePropertyAll(Color(0x0AFFFFFF)),
+                                thickness: WidgetStatePropertyAll(4),
+                                radius: Radius.circular(3),
+                              ),
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 180),
+                                transitionBuilder: (child, animation) {
+                                  return FadeTransition(
+                                    opacity: animation,
+                                    child: SlideTransition(
+                                      position: Tween<Offset>(
+                                        begin: const Offset(0, 0.015),
+                                        end: Offset.zero,
+                                      ).animate(CurvedAnimation(
+                                        parent: animation,
+                                        curve: Curves.easeOut,
+                                      )),
+                                      child: child,
+                                    ),
+                                  );
+                                },
+                                child: KeyedSubtree(
+                                  key: ValueKey(_selectedCategory),
+                                  child: _buildContentPane(settings, notifier),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -216,6 +245,15 @@ class _AppSettingsTwoPaneScreenState
   // TOP BAR (Clean: Back Button + Settings Title)
   // ---------------------------------------------------------------------------
   Widget _buildTopBar(BuildContext context) {
+    final settings = ref.watch(gameTurboSettingsProvider);
+    final providerLabel = switch (settings.activeAiProvider) {
+      'openai' => 'OpenAI',
+      'claude' => 'Claude',
+      'deepseek' => 'DeepSeek',
+      _ => 'Gemini',
+    };
+    final modelShort = settings.activeModel.split('/').last;
+
     return Container(
       height: 54,
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -245,14 +283,77 @@ class _AppSettingsTwoPaneScreenState
           ),
           const SizedBox(width: 14),
 
-          // Header Title
-          const Text(
-            'Settings',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-              letterSpacing: -0.2,
+          // Header Title + Active Engine Subtitle
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Settings',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              Text(
+                '$providerLabel • $modelShort',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0x8AFFFFFF),
+                  letterSpacing: 0.3,
+                  fontFamily: TypographyTokens.monoFontFamily,
+                ),
+              ),
+            ],
+          ),
+
+          const Spacer(),
+
+          // Live Status Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: const Color(0x1F007AFF),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0x59007AFF)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Pulsing dot
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.4, end: 1.0),
+                  duration: const Duration(milliseconds: 900),
+                  curve: Curves.easeInOut,
+                  builder: (_, v, child) => Opacity(
+                    opacity: v,
+                    child: Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF00E5FF),
+                        shape: BoxShape.circle,
+                        boxShadow: [BoxShadow(color: Color(0x8800E5FF), blurRadius: 6)],
+                      ),
+                    ),
+                  ),
+                  onEnd: () {},
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'CLOUD API READY',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF00E5FF),
+                    fontFamily: TypographyTokens.monoFontFamily,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -559,90 +660,129 @@ class _AppSettingsTwoPaneScreenState
         ),
 
         _buildSettingsCard([
-          // Hidden semantic anchor for automated test discovery
+          // Hidden semantic anchor
           const Opacity(
             opacity: 0.0,
             child: SizedBox(height: 0, child: Text('Active AI Provider')),
           ),
 
-          // 4-Column Provider Card Selector Grid (1:1 with Prototype)
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildProviderCard(
-                    id: 'gemini',
-                    name: 'Google Gemini',
-                    tag: 'RECOMMENDED',
-                    hint: 'Sub-50ms flash inference',
-                    isSelected: settings.activeAiProvider == 'gemini',
-                    onTap: () {
-                      notifier.setActiveAiProvider('gemini');
-                      _loadCurrentApiKey();
-                    },
+          // ── Provider Selector Grid (1:1 with Prototype .provider-grid) ──────
+          // Dark background + border-bottom matches: background: rgba(0,0,0,0.15)
+          // Horizontal scroll wrapper prevents overflow on narrow screens
+          Container(
+            decoration: const BoxDecoration(
+              color: Color(0x26000000),
+              border: Border(bottom: BorderSide(color: Color(0x14FFFFFF))),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: IntrinsicWidth(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 180,
+                        child: _buildProviderCard(
+                          id: 'gemini',
+                          name: 'Google Gemini',
+                          tag: 'RECOMMENDED',
+                          hint: 'Sub-50ms flash inference',
+                          isSelected: settings.activeAiProvider == 'gemini',
+                          onTap: () {
+                            notifier.setActiveAiProvider('gemini');
+                            _loadCurrentApiKey();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 180,
+                        child: _buildProviderCard(
+                          id: 'openai',
+                          name: 'OpenAI',
+                          tag: 'GPT-4O',
+                          hint: 'High reasoning depth',
+                          isSelected: settings.activeAiProvider == 'openai',
+                          onTap: () {
+                            notifier.setActiveAiProvider('openai');
+                            _loadCurrentApiKey();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 180,
+                        child: _buildProviderCard(
+                          id: 'claude',
+                          name: 'Claude',
+                          tag: 'ANTHROPIC',
+                          hint: 'Accurate tactical logic',
+                          isSelected: settings.activeAiProvider == 'claude',
+                          onTap: () {
+                            notifier.setActiveAiProvider('claude');
+                            _loadCurrentApiKey();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 180,
+                        child: _buildProviderCard(
+                          id: 'deepseek',
+                          name: 'DeepSeek / OpenRouter',
+                          tag: 'OPEN',
+                          hint: 'Community models',
+                          isSelected: settings.activeAiProvider == 'deepseek',
+                          onTap: () {
+                            notifier.setActiveAiProvider('deepseek');
+                            _loadCurrentApiKey();
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildProviderCard(
-                    id: 'openai',
-                    name: 'OpenAI',
-                    tag: 'GPT-4O',
-                    hint: 'High reasoning depth',
-                    isSelected: settings.activeAiProvider == 'openai',
-                    onTap: () {
-                      notifier.setActiveAiProvider('openai');
-                      _loadCurrentApiKey();
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildProviderCard(
-                    id: 'claude',
-                    name: 'Claude',
-                    tag: 'ANTHROPIC',
-                    hint: 'Accurate tactical logic',
-                    isSelected: settings.activeAiProvider == 'claude',
-                    onTap: () {
-                      notifier.setActiveAiProvider('claude');
-                      _loadCurrentApiKey();
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildProviderCard(
-                    id: 'deepseek',
-                    name: 'DeepSeek',
-                    tag: 'OPEN',
-                    hint: 'Community models',
-                    isSelected: settings.activeAiProvider == 'deepseek',
-                    onTap: () {
-                      notifier.setActiveAiProvider('deepseek');
-                      _loadCurrentApiKey();
-                    },
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
 
-          // API Key Input Row (Responsive 1:1 with Prototype)
+          // ── API Key Input Row (setting-row style) ──────────────────────────
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final isCompact = constraints.maxWidth < 620;
+                final isCompact = constraints.maxWidth < 580;
 
-                final descriptionColumn = Column(
+                Widget statusBadge;
+                if (_keyTestResult != null) {
+                  statusBadge = _buildKeyStatusBadge(
+                    _keyTestResult!,
+                    const Color(0xFF30D158),
+                    const Color(0x2230D158),
+                    const Color(0x5530D158),
+                  );
+                } else if (_keyController.text.isNotEmpty) {
+                  statusBadge = _buildKeyStatusBadge(
+                    '✓ Key Active',
+                    const Color(0xFF30D158),
+                    const Color(0x2230D158),
+                    const Color(0x5530D158),
+                  );
+                } else {
+                  statusBadge = _buildKeyStatusBadge(
+                    '● Key Missing',
+                    const Color(0xFFFF9F0A),
+                    const Color(0x22FF9F0A),
+                    const Color(0x66FF9F0A),
+                  );
+                }
+
+                final descriptionCol = Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 8,
-                      runSpacing: 4,
+                    Row(
                       children: [
                         Text(
                           '$providerDisplayName API Key',
@@ -652,62 +792,15 @@ class _AppSettingsTwoPaneScreenState
                             color: Colors.white,
                           ),
                         ),
-                        if (_keyTestResult != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0x2230D158),
-                              borderRadius: BorderRadius.circular(4),
-                              border:
-                                  Border.all(color: const Color(0x6630D158)),
-                            ),
-                            child: Text(
-                              _keyTestResult!,
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF30D158),
-                                fontFamily: TypographyTokens.monoFontFamily,
-                              ),
-                            ),
-                          )
-                        else
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: _keyController.text.isNotEmpty
-                                  ? const Color(0x2230D158)
-                                  : const Color(0x22FF9F0A),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: _keyController.text.isNotEmpty
-                                    ? const Color(0x6630D158)
-                                    : const Color(0x66FF9F0A),
-                              ),
-                            ),
-                            child: Text(
-                              _keyController.text.isNotEmpty
-                                  ? '✓ Key Active'
-                                  : '● Key Missing',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                color: _keyController.text.isNotEmpty
-                                    ? const Color(0xFF30D158)
-                                    : const Color(0xFFFF9F0A),
-                                fontFamily: TypographyTokens.monoFontFamily,
-                              ),
-                            ),
-                          ),
+                        const SizedBox(width: 8),
+                        statusBadge,
                       ],
                     ),
                     const SizedBox(height: 3),
                     const Text(
-                      'Key is stored in on-device Keystore (AES-256). Calls route directly from device to provider API.',
+                      'Stored in on-device Keystore (AES-256). Calls route directly from device to provider API.',
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 10.5,
                         color: Color(0x88FFFFFF),
                         height: 1.35,
                       ),
@@ -715,92 +808,106 @@ class _AppSettingsTwoPaneScreenState
                   ],
                 );
 
-                final inputFieldAndButton = Column(
-                  crossAxisAlignment: isCompact
-                      ? CrossAxisAlignment.start
-                      : CrossAxisAlignment.end,
+                final inputRow = Row(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SizedBox(
-                            height: 36,
-                            child: TextField(
-                              controller: _keyController,
-                              obscureText: _obscureKey,
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                color: const Color(0xFF00E5FF),
-                                fontFamily: TypographyTokens.monoFontFamily,
+                    Expanded(
+                      child: SizedBox(
+                        height: 34,
+                        child: TextField(
+                          controller: _keyController,
+                          obscureText: _obscureKey,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: const Color(0xFF00E5FF),
+                            fontFamily: TypographyTokens.monoFontFamily,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Enter API Key',
+                            hintStyle: const TextStyle(
+                              color: Color(0x44FFFFFF),
+                              fontSize: 11,
+                            ),
+                            filled: true,
+                            fillColor: const Color(0x80000000),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 7),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(color: Color(0x14FFFFFF)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(color: Color(0x14FFFFFF)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: ColorSemantics.turboBlue.withValues(alpha: 0.6),
                               ),
-                              decoration: InputDecoration(
-                                hintText:
-                                    'Enter ${settings.activeAiProvider} API key...',
-                                hintStyle: const TextStyle(
-                                    color: Color(0x44FFFFFF), fontSize: 11),
-                                filled: true,
-                                fillColor: const Color(0x80000000),
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 8),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(7),
-                                  borderSide: const BorderSide(
-                                      color: Color(0x22FFFFFF)),
-                                ),
-                                suffixIcon: IconButton(
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  icon: Icon(
-                                    _obscureKey
-                                        ? Icons.visibility_off
-                                        : Icons.visibility,
-                                    size: 14,
-                                    color: const Color(0x88FFFFFF),
-                                  ),
-                                  onPressed: () => setState(
-                                      () => _obscureKey = !_obscureKey),
-                                ),
+                            ),
+                            suffixIcon: IconButton(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              icon: Icon(
+                                _obscureKey ? Icons.visibility_off : Icons.visibility,
+                                size: 14,
+                                color: const Color(0x88FFFFFF),
                               ),
-                              onChanged: (_) {
-                                if (_keyValidationError != null) {
-                                  setState(() => _keyValidationError = null);
-                                }
-                              },
+                              onPressed: () => setState(() => _obscureKey = !_obscureKey),
                             ),
                           ),
+                          onChanged: (_) {
+                            if (_keyValidationError != null) {
+                              setState(() => _keyValidationError = null);
+                            }
+                          },
                         ),
-                        const SizedBox(width: 8),
-                        ElevatedButton.icon(
-                          icon: _isValidatingKey
-                              ? const SizedBox(
-                                  width: 11,
-                                  height: 11,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(LucideIcons.checkCheck, size: 13),
-                          label: Text(
-                            _isValidatingKey ? 'Testing...' : 'Save & Test',
-                            style: const TextStyle(
-                                fontSize: 10.5, fontWeight: FontWeight.w700),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: ColorSemantics.turboBlue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 8),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(7)),
-                          ),
-                          onPressed: _isValidatingKey ? null : _testAndSaveKey,
-                        ),
-                      ],
+                      ),
                     ),
-                    if (_keyValidationError != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
+                    const SizedBox(width: 10),
+                    // Test Key / Save & Test button
+                    GestureDetector(
+                      onTap: _isValidatingKey ? null : _testAndSaveKey,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: const Color(0x1F007AFF),
+                          border: Border.all(color: const Color(0x66007AFF)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_isValidatingKey)
+                              const SizedBox(
+                                width: 11,
+                                height: 11,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            else
+                              const Icon(LucideIcons.checkCheck, size: 12, color: Colors.white),
+                            const SizedBox(width: 7),
+                            Text(
+                              _isValidatingKey ? 'Testing...' : 'Save & Test',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+
+                final errorWidget = _keyValidationError != null
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 5),
                         child: Text(
                           '⚠️ $_keyValidationError',
                           style: const TextStyle(
@@ -809,17 +916,17 @@ class _AppSettingsTwoPaneScreenState
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ),
-                  ],
-                );
+                      )
+                    : const SizedBox.shrink();
 
                 if (isCompact) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      descriptionColumn,
+                      descriptionCol,
                       const SizedBox(height: 10),
-                      inputFieldAndButton,
+                      inputRow,
+                      errorWidget,
                     ],
                   );
                 }
@@ -827,11 +934,14 @@ class _AppSettingsTwoPaneScreenState
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: descriptionColumn),
+                    Expanded(child: descriptionCol),
                     const SizedBox(width: 16),
                     SizedBox(
-                      width: 320,
-                      child: inputFieldAndButton,
+                      width: 300,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [inputRow, errorWidget],
+                      ),
                     ),
                   ],
                 );
@@ -839,9 +949,9 @@ class _AppSettingsTwoPaneScreenState
             ),
           ),
 
-          // Active Tactical Model Checkpoint (WITH HORIZONTAL SCROLL)
+          // ── Model Checkpoint Row (setting-row style with horizontal scroll) ─
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -850,7 +960,7 @@ class _AppSettingsTwoPaneScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Active Model Checkpoint',
+                        'Select Active Tactical Model',
                         style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
@@ -860,12 +970,11 @@ class _AppSettingsTwoPaneScreenState
                       const SizedBox(height: 3),
                       const Text(
                         'Choose between ultra-fast Flash/Mini models for combat callouts or larger models for macro analysis.',
-                        style:
-                            TextStyle(fontSize: 10.5, color: Color(0x88FFFFFF)),
+                        style: TextStyle(fontSize: 10.5, color: Color(0x88FFFFFF)),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '⇄ Swipe horizontally or use mouse wheel if options exceed space',
+                        '⇄ Swipe horizontally if options exceed space',
                         style: TextStyle(
                           fontSize: 9.5,
                           color: const Color(0x55FFFFFF),
@@ -877,7 +986,7 @@ class _AppSettingsTwoPaneScreenState
                 ),
                 const SizedBox(width: 14),
                 ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 380),
+                  constraints: const BoxConstraints(maxWidth: 360),
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     physics: const BouncingScrollPhysics(),
@@ -896,6 +1005,31 @@ class _AppSettingsTwoPaneScreenState
     );
   }
 
+  Widget _buildKeyStatusBadge(
+    String text,
+    Color textColor,
+    Color bgColor,
+    Color borderColor,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: borderColor),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: textColor,
+          fontFamily: TypographyTokens.monoFontFamily,
+        ),
+      ),
+    );
+  }
+
   Widget _buildProviderCard({
     required String id,
     required String name,
@@ -909,64 +1043,52 @@ class _AppSettingsTwoPaneScreenState
         HapticFeedback.selectionClick();
         onTap();
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0x1F007AFF) : const Color(0x0AFFFFFF),
+          color: isSelected ? const Color(0x1F007AFF) : const Color(0x07FFFFFF),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected
-                ? ColorSemantics.turboBlue
-                : const Color(0x1AFFFFFF),
+            color: isSelected ? ColorSemantics.turboBlue : const Color(0x14FFFFFF),
             width: isSelected ? 1.4 : 1.0,
           ),
           boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: ColorSemantics.turboBlue.withValues(alpha: 0.25),
-                    blurRadius: 10,
-                  ),
-                ]
+              ? [BoxShadow(color: ColorSemantics.turboBlue.withValues(alpha: 0.22), blurRadius: 12)]
               : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 4,
-              runSpacing: 2,
+            // Name left, tag right — exact prototype layout
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  name,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight:
-                        isSelected ? FontWeight.w800 : FontWeight.w700,
-                    color: isSelected ? Colors.white : const Color(0xB3FFFFFF),
+                Expanded(
+                  child: Text(
+                    name,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
+                      color: isSelected ? Colors.white : const Color(0xB3FFFFFF),
+                    ),
                   ),
                 ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
-                  decoration: BoxDecoration(
-                    color: const Color(0x33007AFF),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    tag,
-                    style: TextStyle(
-                      fontSize: 8,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF00E5FF),
-                      fontFamily: TypographyTokens.monoFontFamily,
-                    ),
+                const SizedBox(width: 4),
+                // Tag as plain mono text (prototype: .provider-tag is just text, no bg chip)
+                Text(
+                  tag,
+                  style: TextStyle(
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF00E5FF),
+                    fontFamily: TypographyTokens.monoFontFamily,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 4),
             Text(
               hint,
               style: const TextStyle(

@@ -9,6 +9,10 @@ import 'package:owl/features/settings/presentation/gpu_settings_two_pane_screen.
 import 'package:owl/features/settings/presentation/settings_provider.dart';
 import 'package:owl_design/owl_design.dart';
 
+
+import 'package:owl/features/overlay/data/system_stats_service.dart';
+
+
 /// In-Game HUD & Companion View matching the Game Space Console design system 1:1.
 ///
 /// Shares the exact visual language of [GameSpaceConsoleScreen]:
@@ -33,13 +37,17 @@ class TacticalBattlefieldHud extends ConsumerStatefulWidget {
 }
 
 class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   bool _isToolboxOpen = false;
 
   late final AnimationController _toolboxController;
   late final Animation<double> _toolboxScaleAnimation;
   late final Animation<double> _toolboxFadeAnimation;
   late final Animation<Offset> _toolboxSlideAnimation;
+
+  // Pulsing dot animation for the edge handle
+  late final AnimationController _dotPulseController;
+  late final Animation<double> _dotPulseAnimation;
 
   @override
   void initState() {
@@ -49,6 +57,15 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
       vsync: this,
       duration: const Duration(milliseconds: 220),
       reverseDuration: const Duration(milliseconds: 160),
+    );
+
+    // Pulsing dot
+    _dotPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+    _dotPulseAnimation = Tween<double>(begin: 1.0, end: 1.35).animate(
+      CurvedAnimation(parent: _dotPulseController, curve: Curves.easeInOut),
     );
 
     if (widget.autoOpenToolbox) {
@@ -74,6 +91,7 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
   @override
   void dispose() {
     _toolboxController.dispose();
+    _dotPulseController.dispose();
     super.dispose();
   }
 
@@ -260,6 +278,17 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
   }
 
   Widget _buildTopStatusBar(InstalledGame? game) {
+    final statsAsync = ref.watch(systemStatsProvider);
+    final stats = statsAsync.valueOrNull;
+    final battery = stats?.battery ?? 78;
+    final cpu = stats?.cpu ?? 32;
+    final battFraction = (battery / 100.0).clamp(0.0, 1.0);
+    final battColor = battery <= 20
+        ? const Color(0xFFE63946)
+        : battery <= 40
+            ? const Color(0xFFEAB308)
+            : ColorSemantics.turboBlue;
+
     return Container(
       height: 40,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
@@ -328,10 +357,10 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
             ],
           ),
 
-          // Right: Real Battery & CPU status matching console
+          // Right: Live Battery & CPU
           Row(
             children: [
-              // Battery Shell
+              // Battery Shell — live fill
               Row(
                 children: [
                   SizedBox(
@@ -349,17 +378,20 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
                               borderRadius: BorderRadius.circular(3),
                             ),
                             padding: const EdgeInsets.all(1),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 11,
-                                  decoration: BoxDecoration(
-                                    color: ColorSemantics.turboBlue,
-                                    borderRadius: BorderRadius.circular(1),
+                            child: LayoutBuilder(builder: (ctx, cst) {
+                              return Row(
+                                children: [
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 600),
+                                    width: cst.maxWidth * battFraction,
+                                    decoration: BoxDecoration(
+                                      color: battColor,
+                                      borderRadius: BorderRadius.circular(1),
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
+                                ],
+                              );
+                            }),
                           ),
                         ),
                         const Positioned(
@@ -382,9 +414,9 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
                     ),
                   ),
                   const SizedBox(width: 5),
-                  const Text(
-                    '88%',
-                    style: TextStyle(
+                  Text(
+                    '$battery%',
+                    style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFFE2E8F0),
@@ -394,7 +426,7 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
               ),
               const SizedBox(width: 14),
 
-              // CPU chip badge
+              // CPU chip badge — live
               Row(
                 children: [
                   Container(
@@ -415,9 +447,9 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
                     ),
                   ),
                   const SizedBox(width: 5),
-                  const Text(
-                    '30%',
-                    style: TextStyle(
+                  Text(
+                    '$cpu%',
+                    style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFFE2E8F0),
@@ -578,6 +610,9 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
   }
 
   Widget _buildEdgeHandle(InstalledGame? game) {
+    final stats = ref.watch(systemStatsProvider).valueOrNull;
+    final liveFps = stats?.fps ?? (game?.targetFps ?? 120);
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _toggleToolbox(true),
@@ -595,35 +630,40 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
             ),
           ],
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color(0xFF30D158),
-                boxShadow: [
-                  BoxShadow(color: Color(0xFF30D158), blurRadius: 8),
-                ],
+            // Pulsing emerald dot
+            ScaleTransition(
+              scale: _dotPulseAnimation,
+              child: const DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFF30D158),
+                  boxShadow: [
+                    BoxShadow(color: Color(0xFF30D158), blurRadius: 8),
+                  ],
+                ),
+                child: SizedBox(width: 6, height: 6),
               ),
-              child: SizedBox(width: 6, height: 6),
             ),
-            SizedBox(width: 6),
-            Text(
+            const SizedBox(width: 6),
+            const Text(
               '⚡',
               style: TextStyle(
                 fontSize: 10,
                 color: ColorSemantics.turboBlueLight,
               ),
             ),
-            SizedBox(width: 4),
+            const SizedBox(width: 4),
             Text(
-              'TURBO 120 FPS',
+              'TURBO $liveFps FPS',
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
                 color: Colors.white,
                 letterSpacing: 0.2,
+                fontFamily: TypographyTokens.monoFontFamily,
               ),
             ),
           ],

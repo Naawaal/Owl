@@ -232,10 +232,10 @@ class _AddGamesModalState extends ConsumerState<AddGamesModal> {
                                         app.packageName,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 10,
                                           color: Color(0x66FFFFFF),
-                                          fontFamily: 'JetBrains Mono',
+                                          fontFamily: TypographyTokens.monoFontFamily,
                                         ),
                                       ),
                                     ],

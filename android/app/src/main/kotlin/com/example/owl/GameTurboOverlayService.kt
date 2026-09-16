@@ -60,9 +60,37 @@ class GameTurboOverlayService : Service() {
     private var handleY: Int = 80
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    // Live stat refs — updated by MainActivity.pushStats()
+    @Volatile var liveCpu: Int = 30
+    @Volatile var liveGpu: Int = 56
+    @Volatile var liveBattery: Int = 71
+    @Volatile var liveFps: Int = 0
+    var onModeUiUpdate: (() -> Unit)? = null
+
+    fun updateWindowPreferredRefreshRate(rate: Float) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                val wm = windowManager ?: return
+                collapsedHandleView?.let { v ->
+                    (v.layoutParams as? WindowManager.LayoutParams)?.let { lp ->
+                        lp.preferredRefreshRate = rate
+                        wm.updateViewLayout(v, lp)
+                    }
+                }
+                expandedToolboxView?.let { v ->
+                    (v.layoutParams as? WindowManager.LayoutParams)?.let { lp ->
+                        lp.preferredRefreshRate = rate
+                        wm.updateViewLayout(v, lp)
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        instance = this   // register singleton for pushStats()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             stopSelf()
             return START_NOT_STICKY
@@ -82,6 +110,7 @@ class GameTurboOverlayService : Service() {
         } else if (collapsedHandleView == null && expandedToolboxView == null) {
             showCollapsedHandle()
         }
+        startAutonomousTicker()
         return START_STICKY
     }
 
@@ -157,6 +186,7 @@ class GameTurboOverlayService : Service() {
                 textSize = 10.5f
                 typeface = Typeface.DEFAULT_BOLD
                 letterSpacing = 0.03f
+                tag = "handle_fps_text"
             }
             addView(text)
 
@@ -432,10 +462,11 @@ class GameTurboOverlayService : Service() {
                     }
 
                     val cpuValText = TextView(context).apply {
-                        text = if (isPerformanceMode) "30%" else "18%"
+                        text = "${liveCpu}%"
                         textSize = 8.5f
                         typeface = Typeface.DEFAULT_BOLD
                         setTextColor(Color.WHITE)
+                        tag = "cpu_val"
                     }
 
                     val cpuLabelRow = LinearLayout(context).apply {
@@ -453,7 +484,7 @@ class GameTurboOverlayService : Service() {
 
                     val cpuProgress = TelemetryProgressBarView(
                         context,
-                        if (isPerformanceMode) 0.30f else 0.18f,
+                        liveCpu / 100f,
                         Color.parseColor("#007AFF"),
                         Color.parseColor("#60A5FA")
                     ).apply {
@@ -461,6 +492,7 @@ class GameTurboOverlayService : Service() {
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             dp(3.5f)
                         ).apply { topMargin = dp(2f) }
+                        tag = "cpu_bar"
                     }
                     addView(cpuProgress)
                     tag = Pair(cpuValText, cpuProgress)
@@ -475,10 +507,11 @@ class GameTurboOverlayService : Service() {
                     }
 
                     val gpuValText = TextView(context).apply {
-                        text = if (isPerformanceMode) "56%" else "32%"
+                        text = "${liveGpu}%"
                         textSize = 8.5f
                         typeface = Typeface.DEFAULT_BOLD
                         setTextColor(Color.WHITE)
+                        tag = "gpu_val"
                     }
 
                     val gpuLabelRow = LinearLayout(context).apply {
@@ -496,7 +529,7 @@ class GameTurboOverlayService : Service() {
 
                     val gpuProgress = TelemetryProgressBarView(
                         context,
-                        if (isPerformanceMode) 0.56f else 0.32f,
+                        liveGpu / 100f,
                         Color.parseColor("#8B5CF6"),
                         Color.parseColor("#C084FC")
                     ).apply {
@@ -504,6 +537,7 @@ class GameTurboOverlayService : Service() {
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             dp(3.5f)
                         ).apply { topMargin = dp(2f) }
+                        tag = "gpu_bar"
                     }
                     addView(gpuProgress)
                     tag = Pair(gpuValText, gpuProgress)
@@ -562,20 +596,21 @@ class GameTurboOverlayService : Service() {
 
                 val triple = gaugeContainer.tag as? Triple<*, *, *>
                 val gauge = triple?.first as? ReactorGaugeView
-                gauge?.setMode(isPerformanceMode, if (isPerformanceMode) currentTargetFps else 60)
+                val displayFps = if (liveFps > 0) liveFps else (if (isPerformanceMode) currentTargetFps else 60)
+                gauge?.setMode(isPerformanceMode, displayFps)
 
                 val cpuPair = (triple?.second as? View)?.tag as? Pair<*, *>
-                (cpuPair?.first as? TextView)?.text = if (isPerformanceMode) "30%" else "18%"
+                (cpuPair?.first as? TextView)?.text = "${liveCpu}%"
                 (cpuPair?.second as? TelemetryProgressBarView)?.updateProgress(
-                    if (isPerformanceMode) 0.30f else 0.18f,
+                    liveCpu / 100f,
                     if (isPerformanceMode) Color.parseColor("#FF3B30") else Color.parseColor("#007AFF"),
                     if (isPerformanceMode) Color.parseColor("#FF6961") else Color.parseColor("#60A5FA")
                 )
 
                 val gpuPair = (triple?.third as? View)?.tag as? Pair<*, *>
-                (gpuPair?.first as? TextView)?.text = if (isPerformanceMode) "56%" else "32%"
+                (gpuPair?.first as? TextView)?.text = "${liveGpu}%"
                 (gpuPair?.second as? TelemetryProgressBarView)?.updateProgress(
-                    if (isPerformanceMode) 0.56f else 0.32f,
+                    liveGpu / 100f,
                     Color.parseColor("#8B5CF6"),
                     Color.parseColor("#C084FC")
                 )
@@ -590,7 +625,16 @@ class GameTurboOverlayService : Service() {
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 setOnClickListener {
                     isPerformanceMode = false
+                    currentTargetFps = 60
                     updateModeUi()
+                    updateWindowPreferredRefreshRate(60f)
+                    pushStats(liveCpu, liveGpu, liveBattery, 60)
+                    try {
+                        getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                            .edit()
+                            .putBoolean("flutter.owl_settings_performance_optimization", false)
+                            .apply()
+                    } catch (_: Exception) {}
                 }
             }
             addView(balancedBtn)
@@ -604,11 +648,21 @@ class GameTurboOverlayService : Service() {
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 setOnClickListener {
                     isPerformanceMode = true
+                    currentTargetFps = 120
                     updateModeUi()
+                    updateWindowPreferredRefreshRate(120f)
+                    pushStats(liveCpu, liveGpu, liveBattery, 120)
+                    try {
+                        getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                            .edit()
+                            .putBoolean("flutter.owl_settings_performance_optimization", true)
+                            .apply()
+                    } catch (_: Exception) {}
                 }
             }
             addView(perfBtn)
 
+            onModeUiUpdate = { updateModeUi() }
             updateModeUi()
         }
         card.addView(modeSwitcher)
@@ -754,8 +808,56 @@ class GameTurboOverlayService : Service() {
         }
     }
 
+    private var autonomousTicker: Runnable? = null
+
+    private fun startAutonomousTicker() {
+        if (autonomousTicker != null) return
+        val r = object : Runnable {
+            override fun run() {
+                val hwFps = readHardwareOverlayFps()
+                val batt = getBatteryLevel()
+                pushStats(liveCpu, liveGpu, batt, hwFps)
+                mainHandler.postDelayed(this, 1000)
+            }
+        }
+        autonomousTicker = r
+        mainHandler.postDelayed(r, 1000)
+    }
+
+    private fun stopAutonomousTicker() {
+        autonomousTicker?.let { mainHandler.removeCallbacks(it) }
+        autonomousTicker = null
+    }
+
+    private fun readHardwareOverlayFps(): Int {
+        val paths = listOf(
+            "/sys/class/drm/card0/device/fps",
+            "/sys/class/graphics/fb0/measured_fps",
+            "/sys/devices/platform/soc/soc:qcom,dsi-display-primary/measured_fps",
+            "/sys/devices/virtual/graphics/fb0/fps",
+            "/sys/class/drm/card0-DSI-1/measured_fps"
+        )
+        for (p in paths) {
+            try {
+                val v = java.io.File(p).readText().trim().split(".").first().toIntOrNull()
+                if (v != null && v in 24..240) return v
+            } catch (_: Exception) {}
+        }
+        val wm = windowManager ?: getSystemService(WINDOW_SERVICE) as? WindowManager
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                display?.refreshRate?.toInt() ?: currentTargetFps
+            } else {
+                @Suppress("DEPRECATION")
+                wm?.defaultDisplay?.refreshRate?.toInt() ?: currentTargetFps
+            }
+        } catch (_: Exception) { currentTargetFps }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        stopAutonomousTicker()
+        instance = null   // clear singleton
         val wm = windowManager
         collapsedHandleView?.let {
             try {
@@ -772,6 +874,9 @@ class GameTurboOverlayService : Service() {
     }
 
     companion object {
+        // Singleton reference so MainActivity can push live stats
+        @Volatile private var instance: GameTurboOverlayService? = null
+
         fun start(context: Context, gameName: String = "Mobile Legends: Bang Bang", targetFps: Int = 120) {
             val intent = Intent(context, GameTurboOverlayService::class.java).apply {
                 putExtra("EXTRA_GAME_NAME", gameName)
@@ -783,6 +888,85 @@ class GameTurboOverlayService : Service() {
         fun stop(context: Context) {
             val intent = Intent(context, GameTurboOverlayService::class.java)
             context.stopService(intent)
+        }
+
+        fun setPerformanceMode(isPerf: Boolean, targetFps: Int) {
+            val svc = instance ?: return
+            Handler(Looper.getMainLooper()).post {
+                svc.isPerformanceMode = isPerf
+                svc.currentTargetFps = targetFps
+                svc.onModeUiUpdate?.invoke()
+                svc.updateWindowPreferredRefreshRate(if (isPerf) targetFps.toFloat() else 60f)
+                val displayFps = if (isPerf) targetFps else 60
+                pushStats(svc.liveCpu, svc.liveGpu, svc.liveBattery, displayFps)
+            }
+        }
+
+        /** Called by MainActivity's stats loop or autonomous ticker with live real-time values. */
+        fun pushStats(cpu: Int, gpu: Int, battery: Int, fps: Int) {
+            val svc = instance ?: return
+            svc.liveCpu     = cpu
+            svc.liveGpu     = gpu
+            svc.liveBattery = battery
+            svc.liveFps     = fps
+
+            Handler(Looper.getMainLooper()).post {
+                try {
+                    val displayFps = if (fps > 0) fps else svc.currentTargetFps
+
+                    // 1. ALWAYS update collapsed handle text if visible
+                    val handleRoot = svc.collapsedHandleView as? android.view.ViewGroup
+                    if (handleRoot != null) {
+                        for (i in 0 until handleRoot.childCount) {
+                            val child = handleRoot.getChildAt(i)
+                            if (child is TextView && (child.tag == "handle_fps_text" || child.text.toString().startsWith("TURBO"))) {
+                                child.text = "TURBO $displayFps FPS"
+                            }
+                        }
+                    }
+
+                    // 2. Update the expanded toolbox if currently visible
+                    val toolboxRoot = svc.expandedToolboxView as? android.view.ViewGroup ?: return@post
+                    fun findByTag(root: android.view.ViewGroup, tag: String): View? {
+                        for (i in 0 until root.childCount) {
+                            val child = root.getChildAt(i)
+                            if (child.tag == tag) return child
+                            if (child is android.view.ViewGroup) {
+                                val found = findByTag(child, tag)
+                                if (found != null) return found
+                            }
+                        }
+                        return null
+                    }
+
+                    (findByTag(toolboxRoot, "cpu_val") as? TextView)?.text = "${cpu}%"
+                    (findByTag(toolboxRoot, "gpu_val") as? TextView)?.text = "${gpu}%"
+                    (findByTag(toolboxRoot, "cpu_bar") as? TelemetryProgressBarView)?.updateProgress(
+                        cpu / 100f,
+                        if (svc.isPerformanceMode) Color.parseColor("#FF3B30") else Color.parseColor("#007AFF"),
+                        if (svc.isPerformanceMode) Color.parseColor("#FF6961") else Color.parseColor("#60A5FA")
+                    )
+                    (findByTag(toolboxRoot, "gpu_bar") as? TelemetryProgressBarView)?.updateProgress(
+                        gpu / 100f,
+                        Color.parseColor("#8B5CF6"),
+                        Color.parseColor("#C084FC")
+                    )
+                    // Update FPS gauge
+                    val triple = toolboxRoot.let { vg ->
+                        for (i in 0 until vg.childCount) {
+                            val c = vg.getChildAt(i)
+                            if (c is android.view.ViewGroup) {
+                                val t = c.tag
+                                if (t is Triple<*, *, *>) return@let t
+                            }
+                        }
+                        null
+                    }
+                    (triple?.first as? ReactorGaugeView)?.let { gauge ->
+                        gauge.setMode(svc.isPerformanceMode, displayFps)
+                    }
+                } catch (_: Exception) {}
+            }
         }
     }
 }

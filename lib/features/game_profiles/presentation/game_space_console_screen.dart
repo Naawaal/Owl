@@ -12,37 +12,8 @@ import 'package:owl/features/overlay/presentation/tactical_battlefield_hud.dart'
 import 'package:owl/features/settings/presentation/app_settings_two_pane_screen.dart';
 import 'package:owl/features/settings/presentation/gpu_settings_two_pane_screen.dart';
 import 'package:owl_design/owl_design.dart';
+import 'package:owl/features/overlay/data/system_stats_service.dart';
 
-// ---------------------------------------------------------------------------
-// System Stats — real battery % and CPU % polled every 3 seconds.
-// Uses the existing com.example.owl/games MethodChannel so no new channel
-// or package dependency is needed.
-// ---------------------------------------------------------------------------
-class _SystemStats {
-  final int battery; // 0-100, -1 = unknown
-  final int cpu;     // 0-100
-  const _SystemStats({required this.battery, required this.cpu});
-}
-
-const _statsChannel = MethodChannel('com.example.owl/games');
-
-Future<_SystemStats> _fetchSystemStats() async {
-  // Fall back to finalized reference values (71% / 30%) when the
-  // native channel is unavailable (tests, desktop, preview).
-  try {
-    final bat = await _statsChannel.invokeMethod<int>('getBatteryLevel') ?? 71;
-    final cpu = await _statsChannel.invokeMethod<int>('getCpuUsage') ?? 30;
-    return _SystemStats(battery: bat, cpu: cpu);
-  } catch (_) {
-    return const _SystemStats(battery: 71, cpu: 30);
-  }
-}
-
-final _systemStatsProvider = StreamProvider<_SystemStats>((ref) async* {
-  yield await _fetchSystemStats();
-  yield* Stream.periodic(const Duration(seconds: 3))
-      .asyncMap((_) => _fetchSystemStats());
-});
 
 /// 1:1 Authentic Xiaomi Game Turbo Game Space Console Screen.
 ///
@@ -331,13 +302,13 @@ class _GameSpaceConsoleScreenState
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      // Main Console Row: Left Sidebar, Center Hero Stage, Right Play Wing (Side-by-Side)
+                      // Main Console Row: Left Sidebar (App List), Center Hero Stage, Right Play Wing (Side-by-Side)
                       Positioned.fill(
                         bottom: 40,
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Left Vertical Sidebar — left 24 padding
+                            // Left Vertical Sidebar (App List) — left 24 padding
                             Padding(
                               padding: const EdgeInsets.only(left: 24),
                               child: _buildLeftSidebar(deckGames, activeGame),
@@ -350,7 +321,7 @@ class _GameSpaceConsoleScreenState
                                 child: Center(
                                   child: FittedBox(
                                     fit: BoxFit.scaleDown,
-                                    child: _buildCenterStage(activeGame),
+                                    child: _buildCenterStage(activeGame, deckGames),
                                   ),
                                 ),
                               ),
@@ -423,11 +394,11 @@ class _GameSpaceConsoleScreenState
   }
 
   Widget _buildTopStatusBar() {
-    final statsAsync = ref.watch(_systemStatsProvider);
+    final statsAsync = ref.watch(systemStatsProvider);
     final stats = statsAsync.valueOrNull;
-    // Finalized reference defaults while loading / on error: 71% / 30%.
-    final battery = stats?.battery ?? 71;
-    final cpu = stats?.cpu ?? 30;
+    // Live reference defaults while loading / on error: 78% / 32%.
+    final battery = stats?.battery ?? 78;
+    final cpu = stats?.cpu ?? 32;
 
     // Battery fill fraction (clamp 0–1)
     final battFraction = (battery / 100.0).clamp(0.0, 1.0);
@@ -548,6 +519,41 @@ class _GameSpaceConsoleScreenState
                   ),
                 ],
               ),
+              const SizedBox(width: 14),
+
+              // Live Measured FPS Badge
+              Row(
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(
+                          color: const Color(0x7330D158), width: 1.2),
+                    ),
+                    child: const Text(
+                      'FPS',
+                      style: TextStyle(
+                        fontSize: 8,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF30D158),
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${stats?.fps ?? 120}',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFFE2E8F0),
+                      fontFamily: TypographyTokens.monoFontFamily,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
 
@@ -589,13 +595,14 @@ class _GameSpaceConsoleScreenState
                     ),
                   ),
                   const SizedBox(width: 6),
-                  const Text(
-                    'TURBO HUD',
+                  Text(
+                    'TURBO ${stats?.fps ?? 120} FPS',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
                       letterSpacing: 0.4,
+                      fontFamily: TypographyTokens.monoFontFamily,
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -634,54 +641,20 @@ class _GameSpaceConsoleScreenState
             ],
           ),
         ],
+ 
       ),
     );
   }
 
+
   Widget _buildLeftSidebar(
       List<InstalledGame> deckGames, InstalledGame? activeGame) {
     return SizedBox(
-      width: 200,
+      width: 188,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Gamebox node — tile 34x34 r10 indigo, text 12px w600 #CBD5E1
-          Padding(
-            padding: const EdgeInsets.only(left: 6, bottom: 18),
-            child: Row(
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF4338CA), Color(0xFF6366F1)],
-                    ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x664F46E5),
-                        blurRadius: 12,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(Icons.sports_esports_outlined,
-                      size: 18, color: Colors.white),
-                ),
-                const SizedBox(width: 10),
-                const Text(
-                  'Gamebox',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFFCBD5E1),
-                  ),
-                ),
-              ],
-            ),
-          ),
           // Empty state
           if (deckGames.isEmpty)
             GestureDetector(
@@ -694,8 +667,8 @@ class _GameSpaceConsoleScreenState
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0x33FFFFFF)),
                 ),
-                child: Row(
-                  children: const [
+                child: const Row(
+                  children: [
                     Icon(Icons.add, size: 16, color: ColorSemantics.turboBlueLight),
                     SizedBox(width: 8),
                     Expanded(
@@ -849,7 +822,16 @@ class _GameSpaceConsoleScreenState
     );
   }
 
-  Widget _buildCenterStage(InstalledGame? activeGame) {
+  Widget _buildCenterStage(
+      InstalledGame? activeGame, List<InstalledGame> deckGames) {
+    void switchGameDelta(int delta) {
+      if (deckGames.isEmpty) return;
+      HapticFeedback.selectionClick();
+      final newIndex = (_activeHeroIndex + delta).clamp(0, 4);
+      setState(() => _activeHeroIndex = newIndex);
+      final target = deckGames[newIndex % deckGames.length];
+      ref.read(installedGamesProvider.notifier).selectGame(target);
+    }
     // 1:1 from finalized prototype — static cinematic showcase:
     // splash left + inset gameplay 290x165 gold border + TRIPLE KILL
     // + gold gradient headline + purple subpill + 5-bar pagination.
@@ -857,7 +839,19 @@ class _GameSpaceConsoleScreenState
       mainAxisSize: MainAxisSize.min,
       children: [
         // Hero cinematic card 500x295 r20, purple glow + deep shadow
-        Container(
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragEnd: (details) {
+            final vel = details.primaryVelocity;
+            if (vel != null) {
+              if (vel < -200) {
+                switchGameDelta(1);
+              } else if (vel > 200) {
+                switchGameDelta(-1);
+              }
+            }
+          },
+          child: Container(
           width: 500,
           height: 295,
           decoration: BoxDecoration(
@@ -1015,8 +1009,8 @@ class _GameSpaceConsoleScreenState
                         ],
                         stops: [0.0, 0.4, 0.8, 1.0],
                       ).createShader(bounds),
-                      child: const Text(
-                        '5V5 ACTION GAMEPLAY',
+                      child: Text(
+                        activeGame?.name.toUpperCase() ?? '5V5 ACTION GAMEPLAY',
                         textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1075,7 +1069,7 @@ class _GameSpaceConsoleScreenState
               ),
             ],
           ),
-        ),
+        )),
         const SizedBox(height: 14),
 
         // 5-bar pagination — gap 6, h3, w14 / active w22 blue glow
@@ -1087,6 +1081,10 @@ class _GameSpaceConsoleScreenState
               onTap: () {
                 HapticFeedback.selectionClick();
                 setState(() => _activeHeroIndex = index);
+                if (deckGames.isNotEmpty) {
+                  final target = deckGames[index % deckGames.length];
+                  ref.read(installedGamesProvider.notifier).selectGame(target);
+                }
               },
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 3),
