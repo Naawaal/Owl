@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xiaomi HyperOS Game Turbo 2026 - Tactical In-Game HUD & Overlay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700;800&family=Orbitron:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      --bg-dark: #07090F;
+      --bg-horizon: #090B12;
+      --turbo-blue: #007AFF;
+      --turbo-blue-light: #389BFF;
+      --turbo-blue-glow: rgba(0, 122, 255, 0.45);
+      --turbo-crimson: #FF3B30;
+      --turbo-crimson-glow: rgba(255, 59, 48, 0.45);
+      --emerald-green: #30D158;
+      --emerald-glow: rgba(48, 209, 88, 0.4);
+      --text-white: #FFFFFF;
+      --text-muted: #94A3B8;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-medium: rgba(255, 255, 255, 0.15);
+      --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #020306;
+      color: var(--text-white);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      overflow: hidden;
+    }
+
+    /* Top Demo Bar */
+    .prototype-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 1020px;
+      margin-bottom: 10px;
+      padding: 6px 18px;
+      background: rgba(13, 18, 27, 0.85);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 9999px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.7);
+      z-index: 100;
+    }
+
+    .proto-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: -0.2px;
+    }
+
+    .proto-title span {
+      color: var(--turbo-blue-light);
+    }
+
+    .proto-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .proto-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #CBD5E1;
+      padding: 5px 12px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 180ms ease;
+    }
+
+    .proto-btn:hover {
+      background: rgba(255, 255, 255, 0.18);
+      color: #FFF;
+    }
+
+    .proto-btn.active {
+      background: var(--turbo-blue);
+      color: #FFF;
+      border-color: transparent;
+      box-shadow: 0 2px 12px var(--turbo-blue-glow);
+    }
+
+    /* 20:9 Flagship Horizon Frame */
+    .phone-stage-frame {
+      width: 100%;
+      max-width: 1020px;
+      height: 520px;
+      background: #000;
+      border-radius: 32px;
+      border: 6px solid #141720;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.1);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Ambient Console Horizon Background */
+    .hud-horizon-bg {
+      position: absolute;
+      inset: 0;
+      background: #07090F;
+      background-image: 
+        radial-gradient(ellipse at 48% 50%, rgba(139, 43, 226, 0.18) 0%, rgba(20, 10, 40, 0.04) 50%, transparent 75%),
+        radial-gradient(circle at 92% 50%, rgba(0, 110, 255, 0.10) 0%, transparent 45%),
+        linear-gradient(180deg, #090B12 0%, #06070B 100%);
+      z-index: 1;
+    }
+
+    /* Status Bar (1:1 Console Match) */
+    .hud-top-status-bar {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 28px 0 28px;
+      height: 38px;
+    }
+
+    .status-left-cluster {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-game-space-nav {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 9999px;
+      padding: 4px 12px;
+      color: #E2E8F0;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      transition: all 160ms ease;
+    }
+
+    .btn-game-space-nav:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #FFF;
+    }
+
+    .game-target-chip {
+      background: rgba(0, 122, 255, 0.14);
+      border: 1px solid rgba(0, 122, 255, 0.35);
+      color: var(--turbo-blue-light);
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 6px;
+      letter-spacing: 0.3px;
+    }
+
+    .status-right-cluster {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .battery-metric-pod {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #E2E8F0;
+    }
+
+    .battery-shell {
+      width: 20px;
+      height: 10px;
+      border: 1.5px solid rgba(255, 255, 255, 0.65);
+      border-radius: 3px;
+      padding: 1px;
+      position: relative;
+      display: flex;
+    }
+
+    .battery-shell::after {
+      content: '';
+      position: absolute;
+      right: -3px;
+      top: 2px;
+      width: 1.5px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.65);
+      border-radius: 0 1px 1px 0;
+    }
+
+    .battery-fill {
+      width: 13px;
+      height: 100%;
+      background: var(--turbo-blue);
+      border-radius: 1px;
+    }
+
+    .cpu-metric-pod {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #E2E8F0;
+    }
+
+    .cpu-chip-badge {
+      font-size: 8px;
+      font-weight: 700;
+      color: #CBD5E1;
+      border: 1.2px solid rgba(255, 255, 255, 0.45);
+      padding: 0 3px;
+      border-radius: 3px;
+      line-height: 1.1;
+    }
+
+    /* Center Game Stage Card */
+    .center-stage-container {
+      position: relative;
+      z-index: 5;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 28px 18px 28px;
+    }
+
+    .game-hero-card {
+      width: 100%;
+      max-width: 820px;
+      height: 410px;
+      border-radius: 24px;
+      background-size: cover;
+      background-position: center;
+      position: relative;
+      overflow: hidden;
+      border: 1.5px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 110, 255, 0.15);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .hero-card-vignette {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(7, 9, 15, 0.3) 0%, rgba(10, 5, 20, 0.45) 50%, rgba(7, 8, 14, 0.95) 100%);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .hero-card-bottom {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px;
+    }
+
+    .hero-game-info h2 {
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: -0.2px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hero-game-info p {
+      font-size: 11px;
+      color: #94A3B8;
+      margin-top: 3px;
+      font-weight: 500;
+    }
+
+    .btn-open-turbo-hud {
+      background: linear-gradient(90deg, #007AFF 0%, #0055B8 100%);
+      color: #FFF;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 12px;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 16px rgba(0, 122, 255, 0.45);
+      transition: all 180ms ease;
+    }
+
+    .btn-open-turbo-hud:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 22px rgba(0, 122, 255, 0.6);
+    }
+
+    /* Pinned Edge Handle ("⚡ TURBO 120 FPS") */
+    .turbo-edge-handle {
+      position: absolute;
+      top: 10px;
+      left: 140px;
+      z-index: 30;
+      background: rgba(13, 18, 27, 0.9);
+      backdrop-filter: blur(16px);
+      border: 1.5px solid rgba(59, 130, 246, 0.4);
+      border-radius: 9999px;
+      padding: 5px 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
+      transition: all 180ms ease;
+    }
+
+    .turbo-edge-handle:hover {
+      background: rgba(20, 28, 42, 0.95);
+      border-color: var(--turbo-blue-light);
+      transform: translateY(-1px);
+    }
+
+    .handle-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--emerald-green);
+      box-shadow: 0 0 8px var(--emerald-green);
+      animation: pulseDot 2s infinite ease-in-out;
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.7; }
+    }
+
+    .handle-text {
+      font-size: 10.5px;
+      font-weight: 800;
+      color: #FFF;
+      letter-spacing: 0.3px;
+    }
+
+    /* Backdrop when toolbox is open */
+    .hud-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(2px);
+      z-index: 35;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 200ms ease;
+    }
+
+    .hud-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* ==========================================================================
+       THE COMPACT XIAOMI GAME TURBO 2026 FLOATING TOOLBOX
+       De-bloated, Clamped to 288px (~15% corner footprint)
+       ========================================================================== */
+    .gameturbo-floating-toolbox {
+      position: absolute;
+      top: 12px;
+      left: 140px;
+      width: 288px;
+      background: rgba(14, 18, 27, 0.94);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      z-index: 40;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transform: scale(0.92) translateY(-8px);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 220ms var(--ease-smooth), opacity 180ms ease;
+    }
+
+    .gameturbo-floating-toolbox.open {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* 1. Header Bar */
+    .toolbox-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: rgba(10, 13, 20, 0.5);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .toolbox-title-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #FFF;
+    }
+
+    .toolbox-fps-badge {
+      font-size: 8.5px;
+      font-weight: 700;
+      color: var(--turbo-blue-light);
+      background: rgba(0, 122, 255, 0.14);
+      border: 1px solid rgba(0, 122, 255, 0.25);
+      padding: 2px 6px;
+      border-radius: 5px;
+    }
+
+    .btn-toolbox-close {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      border: none;
+      color: #CBD5E1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 160ms ease;
+    }
+
+    .btn-toolbox-close:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #FFF;
+    }
+
+    /* 2. Central Reactor Tachometer FPS Gauge */
+    .reactor-gauge-section {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 12px 6px 12px;
+      background: radial-gradient(circle at center, rgba(255, 59, 48, 0.15) 0%, transparent 70%);
+      transition: background 250ms ease;
+    }
+
+    .gameturbo-floating-toolbox.balanced-mode .reactor-gauge-section {
+      background: radial-gradient(circle at center, rgba(0, 122, 255, 0.15) 0%, transparent 70%);
+    }
+
+    .gauge-top-strip {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.65);
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .gauge-battery-pod {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    /* Dial Stage with Laser Flares */
+    .gauge-dial-stage {
+      position: relative;
+      width: 100%;
+      height: 66px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .gauge-laser-beam {
+      position: absolute;
+      left: 6px;
+      right: 6px;
+      height: 1.5px;
+      background: linear-gradient(90deg, transparent 0%, rgba(255, 59, 48, 0.4) 20%, #FF5A5F 50%, rgba(255, 59, 48, 0.4) 80%, transparent 100%);
+      box-shadow: 0 0 10px #FF3B30, 0 0 18px rgba(255, 59, 48, 0.5);
+      pointer-events: none;
+      z-index: 1;
+      transition: all 250ms ease;
+    }
+
+    .gameturbo-floating-toolbox.balanced-mode .gauge-laser-beam {
+      background: linear-gradient(90deg, transparent 0%, rgba(0, 122, 255, 0.4) 20%, #64B5F6 50%, rgba(0, 122, 255, 0.4) 80%, transparent 100%);
+      box-shadow: 0 0 10px #007AFF, 0 0 18px rgba(0, 122, 255, 0.5);
+    }
+
+    .gauge-circle {
+      position: relative;
+      z-index: 2;
+      width: 66px;
+      height: 66px;
+      border-radius: 50%;
+      background: #070A10;
+      border: 1.2px solid rgba(255, 59, 48, 0.7);
+      box-shadow: 0 0 20px rgba(255, 59, 48, 0.35);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: all 250ms ease;
+    }
+
+    .gameturbo-floating-toolbox.balanced-mode .gauge-circle {
+      border-color: rgba(0, 122, 255, 0.7);
+      box-shadow: 0 0 20px rgba(0, 122, 255, 0.35);
+    }
+
+    .gauge-tick-svg {
+      position: absolute;
+      inset: 2px;
+      width: calc(100% - 4px);
+      height: calc(100% - 4px);
+      pointer-events: none;
+    }
+
+    .gauge-cn-tag {
+      font-size: 7px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.45);
+      letter-spacing: 0.5px;
+      line-height: 1;
+      margin-top: 2px;
+    }
+
+    .gauge-fps-value {
+      font-family: 'JetBrains Mono', 'Orbitron', monospace;
+      font-size: 18px;
+      font-weight: 900;
+      color: #FFFFFF;
+      line-height: 1.05;
+      letter-spacing: -0.5px;
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    }
+
+    .gauge-fps-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 7.5px;
+      font-weight: 800;
+      color: var(--turbo-crimson);
+      letter-spacing: 0.8px;
+      line-height: 1;
+      transition: color 250ms ease;
+    }
+
+    .gameturbo-floating-toolbox.balanced-mode .gauge-fps-tag {
+      color: var(--turbo-blue-light);
+    }
+
+    /* 3. Horizontal Live Telemetry Strip */
+    .horizontal-telemetry-strip {
+      width: 100%;
+      display: flex;
+      gap: 14px;
+      margin-top: 5px;
+    }
+
+    .telemetry-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .telemetry-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 7.5px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .telemetry-header strong {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      font-weight: 800;
+      color: #FFF;
+    }
+
+    .telemetry-track {
+      height: 3.5px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .telemetry-fill-cpu {
+      height: 100%;
+      width: 30%;
+      background: linear-gradient(90deg, #FF3B30 0%, #FF6961 100%);
+      border-radius: 2px;
+      box-shadow: 0 0 6px rgba(255, 59, 48, 0.6);
+      transition: width 300ms ease, background 250ms ease;
+    }
+
+    .gameturbo-floating-toolbox.balanced-mode .telemetry-fill-cpu {
+      width: 18%;
+      background: linear-gradient(90deg, #007AFF 0%, #389BFF 100%);
+      box-shadow: 0 0 6px rgba(0, 122, 255, 0.6);
+    }
+
+    .telemetry-fill-gpu {
+      height: 100%;
+      width: 56%;
+      background: linear-gradient(90deg, #8B5CF6 0%, #A78BFA 100%);
+      border-radius: 2px;
+      box-shadow: 0 0 6px rgba(139, 92, 246, 0.6);
+      transition: width 300ms ease;
+    }
+
+    .gameturbo-floating-toolbox.balanced-mode .telemetry-fill-gpu {
+      width: 32%;
+    }
+
+    /* 4. Mode Switcher: Balanced vs Performance */
+    .toolbox-mode-switcher {
+      display: flex;
+      margin: 9px 12px 7px 12px;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 9999px;
+      padding: 3.5px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #94A3B8;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      padding: 7.5px 0;
+      border-radius: 9999px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: all 180ms ease;
+    }
+
+    .mode-btn.active {
+      color: #FFFFFF;
+      background: rgba(255, 255, 255, 0.12);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    }
+
+    .gameturbo-floating-toolbox:not(.balanced-mode) .mode-btn.active.perf-active {
+      background: linear-gradient(90deg, #FF3B30 0%, #E63946 100%);
+      box-shadow: 0 2px 10px rgba(255, 59, 48, 0.4);
+    }
+
+    .gameturbo-floating-toolbox.balanced-mode .mode-btn.active.bal-active {
+      background: linear-gradient(90deg, #007AFF 0%, #0062EB 100%);
+      box-shadow: 0 2px 10px rgba(0, 122, 255, 0.4);
+    }
+
+    /* 5. 4 Essential In-Game Tools (De-bloated) */
+    .essential-tools-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      padding: 2px 12px 8px 12px;
+    }
+
+    .tool-tile {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      padding: 7px 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: all 160ms ease;
+    }
+
+    .tool-tile:hover {
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: translateY(-1px);
+    }
+
+    .tool-tile.active {
+      background: rgba(0, 122, 255, 0.16);
+      border-color: rgba(0, 122, 255, 0.4);
+    }
+
+    .tool-tile.active i {
+      color: var(--turbo-blue-light);
+    }
+
+    .tool-tile.boost-active {
+      background: rgba(255, 59, 48, 0.18);
+      border-color: rgba(255, 59, 48, 0.5);
+    }
+
+    .tool-tile.boost-active i {
+      color: var(--turbo-crimson);
+    }
+
+    .tool-icon {
+      width: 15px;
+      height: 15px;
+      color: #94A3B8;
+      transition: color 160ms ease;
+    }
+
+    .tool-label {
+      font-size: 8.5px;
+      font-weight: 700;
+      color: #E2E8F0;
+      letter-spacing: -0.1px;
+    }
+
+    /* Boost Feedback Alert Pill */
+    .boost-toast-pill {
+      margin: 0 12px 6px 12px;
+      padding: 4px 8px;
+      background: rgba(48, 209, 88, 0.15);
+      border: 1px solid rgba(48, 209, 88, 0.35);
+      border-radius: 8px;
+      font-size: 8.5px;
+      font-weight: 700;
+      color: #30D158;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      opacity: 0;
+      max-height: 0;
+      overflow: hidden;
+      transition: all 250ms ease;
+    }
+
+    .boost-toast-pill.show {
+      opacity: 1;
+      max-height: 28px;
+      margin-bottom: 6px;
+    }
+
+    /* Bottom GPU Settings Link */
+    .toolbox-footer {
+      padding: 6px 12px 8px 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .btn-gpu-settings-link {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #94A3B8;
+      padding: 5px 0;
+      border-radius: 8px;
+      font-size: 9px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: all 160ms ease;
+    }
+
+    .btn-gpu-settings-link:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #FFF;
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Global Prototype Bar -->
+  <div class="prototype-bar">
+    <div class="proto-title">
+      <i data-lucide="zap" style="width: 16px; height: 16px; color: var(--turbo-blue-light);"></i>
+      <span>XIAOMI HYPEROS GAME TURBO 2026</span> · TACTICAL OVERLAY HUD PROTOTYPE
+    </div>
+    <div class="proto-actions">
+      <button class="proto-btn" id="btn-toggle-toolbox" onclick="toggleToolbox()">
+        <i data-lucide="layers" style="width: 13px; height: 13px;"></i>
+        <span>Toggle Overlay (T)</span>
+      </button>
+      <button class="proto-btn active" id="btn-mode-quick" onclick="toggleModeQuick()">
+        <i data-lucide="gauge" style="width: 13px; height: 13px;"></i>
+        <span id="proto-mode-label">Mode: Performance</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 20:9 Flagship Horizon Display Container -->
+  <div class="phone-stage-frame">
+    <!-- Ambient Console Horizon Background (Matches GameSpaceConsoleScreen 1:1) -->
+    <div class="hud-horizon-bg"></div>
+
+    <!-- Top Status Bar (Matching Console 1:1) -->
+    <div class="hud-top-status-bar">
+      <div class="status-left-cluster">
+        <button class="btn-game-space-nav" onclick="alert('Navigating back to Game Space Console...')">
+          <i data-lucide="chevron-left" style="width: 13px; height: 13px;"></i>
+          <span>Game Space</span>
+        </button>
+        <span class="game-target-chip">120 FPS Max</span>
+      </div>
+
+      <div class="status-right-cluster">
+        <!-- Battery Shell -->
+        <div class="battery-metric-pod">
+          <div class="battery-shell">
+            <div class="battery-fill"></div>
+          </div>
+          <span>88%</span>
+        </div>
+
+        <!-- CPU chip badge -->
+        <div class="cpu-metric-pod">
+          <span class="cpu-chip-badge">CPU</span>
+          <span id="hud-top-cpu-txt">30%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Game Hero Stage Card -->
+    <div class="center-stage-container">
+      <div class="game-hero-card" style="background-image: url('assets/moba_gameplay_bg.jpg');">
+        <div class="hero-card-vignette"></div>
+
+        <div></div> <!-- Spacer -->
+
+        <!-- Bottom Game Info Banner -->
+        <div class="hero-card-bottom">
+          <div class="hero-game-info">
+            <h2>
+              <span style="color: var(--turbo-blue-light);">⚡</span>
+              <span>Mobile Legends: Bang Bang</span>
+            </h2>
+            <p>MOBA · Game Turbo 2026 Active · 120 FPS Horizon Sync</p>
+          </div>
+          <button class="btn-open-turbo-hud" onclick="toggleToolbox(true)">
+            <i data-lucide="sliders" style="width: 13px; height: 13px;"></i>
+            <span>Open Turbo HUD</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pinned Slim Floating Edge Handle ("⚡ TURBO 120 FPS") -->
+    <div class="turbo-edge-handle" id="edge-handle" onclick="toggleToolbox(true)" title="Tap to expand Xiaomi Game Turbo 2026 Toolbox">
+      <span class="handle-dot"></span>
+      <i data-lucide="zap" style="width: 12px; height: 12px; color: var(--turbo-blue-light);"></i>
+      <span class="handle-text">TURBO 120 FPS</span>
+    </div>
+
+    <!-- Tap-outside dismissal backdrop -->
+    <div class="hud-backdrop" id="hud-backdrop" onclick="toggleToolbox(false)"></div>
+
+    <!-- ========================================================================
+         COMPACT XIAOMI GAME TURBO 2026 FLOATING TOOLBOX
+         Clamped to 288px width - Non-intrusive ~15% screen footprint
+         ======================================================================== -->
+    <div class="gameturbo-floating-toolbox open" id="gameturbo-toolbox">
+      <!-- 1. Header Bar (FPS removed, only title and close button) -->
+      <div class="toolbox-header">
+        <div class="toolbox-title-row">
+          <span style="color: var(--turbo-crimson); font-size: 13px;" id="header-zap">⚡</span>
+          <span>Gaming tools</span>
+        </div>
+        <button class="btn-toolbox-close" onclick="toggleToolbox(false)" title="Close Toolbox">
+          <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+        </button>
+      </div>
+
+      <!-- 2. Circular Reactor Tachometer FPS Gauge (Chinese text removed) -->
+      <div class="reactor-gauge-section">
+        <!-- Top Meta: Clock & Charging Battery -->
+        <div class="gauge-top-strip">
+          <span>15:31</span>
+          <div class="gauge-battery-pod">
+            <i data-lucide="battery-charging" style="width: 12px; height: 12px; color: #30D158;"></i>
+            <span>88%</span>
+          </div>
+        </div>
+
+        <!-- Center Dial with Laser Flares & Radar Ticks -->
+        <div class="gauge-dial-stage">
+          <!-- Horizontal Laser Beam -->
+          <div class="gauge-laser-beam"></div>
+
+          <!-- Circular Dial -->
+          <div class="gauge-circle">
+            <svg class="gauge-tick-svg" viewBox="0 0 66 66">
+              <circle cx="33" cy="33" r="28" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1.2" stroke-dasharray="2 2.8" />
+            </svg>
+            <span class="gauge-fps-value" id="gauge-fps-num">120</span>
+            <span class="gauge-fps-tag" id="gauge-fps-tag">FPS</span>
+          </div>
+        </div>
+
+        <!-- 3. Horizontal Live Telemetry Strip -->
+        <div class="horizontal-telemetry-strip">
+          <!-- CPU Meter -->
+          <div class="telemetry-col">
+            <div class="telemetry-header">
+              <span>CPU</span>
+              <strong id="gauge-cpu-val">30%</strong>
+            </div>
+            <div class="telemetry-track">
+              <div class="telemetry-fill-cpu" id="gauge-cpu-bar"></div>
+            </div>
+          </div>
+
+          <!-- GPU Meter -->
+          <div class="telemetry-col">
+            <div class="telemetry-header">
+              <span>GPU</span>
+              <strong id="gauge-gpu-val">56%</strong>
+            </div>
+            <div class="telemetry-track">
+              <div class="telemetry-fill-gpu" id="gauge-gpu-bar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Mode Switcher: Balanced vs Performance -->
+      <div class="toolbox-mode-switcher">
+        <button class="mode-btn bal-active" id="btn-mode-bal" onclick="setMode('balanced')">Balanced</button>
+        <button class="mode-btn active perf-active" id="btn-mode-perf" onclick="setMode('performance')">⚡ Performance</button>
+      </div>
+
+      <!-- 5. 4 Essential In-Game Quick Action Tiles (DND, Wi-Fi, AI, Voice Changer) -->
+      <div class="essential-tools-grid">
+        <!-- Tile 1: DND -->
+        <div class="tool-tile active" id="tile-dnd" onclick="toggleTile(this)">
+          <i data-lucide="bell-off" class="tool-icon"></i>
+          <span class="tool-label">DND</span>
+        </div>
+
+        <!-- Tile 2: Wi-Fi Speed -->
+        <div class="tool-tile active" id="tile-wifi" onclick="toggleTile(this)">
+          <i data-lucide="wifi" class="tool-icon"></i>
+          <span class="tool-label">Wi-Fi</span>
+        </div>
+
+        <!-- Tile 3: AI Assistant / Guide -->
+        <div class="tool-tile active" id="tile-ai" onclick="toggleTile(this)">
+          <i data-lucide="bot" class="tool-icon" style="color: var(--turbo-blue-light);"></i>
+          <span class="tool-label">AI</span>
+        </div>
+
+        <!-- Tile 4: Voice Changer -->
+        <div class="tool-tile" id="tile-voice" onclick="toggleTile(this)">
+          <i data-lucide="mic" class="tool-icon"></i>
+          <span class="tool-label">Voice</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+
+    let isToolboxOpen = true;
+    let currentMode = 'performance';
+
+    function toggleToolbox(forceState) {
+      const toolbox = document.getElementById('gameturbo-toolbox');
+      const backdrop = document.getElementById('hud-backdrop');
+      const edgeHandle = document.getElementById('edge-handle');
+      const btnToggle = document.getElementById('btn-toggle-toolbox');
+
+      if (forceState !== undefined) {
+        isToolboxOpen = forceState;
+      } else {
+        isToolboxOpen = !isToolboxOpen;
+      }
+
+      if (isToolboxOpen) {
+        toolbox.classList.add('open');
+        backdrop.classList.add('open');
+        edgeHandle.style.opacity = '0';
+        edgeHandle.style.pointerEvents = 'none';
+        btnToggle.classList.add('active');
+      } else {
+        toolbox.classList.remove('open');
+        backdrop.classList.remove('open');
+        edgeHandle.style.opacity = '1';
+        edgeHandle.style.pointerEvents = 'auto';
+        btnToggle.classList.remove('active');
+      }
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      const toolbox = document.getElementById('gameturbo-toolbox');
+      const btnBal = document.getElementById('btn-mode-bal');
+      const btnPerf = document.getElementById('btn-mode-perf');
+      const fpsVal = document.getElementById('gauge-fps-num');
+      const cpuVal = document.getElementById('gauge-cpu-val');
+      const gpuVal = document.getElementById('gauge-gpu-val');
+      const topCpu = document.getElementById('hud-top-cpu-txt');
+      const protoModeLbl = document.getElementById('proto-mode-label');
+
+      if (mode === 'performance') {
+        toolbox.classList.remove('balanced-mode');
+        btnPerf.classList.add('active');
+        btnBal.classList.remove('active');
+        fpsVal.innerText = '120';
+        cpuVal.innerText = '30%';
+        gpuVal.innerText = '56%';
+        topCpu.innerText = '30%';
+        protoModeLbl.innerText = 'Mode: Performance';
+      } else {
+        toolbox.classList.add('balanced-mode');
+        btnBal.classList.add('active');
+        btnPerf.classList.remove('active');
+        fpsVal.innerText = '60';
+        cpuVal.innerText = '18%';
+        gpuVal.innerText = '32%';
+        topCpu.innerText = '18%';
+        protoModeLbl.innerText = 'Mode: Balanced';
+      }
+    }
+
+    function toggleModeQuick() {
+      setMode(currentMode === 'performance' ? 'balanced' : 'performance');
+    }
+
+    function toggleTile(element) {
+      element.classList.toggle('active');
+    }
+
+    // Keyboard shortcut (T to toggle overlay)
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 't' || e.key === 'T') {
+        toggleToolbox();
+      }
+    });
+
+    // Micro telemetry fluctuation for living engine realism
+    setInterval(() => {
+      if (!isToolboxOpen) return;
+      const baseFps = currentMode === 'performance' ? 120 : 60;
+      const jitter = Math.random() > 0.85 ? -1 : 0;
+      document.getElementById('gauge-fps-num').innerText = baseFps + jitter;
+    }, 1800);
+  </script>
+</body>
+</html>

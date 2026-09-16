@@ -20,6 +20,7 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   google_fonts: ^6.2.1
   intl: ^0.20.2
+  lucide_icons_flutter: ^3.1.20
   owl_core:
     path: packages/owl_core
   owl_design:

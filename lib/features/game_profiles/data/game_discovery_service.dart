@@ -125,12 +125,20 @@ class GameDiscoveryService {
   }
 
   /// Launch the game by package name via Android native launch intent.
-  Future<bool> launchGame(String packageName) async {
+  Future<bool> launchGame(
+    String packageName, {
+    String? gameName,
+    int? targetFps,
+  }) async {
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       try {
         final bool? success = await _channel.invokeMethod<bool>(
           'launchGame',
-          {'packageName': packageName},
+          {
+            'packageName': packageName,
+            'gameName': gameName,
+            'targetFps': targetFps,
+          },
         );
         return success ?? false;
       } catch (e) {
@@ -140,6 +148,34 @@ class GameDiscoveryService {
     }
 
     debugPrint('[GameDiscoveryService] Desktop/Simulation launch: $packageName');
+    return false;
+  }
+
+  /// Check if the Android device has granted SYSTEM_ALERT_WINDOW (Display over other apps).
+  Future<bool> hasOverlayPermission() async {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        final bool? granted =
+            await _channel.invokeMethod<bool>('hasOverlayPermission');
+        return granted ?? false;
+      } catch (_) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Request the user to grant Display Over Other Apps in Android system settings.
+  Future<bool> requestOverlayPermission() async {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        final bool? success =
+            await _channel.invokeMethod<bool>('requestOverlayPermission');
+        return success ?? false;
+      } catch (_) {
+        return false;
+      }
+    }
     return true;
   }
 

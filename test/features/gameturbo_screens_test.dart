@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:owl_design/owl_design.dart';
 import 'package:owl/features/game_profiles/presentation/game_space_console_screen.dart';
 import 'package:owl/features/overlay/presentation/gameturbo_floating_toolbox.dart';
 import 'package:owl/features/overlay/presentation/tactical_battlefield_hud.dart';
@@ -60,9 +61,17 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+
       await tester.pumpWidget(
-        const MaterialApp(
-          home: AppSettingsTwoPaneScreen(),
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: const MaterialApp(
+            home: AppSettingsTwoPaneScreen(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -87,14 +96,16 @@ void main() {
 
       expect(find.text('Performance Optimization'), findsOneWidget);
       expect(find.text('Wi-Fi Speed Boost'), findsOneWidget);
-      expect(find.text('Touch Response Acceleration'), findsOneWidget);
+      expect(find.text('Aggressive Memory Cleanup'), findsOneWidget);
+      expect(find.text('Spatial Audio Enhancement'), findsOneWidget);
 
       // Switch to Guardian AI Core category
       await tester.tap(find.text('Guardian AI Core'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Guardian Tactical AI Engine'), findsOneWidget);
-      expect(find.text('Tactical Voice Co-Pilot Prompts'), findsOneWidget);
+      expect(find.text('Guardian Tactical Engine'), findsOneWidget);
+      expect(find.text('AI Vision Inference Backend'), findsOneWidget);
+      expect(find.text('Audio Tactical Callouts'), findsOneWidget);
       expect(find.text('Enemy Rotation & Missing Radar'), findsOneWidget);
     });
 
@@ -142,60 +153,59 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+
       await tester.pumpWidget(
-        const MaterialApp(
-          home: TacticalBattlefieldHud(),
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: const MaterialApp(
+            home: TacticalBattlefieldHud(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
 
-      // Check Edge Handle & Radar
+      // Check Top Status Bar & Edge Handle (matching Game Space Console)
+      expect(find.text('Game Space'), findsOneWidget);
       expect(find.text('TURBO 120 FPS'), findsOneWidget);
-      expect(find.text('ENEMY MID MISSING: 18s'), findsOneWidget);
-      expect(find.text('TURTLE / DRAGON'), findsOneWidget);
-      expect(find.text('00:38'), findsOneWidget);
-      expect(find.text('LORD / BARON'), findsOneWidget);
 
-      // Tap edge handle to open toolbox
+      // Tap edge handle to open compact toolbox
       await tester.tap(find.text('TURBO 120 FPS'));
       await tester.pumpAndSettle();
 
-      // Verify 2026 Toolbox is open (NO Games tab!)
+      // Verify compact toolbox is open without bloat
       expect(find.byType(GameturboFloatingToolbox), findsOneWidget);
       expect(find.text('Gaming tools'), findsOneWidget);
       expect(find.text('Games'), findsNothing); // Confirmed: Games tab removed!
 
-      // Circular Tachometer FPS gauge
+      // Circular Tachometer FPS Gauge & Horizontal Telemetry Meters
       expect(find.text('120'), findsOneWidget);
-      expect(find.text('FPS'), findsOneWidget);
-      expect(find.text('帧率'), findsOneWidget);
-
-      // Mode pills
+      expect(find.text('FPS'), findsWidgets);
+      expect(find.text('帧率'), findsNothing); // Confirmed: Chinese words removed!
+      expect(find.text('CPU'), findsWidgets);
+      expect(find.text('GPU'), findsOneWidget);
       expect(find.text('Balanced'), findsOneWidget);
       expect(find.text('Performance'), findsOneWidget);
 
-      // 4 Cards
-      expect(find.text('Enhanced visuals'), findsOneWidget);
-      expect(find.text('Network'), findsOneWidget);
-      expect(find.text('Memory'), findsOneWidget);
-      expect(find.text('Voice changer'), findsOneWidget);
-
-      // 8 Tools Grid
-      expect(find.text('Screenshot'), findsOneWidget);
-      expect(find.text('Record'), findsOneWidget);
-      expect(find.text('Mistouch'), findsOneWidget);
-      expect(find.text('AI Guide'), findsOneWidget);
+      // Essential 4 Quick Tools (DND, Wi-Fi, AI, Voice)
       expect(find.text('DND'), findsOneWidget);
-      expect(find.text('Comments'), findsOneWidget);
       expect(find.text('Wi-Fi'), findsOneWidget);
-      expect(find.text('More tools'), findsOneWidget);
+      expect(find.text('AI'), findsOneWidget);
+      expect(find.text('Voice'), findsOneWidget);
 
-      // Guardian AI Banner
-      expect(find.text('GUARDIAN AI COACH (12s)'), findsOneWidget);
-      expect(find.text('COACH CHAT'), findsOneWidget);
+      // Verified removed items (Boost, Mistouch, GPU Settings, Cast, Comments, More tools)
+      expect(find.text('Boost'), findsNothing);
+      expect(find.text('Mistouch'), findsNothing);
+      expect(find.text('GPU Settings'), findsNothing);
+      expect(find.text('Cast'), findsNothing);
+      expect(find.text('Comments'), findsNothing);
+      expect(find.text('More tools'), findsNothing);
 
-      // Tap close button
-      await tester.tap(find.byIcon(Icons.close));
+      // Tap close button (Lucide icon)
+      await tester.tap(find.byIcon(LucideIcons.x));
       await tester.pumpAndSettle();
 
       // Toolbox closed, edge handle restored

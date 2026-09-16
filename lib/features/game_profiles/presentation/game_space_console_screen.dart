@@ -1,11 +1,13 @@
 // language: Dart, file: game_space_console_screen.dart, target: Flutter / Owl Game Turbo
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:owl/features/game_profiles/domain/models/installed_game.dart';
 import 'package:owl/features/game_profiles/presentation/add_games_modal.dart';
 import 'package:owl/features/game_profiles/presentation/game_discovery_provider.dart';
+import 'package:owl/features/overlay/presentation/gameturbo_floating_toolbox.dart';
 import 'package:owl/features/overlay/presentation/tactical_battlefield_hud.dart';
 import 'package:owl/features/settings/presentation/app_settings_two_pane_screen.dart';
 import 'package:owl/features/settings/presentation/gpu_settings_two_pane_screen.dart';
@@ -60,8 +62,78 @@ class GameSpaceConsoleScreen extends ConsumerStatefulWidget {
 }
 
 class _GameSpaceConsoleScreenState
-    extends ConsumerState<GameSpaceConsoleScreen> {
+    extends ConsumerState<GameSpaceConsoleScreen>
+    with SingleTickerProviderStateMixin {
   int _activeHeroIndex = 0;
+  bool _isOverlayToolboxOpen = false;
+
+  AnimationController? _toolboxController;
+  Animation<Offset>? _toolboxSlideAnimation;
+  Animation<double>? _toolboxScaleAnimation;
+  Animation<double>? _toolboxFadeAnimation;
+
+  void _ensureInitialized() {
+    if (_toolboxController != null) return;
+    final controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 240),
+    );
+    _toolboxSlideAnimation = Tween<Offset>(
+      begin: const Offset(0.0, -0.06),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: controller,
+      curve: Curves.easeOutCubic,
+    ));
+    _toolboxScaleAnimation = Tween<double>(
+      begin: 0.94,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: controller,
+      curve: Curves.easeOutCubic,
+    ));
+    _toolboxFadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: controller,
+      curve: Curves.easeOut,
+    ));
+    _toolboxController = controller;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _ensureInitialized();
+  }
+
+  @override
+  void reassemble() {
+    super.reassemble();
+    _ensureInitialized();
+  }
+
+  @override
+  void dispose() {
+    _toolboxController?.dispose();
+    super.dispose();
+  }
+
+  void _toggleOverlayToolbox([bool? forceState]) {
+    _ensureInitialized();
+    final nextState = forceState ?? !_isOverlayToolboxOpen;
+    if (nextState == _isOverlayToolboxOpen) return;
+    setState(() {
+      _isOverlayToolboxOpen = nextState;
+    });
+    HapticFeedback.lightImpact();
+    if (nextState) {
+      _toolboxController?.forward();
+    } else {
+      _toolboxController?.reverse();
+    }
+  }
 
   void _openAppSettings() {
     HapticFeedback.selectionClick();
@@ -86,24 +158,107 @@ class _GameSpaceConsoleScreenState
     AddGamesModal.show(context);
   }
 
+  Future<bool> _showOverlayPermissionDialog() async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: true,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xF2101420),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: Color(0x33FFFFFF)),
+            ),
+            title: const Row(
+              children: [
+                Text('⚡',
+                    style: TextStyle(
+                        fontSize: 18, color: ColorSemantics.turboBlueLight)),
+                SizedBox(width: 8),
+                Text(
+                  'Display Over Apps',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white),
+                ),
+              ],
+            ),
+            content: const Text(
+              'To display the floating Game Turbo handle & live FPS meter over your game, Owl needs "Display over other apps" permission.',
+              style: TextStyle(
+                  fontSize: 12, color: Color(0xCCFFFFFF), height: 1.4),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text(
+                  'Skip to In-App HUD',
+                  style: TextStyle(color: Color(0x99FFFFFF), fontSize: 12),
+                ),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ColorSemantics.turboBlue,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                ),
+                onPressed: () async {
+                  await ref
+                      .read(gameDiscoveryServiceProvider)
+                      .requestOverlayPermission();
+                  if (ctx.mounted) Navigator.of(ctx).pop(true);
+                },
+                child: const Text(
+                  'Grant Permission',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        true;
+  }
+
   void _launchGameMatch(InstalledGame? activeGame) async {
     HapticFeedback.heavyImpact();
+    bool externalLaunched = false;
     if (activeGame != null) {
-      await ref.read(installedGamesProvider.notifier).launchActiveGame();
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        final discoveryService = ref.read(gameDiscoveryServiceProvider);
+        final hasPerm = await discoveryService.hasOverlayPermission();
+        if (!hasPerm) {
+          await _showOverlayPermissionDialog();
+        }
+      }
+      externalLaunched =
+          await ref.read(installedGamesProvider.notifier).launchActiveGame();
     }
     if (mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => TacticalBattlefieldHud(
-            activeGame: activeGame,
+      // When a real external game was successfully launched on Android,
+      // the native GameTurboOverlayService floats directly over the game.
+      // If no external game app was launched (desktop, test, or simulation fallback),
+      // navigate to TacticalBattlefieldHud to preview the in-game overlay experience.
+      if (!externalLaunched) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => TacticalBattlefieldHud(
+              activeGame: activeGame,
+              autoOpenToolbox: true,
+            ),
           ),
-        ),
-      );
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    _ensureInitialized();
     final gameState = ref.watch(installedGamesProvider);
     final deckGames =
         gameState.games.where((g) => g.isInGameSpace).toList();
@@ -218,6 +373,48 @@ class _GameSpaceConsoleScreenState
                   ),
                 ),
               ],
+            ),
+          ),
+
+          // 3. Tap-outside backdrop dismissal when overlay toolbox is open
+          if (_isOverlayToolboxOpen)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _toggleOverlayToolbox(false),
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.35),
+                ),
+              ),
+            ),
+
+          // 4. Compact Floating GameTurbo Overlay Toolbox anchored at top-left
+          Positioned(
+            top: 48,
+            left: 28,
+            child: AnimatedBuilder(
+              animation: _toolboxController!,
+              builder: (context, child) {
+                if (_toolboxController!.isDismissed && !_isOverlayToolboxOpen) {
+                  return const SizedBox.shrink();
+                }
+                return SlideTransition(
+                  position: _toolboxSlideAnimation!,
+                  child: ScaleTransition(
+                    scale: _toolboxScaleAnimation!,
+                    alignment: Alignment.topLeft,
+                    child: FadeTransition(
+                      opacity: _toolboxFadeAnimation!,
+                      child: GameturboFloatingToolbox(
+                        gameTitle: activeGame?.name ?? 'Mobile Legends: Bang Bang',
+                        targetFps: activeGame?.targetFps ?? 120,
+                        onClose: () => _toggleOverlayToolbox(false),
+                        onOpenGpuSettings: () => _openGpuSettings(activeGame),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -352,6 +549,64 @@ class _GameSpaceConsoleScreenState
                 ],
               ),
             ],
+          ),
+
+          // Center: Interactive Turbo HUD trigger badge
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _toggleOverlayToolbox(),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: _isOverlayToolboxOpen
+                    ? const Color(0x33007AFF)
+                    : const Color(0x14FFFFFF),
+                borderRadius: BorderRadius.circular(9999),
+                border: Border.all(
+                  color: _isOverlayToolboxOpen
+                      ? ColorSemantics.turboBlueLight
+                      : const Color(0x2E3B82F6),
+                  width: 1.2,
+                ),
+                boxShadow: _isOverlayToolboxOpen
+                    ? [
+                        BoxShadow(
+                          color: ColorSemantics.turboBlue.withValues(alpha: 0.35),
+                          blurRadius: 8,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF30D158),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'TURBO HUD',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    _isOverlayToolboxOpen ? Icons.close : Icons.tune,
+                    size: 11,
+                    color: ColorSemantics.turboBlueLight,
+                  ),
+                ],
+              ),
+            ),
           ),
 
           // Right: Add Game (+) & Settings Gear — gap 16

@@ -6,10 +6,21 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.Typeface
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
+import android.provider.Settings
+import android.view.Gravity
+import android.view.View
+import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.TextView
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -20,12 +31,41 @@ import java.util.concurrent.Executors
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.owl/games"
     private val executor = Executors.newSingleThreadExecutor()
+    private var floatingHandleView: View? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
+                "hasOverlayPermission" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        result.success(Settings.canDrawOverlays(this))
+                    } else {
+                        result.success(true)
+                    }
+                }
+                "requestOverlayPermission" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:$packageName")
+                        )
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(intent)
+                        result.success(true)
+                    } else {
+                        result.success(true)
+                    }
+                }
+                "showFloatingOverlay" -> {
+                    GameTurboOverlayService.start(this)
+                    result.success(true)
+                }
+                "hideFloatingOverlay" -> {
+                    GameTurboOverlayService.stop(this)
+                    result.success(true)
+                }
                 "getInstalledGames" -> {
                     executor.execute {
                         try {
@@ -48,6 +88,8 @@ class MainActivity : FlutterActivity() {
                 }
                 "launchGame" -> {
                     val packageName = call.argument<String>("packageName")
+                    val gameName = call.argument<String>("gameName") ?: "Game"
+                    val targetFps = call.argument<Int>("targetFps") ?: 120
                     if (packageName.isNullOrEmpty()) {
                         result.error("INVALID_ARGS", "Package name cannot be empty", null)
                         return@setMethodCallHandler
@@ -55,6 +97,9 @@ class MainActivity : FlutterActivity() {
                     try {
                         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
                         if (launchIntent != null) {
+                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)) {
+                                GameTurboOverlayService.start(this, gameName, targetFps)
+                            }
                             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             startActivity(launchIntent)
                             result.success(true)
@@ -199,5 +244,77 @@ class MainActivity : FlutterActivity() {
         val outputStream = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.PNG, 85, outputStream)
         return outputStream.toByteArray()
+    }
+
+    private fun showNativeFloatingHandle() {
+        if (floatingHandleView != null) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) return
+
+        runOnUiThread {
+            try {
+                val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+                val layoutParams = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                    } else {
+                        @Suppress("DEPRECATION")
+                        WindowManager.LayoutParams.TYPE_PHONE
+                    },
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                    PixelFormat.TRANSLUCENT
+                ).apply {
+                    gravity = Gravity.TOP or Gravity.START
+                    x = 100
+                    y = 30
+                }
+
+                val pill = FrameLayout(this).apply {
+                    val bg = GradientDrawable().apply {
+                        shape = GradientDrawable.RECTANGLE
+                        cornerRadius = 50f
+                        setColor(Color.parseColor("#E60D121B"))
+                        setStroke(2, Color.parseColor("#40FFFFFF"))
+                    }
+                    background = bg
+                    setPadding(28, 14, 28, 14)
+
+                    val text = TextView(context).apply {
+                        text = "⚡ TURBO 120 FPS"
+                        setTextColor(Color.WHITE)
+                        textSize = 11f
+                        typeface = Typeface.DEFAULT_BOLD
+                    }
+                    addView(text)
+
+                    setOnClickListener {
+                        val bringToFront = Intent(context, MainActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        }
+                        startActivity(bringToFront)
+                    }
+                }
+
+                wm.addView(pill, layoutParams)
+                floatingHandleView = pill
+            } catch (e: Exception) {
+                // Ignore overlay errors on devices without permission
+            }
+        }
+    }
+
+    private fun hideNativeFloatingHandle() {
+        runOnUiThread {
+            try {
+                if (floatingHandleView != null) {
+                    val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+                    wm.removeView(floatingHandleView)
+                    floatingHandleView = null
+                }
+            } catch (e: Exception) {}
+        }
     }
 }

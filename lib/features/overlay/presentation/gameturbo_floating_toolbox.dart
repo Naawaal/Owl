@@ -2,70 +2,65 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:owl/features/settings/domain/models/game_turbo_settings.dart';
+import 'package:owl/features/settings/presentation/settings_provider.dart';
 import 'package:owl_design/owl_design.dart';
 
-/// 1:1 Replica of Xiaomi Game Turbo 2026 Floating In-Game Toolbox (ref_settings_1).
+/// Iconic Xiaomi Game Turbo 2026 In-Game Floating Toolbox.
 ///
 /// Features:
-/// - Sleek top header bar with Gaming tools title and close button (NO Games tab)
-/// - Circular Glowing Reactor FPS Gauge with laser beam flares and dotted ticks
-/// - Flanking CPU & GPU progress meters
-/// - Capsule Mode Switcher ([Balanced] vs [Performance])
-/// - 4 Feature Cards (Enhanced visuals, Network, Memory, Voice changer)
-/// - 8 Tools Grid (Screenshot, Record, Mistouch, AI Guide, DND, Comments, Wi-Fi, More tools)
-/// - Guardian AI Tactical Co-Pilot banner
-class GameturboFloatingToolbox extends StatefulWidget {
+/// - Sleek compact header bar (Gaming tools, target FPS badge, close button)
+/// - Signature Circular Reactor Tachometer FPS Gauge with laser beam flares and fine tick ring
+/// - Integrated Horizontal Live Telemetry Strip with CPU & GPU segmented progress meters, clock & battery
+/// - Segmented Mode Switcher ([Balanced] vs [Performance])
+/// - 4 Essential Quick Actions: Free RAM (Boost), DND, Wi-Fi Speed Boost, Mistouch Rejection
+/// - Direct link to GPU settings
+class GameturboFloatingToolbox extends ConsumerStatefulWidget {
   const GameturboFloatingToolbox({
     super.key,
     required this.onClose,
-    required this.onOpenGpuSettings,
+    this.onOpenGpuSettings,
     this.gameTitle = 'Mobile Legends: Bang Bang',
     this.targetFps = 120,
   });
 
   final VoidCallback onClose;
-  final VoidCallback onOpenGpuSettings;
+  final VoidCallback? onOpenGpuSettings;
   final String gameTitle;
   final int targetFps;
 
   @override
-  State<GameturboFloatingToolbox> createState() => _GameturboFloatingToolboxState();
+  ConsumerState<GameturboFloatingToolbox> createState() =>
+      _GameturboFloatingToolboxState();
 }
 
-class _GameturboFloatingToolboxState extends State<GameturboFloatingToolbox> {
-  bool _isPerformanceMode = true;
-  bool _isMistouchActive = true;
-  bool _isAiGuideActive = true;
-  bool _isDndActive = true;
-  bool _isWifiBoostActive = true;
-  bool _isMemoryCleaned = false;
-
-  void _purgeMemory() {
-    HapticFeedback.heavyImpact();
-    setState(() => _isMemoryCleaned = true);
-    Future.delayed(const Duration(milliseconds: 2200), () {
-      if (mounted) setState(() => _isMemoryCleaned = false);
-    });
-  }
+class _GameturboFloatingToolboxState
+    extends ConsumerState<GameturboFloatingToolbox> {
+  bool _isAiActive = true;
+  bool _isVoiceChangerActive = false;
 
   @override
   Widget build(BuildContext context) {
+    final settings = ref.watch(gameTurboSettingsProvider);
+    final notifier = ref.read(gameTurboSettingsProvider.notifier);
+
     return Container(
-      width: 356,
+      width: 290,
       decoration: BoxDecoration(
-        color: const Color(0xF210141E),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0x24FFFFFF)),
+        color: const Color(0xF50D111A),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0x33FFFFFF)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.9),
-            blurRadius: 50,
-            offset: const Offset(0, 20),
+            color: Colors.black.withValues(alpha: 0.88),
+            blurRadius: 40,
+            offset: const Offset(0, 16),
           ),
           BoxShadow(
-            color: Colors.white.withValues(alpha: 0.1),
-            blurRadius: 1,
-            offset: const Offset(0, 1),
+            color: ColorSemantics.turboBlue.withValues(alpha: 0.18),
+            blurRadius: 20,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -73,102 +68,71 @@ class _GameturboFloatingToolboxState extends State<GameturboFloatingToolbox> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 1. Sleek Top Header Bar
-          _buildHeader(),
+          // 1. Compact Header Bar (FPS badge removed)
+          _buildHeader(settings),
 
-          // 2. Central Glowing Reactor FPS Gauge
-          _buildReactorGauge(),
+          // 2. Signature Circular Reactor FPS Gauge + Horizontal Live Telemetry Strip
+          _buildReactorGauge(settings),
 
-          // 3. Segmented Mode Pills (Balanced vs Performance)
-          _buildModePills(),
+          // 3. Segmented Mode Capsule (Balanced vs Performance)
+          _buildModePills(settings, notifier),
 
-          // 4. Middle 4 Feature Cards (2x2)
-          _buildMiddleCards(),
-
-          // 5. Bottom 8 Tools Grid (4x2)
-          _buildToolsGrid(),
-
-          // 6. Guardian Live Tactical Banner
-          _buildGuardianBanner(),
+          // 4. Essential 4 Tools (DND, Wi-Fi, AI, Voice Changer)
+          _buildEssentialTools(settings, notifier),
+          const SizedBox(height: 6),
         ],
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(GameTurboSettings settings) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: const BoxDecoration(
-        color: Color(0x660A0D14),
-        border: Border(bottom: BorderSide(color: Color(0x10FFFFFF))),
+        color: Color(0x66080B12),
+        border: Border(bottom: BorderSide(color: Color(0x14FFFFFF))),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '⚡',
-                style: TextStyle(fontSize: 13, color: ColorSemantics.turboCrimson),
-              ),
-              SizedBox(width: 6),
-              Text(
-                'Gaming tools',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                  letterSpacing: -0.2,
-                ),
-              ),
-            ],
-          ),
-          Flexible(
+          const Flexible(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Flexible(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0x10FFFFFF),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0x14FFFFFF)),
-                    ),
-                    child: Text(
-                      '${widget.gameTitle.split(':').first.trim()} ${widget.targetFps} FPS',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 8.5,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0x99FFFFFF),
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ),
+                Text(
+                  '⚡',
+                  style: TextStyle(fontSize: 12, color: ColorSemantics.turboCrimson),
                 ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    widget.onClose();
-                  },
-                  child: Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0x14FFFFFF),
-                      border: Border.all(color: const Color(0x1AFFFFFF)),
-                    ),
-                    child: const Center(
-                      child: Icon(Icons.close, size: 12, color: Color(0x99FFFFFF)),
+                SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    'Gaming tools',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: -0.2,
                     ),
                   ),
                 ),
               ],
+            ),
+          ),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onClose,
+            child: Container(
+              width: 20,
+              height: 20,
+              decoration: const BoxDecoration(
+                color: Color(0x1AFFFFFF),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Icon(LucideIcons.x, size: 11, color: const Color(0xCCFFFFFF)),
+              ),
             ),
           ),
         ],
@@ -176,15 +140,24 @@ class _GameturboFloatingToolboxState extends State<GameturboFloatingToolbox> {
     );
   }
 
-  Widget _buildReactorGauge() {
+  Widget _buildReactorGauge(GameTurboSettings settings) {
+    final isPerf = settings.performanceOptimization;
+    final accentColor =
+        isPerf ? ColorSemantics.turboCrimson : ColorSemantics.turboBlueLight;
+    final fpsText = isPerf ? '${widget.targetFps}' : '60';
+    final cpuText = isPerf ? '30%' : '18%';
+    final cpuProgress = isPerf ? 0.30 : 0.18;
+    final gpuText = isPerf ? '56%' : '32%';
+    final gpuProgress = isPerf ? 0.56 : 0.32;
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
       decoration: BoxDecoration(
         gradient: RadialGradient(
           center: Alignment.center,
-          radius: 0.68,
+          radius: 0.75,
           colors: [
-            ColorSemantics.turboCrimson.withValues(alpha: 0.18),
+            accentColor.withValues(alpha: 0.14),
             Colors.transparent,
           ],
         ),
@@ -198,20 +171,21 @@ class _GameturboFloatingToolboxState extends State<GameturboFloatingToolbox> {
               const Text(
                 '15:31',
                 style: TextStyle(
-                  fontSize: 9.5,
+                  fontSize: 9,
                   fontWeight: FontWeight.w600,
                   color: Color(0xA6FFFFFF),
                   fontFamily: 'JetBrains Mono',
                 ),
               ),
               Row(
-                children: const [
-                  Icon(Icons.battery_charging_full, size: 12, color: Color(0xFF30D158)),
-                  SizedBox(width: 3),
-                  Text(
+                children: [
+                  Icon(LucideIcons.batteryCharging,
+                      size: 11, color: const Color(0xFF30D158)),
+                  const SizedBox(width: 3),
+                  const Text(
                     '88%',
                     style: TextStyle(
-                      fontSize: 9.5,
+                      fontSize: 9,
                       fontWeight: FontWeight.w600,
                       color: Color(0xA6FFFFFF),
                       fontFamily: 'JetBrains Mono',
@@ -223,118 +197,206 @@ class _GameturboFloatingToolboxState extends State<GameturboFloatingToolbox> {
           ),
           const SizedBox(height: 2),
 
-          // Center Circle with Horizontal Laser Flares
+          // Center Circular Tachometer Dial with Laser Flares
           SizedBox(
-            height: 72,
+            height: 66,
             width: double.infinity,
             child: Stack(
               alignment: Alignment.center,
               children: [
                 // Horizontal Laser Beam
                 Positioned(
-                  left: 10,
-                  right: 10,
+                  left: 6,
+                  right: 6,
                   child: Container(
-                    height: 2,
+                    height: 1.5,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
                           Colors.transparent,
-                          ColorSemantics.turboCrimson.withValues(alpha: 0.4),
-                          const Color(0xFFFF5A5F),
-                          ColorSemantics.turboCrimson.withValues(alpha: 0.4),
+                          accentColor.withValues(alpha: 0.4),
+                          isPerf
+                              ? const Color(0xFFFF5A5F)
+                              : const Color(0xFF64B5F6),
+                          accentColor.withValues(alpha: 0.4),
                           Colors.transparent,
                         ],
                       ),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0xFFFF3B30),
-                          blurRadius: 10,
-                        ),
-                        BoxShadow(
-                          color: Color(0x80FF3B30),
-                          blurRadius: 20,
-                        ),
-                      ],
                     ),
                   ),
                 ),
 
-                // Center Tachometer Dial
+                // Tachometer Circle
                 Container(
-                  width: 70,
-                  height: 70,
+                  width: 66,
+                  height: 66,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: const RadialGradient(
-                      colors: [Color(0xFF191E2C), Color(0xFF0D1017)],
-                    ),
+                    color: const Color(0xF2070A10),
                     border: Border.all(
-                      color: ColorSemantics.turboCrimson.withValues(alpha: 0.85),
-                      width: 2,
+                      color: accentColor.withValues(alpha: 0.5),
+                      width: 1.2,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: ColorSemantics.turboCrimson.withValues(alpha: 0.6),
-                        blurRadius: 22,
+                        color: accentColor.withValues(alpha: 0.35),
+                        blurRadius: 18,
                       ),
                     ],
                   ),
-                  child: CustomPaint(
-                    painter: _ReactorTickRingPainter(),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Text(
-                          '帧率',
-                          style: TextStyle(
-                            fontSize: 7.5,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0x80FFFFFF),
-                            height: 1,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Dotted tick ring
+                      CustomPaint(
+                        size: const Size(66, 66),
+                        painter: _ReactorTickRingPainter(),
+                      ),
+
+                      // Central FPS Live Counter & Unit (Chinese label removed)
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            fpsText,
+                            style: const TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              fontFamily: 'JetBrains Mono',
+                              letterSpacing: -0.5,
+                              height: 1.0,
+                            ),
                           ),
-                        ),
-                        Text(
-                          '120',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            fontFamily: 'JetBrains Mono',
-                            height: 1,
-                            shadows: [
-                              Shadow(color: Colors.white, blurRadius: 12),
-                            ],
+                          const SizedBox(height: 2),
+                          Text(
+                            'FPS',
+                            style: TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w800,
+                              color: accentColor,
+                              fontFamily: 'JetBrains Mono',
+                              letterSpacing: 0.8,
+                            ),
                           ),
-                        ),
-                        Text(
-                          'FPS',
-                          style: TextStyle(
-                            fontSize: 7.5,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xB3FFFFFF),
-                            letterSpacing: 0.8,
-                            height: 1.2,
-                          ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 5),
 
-          // CPU & GPU Meters
+          // Horizontal Live Telemetry Progress Meters (CPU & GPU)
           Row(
             children: [
+              // CPU Meter
               Expanded(
-                child: _buildMeterUnit(label: 'CPU', value: '30%', progress: 0.30),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'CPU',
+                          style: TextStyle(
+                            fontSize: 7.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0x80FFFFFF),
+                          ),
+                        ),
+                        Text(
+                          cpuText,
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            fontFamily: 'JetBrains Mono',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: Container(
+                        height: 3.5,
+                        color: const Color(0x24FFFFFF),
+                        child: FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: cpuProgress,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  accentColor,
+                                  accentColor.withValues(alpha: 0.7),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 14),
+
+              // GPU Meter
               Expanded(
-                child: _buildMeterUnit(label: 'GPU', value: '56%', progress: 0.56),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'GPU',
+                          style: TextStyle(
+                            fontSize: 7.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0x80FFFFFF),
+                          ),
+                        ),
+                        Text(
+                          gpuText,
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            fontFamily: 'JetBrains Mono',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: Container(
+                        height: 3.5,
+                        color: const Color(0x24FFFFFF),
+                        child: FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: gpuProgress,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Color(0xFF8B5CF6),
+                                  Color(0xFFA78BFA),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -343,121 +405,85 @@ class _GameturboFloatingToolboxState extends State<GameturboFloatingToolbox> {
     );
   }
 
-  Widget _buildMeterUnit({
-    required String label,
-    required String value,
-    required double progress,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 9.5,
-                fontWeight: FontWeight.w700,
-                color: Color(0x8AFFFFFF),
-              ),
-            ),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-                fontFamily: 'JetBrains Mono',
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 2),
-        Container(
-          height: 4,
-          decoration: BoxDecoration(
-            color: const Color(0x14FFFFFF),
-            borderRadius: BorderRadius.circular(2),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: FractionallySizedBox(
-            alignment: Alignment.centerLeft,
-            widthFactor: progress,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [ColorSemantics.turboOrange, ColorSemantics.turboCrimson],
-                ),
-                borderRadius: BorderRadius.circular(2),
-                boxShadow: [
-                  BoxShadow(
-                    color: ColorSemantics.turboCrimson.withValues(alpha: 0.6),
-                    blurRadius: 8,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+  Widget _buildModePills(
+      GameTurboSettings settings, GameTurboSettingsNotifier notifier) {
+    final isPerf = settings.performanceOptimization;
 
-  Widget _buildModePills() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      padding: const EdgeInsets.all(2.5),
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.all(3.5),
       decoration: BoxDecoration(
-        color: const Color(0x73000000),
-        borderRadius: BorderRadius.circular(10),
+        color: const Color(0x1AFFFFFF),
+        borderRadius: BorderRadius.circular(9999),
         border: Border.all(color: const Color(0x14FFFFFF)),
       ),
       child: Row(
         children: [
+          // 1. Balanced Mode Pill
           Expanded(
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () {
                 HapticFeedback.selectionClick();
-                setState(() => _isPerformanceMode = false);
+                notifier.togglePerformanceOptimization(false);
               },
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                padding: const EdgeInsets.symmetric(vertical: 5),
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(vertical: 7.5),
                 decoration: BoxDecoration(
-                  color: !_isPerformanceMode ? const Color(0xFF262A36) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
+                  gradient: !isPerf
+                      ? const LinearGradient(
+                          colors: [Color(0xFF007AFF), Color(0xFF0055B8)],
+                        )
+                      : null,
+                  borderRadius: BorderRadius.circular(9999),
+                  boxShadow: !isPerf
+                      ? [
+                          BoxShadow(
+                            color: ColorSemantics.turboBlue.withValues(alpha: 0.4),
+                            blurRadius: 8,
+                          ),
+                        ]
+                      : null,
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   'Balanced',
                   style: TextStyle(
                     fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    color: !_isPerformanceMode ? Colors.white : const Color(0x99FFFFFF),
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                    color: !isPerf ? Colors.white : const Color(0x80FFFFFF),
                   ),
                 ),
               ),
             ),
           ),
+          const SizedBox(width: 4),
+
+          // 2. Performance Mode Pill
           Expanded(
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () {
-                HapticFeedback.selectionClick();
-                setState(() => _isPerformanceMode = true);
+                HapticFeedback.heavyImpact();
+                notifier.togglePerformanceOptimization(true);
               },
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                padding: const EdgeInsets.symmetric(vertical: 5),
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(vertical: 7.5),
                 decoration: BoxDecoration(
-                  color: _isPerformanceMode ? ColorSemantics.turboRed : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: _isPerformanceMode
+                  gradient: isPerf
+                      ? const LinearGradient(
+                          colors: [Color(0xFFFF3B30), Color(0xFFE63946)],
+                        )
+                      : null,
+                  borderRadius: BorderRadius.circular(9999),
+                  boxShadow: isPerf
                       ? [
                           BoxShadow(
-                            color: ColorSemantics.turboRed.withValues(alpha: 0.55),
-                            blurRadius: 14,
-                            offset: const Offset(0, 2),
+                            color: ColorSemantics.turboCrimson.withValues(alpha: 0.45),
+                            blurRadius: 10,
                           ),
                         ]
                       : null,
@@ -466,9 +492,9 @@ class _GameturboFloatingToolboxState extends State<GameturboFloatingToolbox> {
                 child: Text(
                   'Performance',
                   style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    color: _isPerformanceMode ? Colors.white : const Color(0x99FFFFFF),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: isPerf ? Colors.white : const Color(0x80FFFFFF),
                   ),
                 ),
               ),
@@ -479,297 +505,114 @@ class _GameturboFloatingToolboxState extends State<GameturboFloatingToolbox> {
     );
   }
 
-  Widget _buildMiddleCards() {
+  Widget _buildEssentialTools(
+      GameTurboSettings settings, GameTurboSettingsNotifier notifier) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
+      padding: const EdgeInsets.fromLTRB(10, 3, 10, 3),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildCardTile(
-                  name: 'Enhanced visuals',
-                  desc: 'Vibrant HDR active',
-                  icon: Icons.memory_outlined,
-                  onTap: () => HapticFeedback.lightImpact(),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: _buildCardTile(
-                  name: 'Network',
-                  desc: 'Reduce network lag',
-                  icon: Icons.language_outlined,
-                  onTap: () => HapticFeedback.lightImpact(),
-                ),
-              ),
-            ],
+          // 1. DND (Block notifications)
+          Expanded(
+            child: _buildActionButton(
+              icon: LucideIcons.bellOff,
+              label: 'DND',
+              isActive: settings.restrictFloatingNotifications,
+              activeColor: ColorSemantics.turboCrimson,
+              onTap: () => notifier.toggleRestrictFloatingNotifications(
+                  !settings.restrictFloatingNotifications),
+            ),
           ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: _buildCardTile(
-                  name: _isMemoryCleaned ? 'Cleaned!' : 'Memory',
-                  desc: _isMemoryCleaned ? 'Freed 480MB RAM' : 'Free up system RAM',
-                  icon: Icons.rocket_launch_outlined,
-                  iconColor: ColorSemantics.turboCrimson,
-                  onTap: _purgeMemory,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: _buildCardTile(
-                  name: 'Voice changer',
-                  desc: 'Spice up your voice',
-                  icon: Icons.mic_none_outlined,
-                  onTap: () => HapticFeedback.lightImpact(),
-                ),
-              ),
-            ],
+          const SizedBox(width: 5),
+
+          // 2. Wi-Fi Speed Boost
+          Expanded(
+            child: _buildActionButton(
+              icon: LucideIcons.wifi,
+              label: 'Wi-Fi',
+              isActive: settings.wifiSpeedBoost,
+              activeColor: ColorSemantics.turboBlueLight,
+              onTap: () =>
+                  notifier.toggleWifiSpeedBoost(!settings.wifiSpeedBoost),
+            ),
+          ),
+          const SizedBox(width: 5),
+
+          // 3. AI Assistant / Guide
+          Expanded(
+            child: _buildActionButton(
+              icon: LucideIcons.bot,
+              label: 'AI',
+              isActive: _isAiActive,
+              activeColor: ColorSemantics.turboBlueLight,
+              onTap: () => setState(() => _isAiActive = !_isAiActive),
+            ),
+          ),
+          const SizedBox(width: 5),
+
+          // 4. Voice Changer
+          Expanded(
+            child: _buildActionButton(
+              icon: LucideIcons.mic,
+              label: 'Voice',
+              isActive: _isVoiceChangerActive,
+              activeColor: const Color(0xFFA855F7),
+              onTap: () => setState(
+                  () => _isVoiceChangerActive = !_isVoiceChangerActive),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCardTile({
-    required String name,
-    required String desc,
+  Widget _buildActionButton({
     required IconData icon,
-    Color? iconColor,
+    required String label,
+    required bool isActive,
+    required Color activeColor,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(vertical: 5),
         decoration: BoxDecoration(
-          color: const Color(0x10FFFFFF),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0x1AFFFFFF)),
+          color: isActive
+              ? activeColor.withValues(alpha: 0.18)
+              : const Color(0x14FFFFFF),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive
+                ? activeColor.withValues(alpha: 0.7)
+                : const Color(0x1FFFFFFF),
+          ),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      letterSpacing: -0.1,
-                    ),
-                  ),
-                  const SizedBox(height: 1),
-                  Text(
-                    desc,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 8,
-                      color: Color(0x8AFFFFFF),
-                    ),
-                  ),
-                ],
-              ),
-            ),
             Icon(
               icon,
-              size: 17,
-              color: iconColor ?? Colors.white.withValues(alpha: 0.85),
+              size: 14,
+              color: isActive ? activeColor : const Color(0x99FFFFFF),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 8,
+                fontWeight: FontWeight.w700,
+                color: isActive ? Colors.white : const Color(0x99FFFFFF),
+              ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildToolsGrid() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              _buildToolButton(
-                label: 'Screenshot',
-                icon: Icons.content_cut_outlined,
-                onTap: () => HapticFeedback.mediumImpact(),
-              ),
-              _buildToolButton(
-                label: 'Record',
-                icon: Icons.videocam_outlined,
-                onTap: () => HapticFeedback.mediumImpact(),
-              ),
-              _buildToolButton(
-                label: 'Mistouch',
-                icon: Icons.pan_tool_outlined,
-                isActive: _isMistouchActive,
-                activeColor: ColorSemantics.turboBlueLight,
-                onTap: () => setState(() => _isMistouchActive = !_isMistouchActive),
-              ),
-              _buildToolButton(
-                label: 'AI Guide',
-                icon: Icons.explore_outlined,
-                isActive: _isAiGuideActive,
-                activeColor: ColorSemantics.turboCrimson,
-                onTap: () => setState(() => _isAiGuideActive = !_isAiGuideActive),
-              ),
-            ],
-          ),
-          const SizedBox(height: 5),
-          Row(
-            children: [
-              _buildToolButton(
-                label: 'DND',
-                icon: Icons.notifications_off_outlined,
-                isActive: _isDndActive,
-                activeColor: ColorSemantics.turboBlueLight,
-                onTap: () => setState(() => _isDndActive = !_isDndActive),
-              ),
-              _buildToolButton(
-                label: 'Comments',
-                icon: Icons.chat_bubble_outline,
-                onTap: () => HapticFeedback.lightImpact(),
-              ),
-              _buildToolButton(
-                label: 'Wi-Fi',
-                icon: Icons.wifi,
-                isActive: _isWifiBoostActive,
-                activeColor: ColorSemantics.turboBlueLight,
-                onTap: () => setState(() => _isWifiBoostActive = !_isWifiBoostActive),
-              ),
-              _buildToolButton(
-                label: 'More tools',
-                icon: Icons.grid_view_outlined,
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  widget.onClose();
-                  widget.onOpenGpuSettings();
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildToolButton({
-    required String label,
-    required IconData icon,
-    bool isActive = false,
-    Color? activeColor,
-    required VoidCallback onTap,
-  }) {
-    final color = isActive ? (activeColor ?? Colors.white) : const Color(0xB3FFFFFF);
-
-    return Expanded(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onTap();
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 17, color: color),
-              const SizedBox(height: 3),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 8,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                  letterSpacing: -0.1,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGuardianBanner() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: const BoxDecoration(
-        color: Color(0xA6080B12),
-        border: Border(top: BorderSide(color: Color(0x14FFFFFF))),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.smart_toy_outlined, size: 11, color: ColorSemantics.turboBlueLight),
-                    SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        'GUARDIAN AI COACH (12s)',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 8.5,
-                          fontWeight: FontWeight.w800,
-                          color: ColorSemantics.turboBlueLight,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                const Text(
-                  '"Vi burned ult in top river skirmish. Bot dive is safe for next 60s."',
-                  style: TextStyle(
-                    fontSize: 9.5,
-                    color: Color(0xFFE2E8F0),
-                    height: 1.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.mediumImpact();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: ColorSemantics.turboBlue.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(7),
-                border: Border.all(color: ColorSemantics.turboBlue),
-              ),
-              child: const Text(
-                'COACH CHAT',
-                style: TextStyle(
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w700,
-                  color: ColorSemantics.turboBlueLight,
-                  letterSpacing: 0.2,
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -780,13 +623,13 @@ class _ReactorTickRingPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width / 2) - 4;
+    final radius = (size.width / 2) - 3;
     final paint = Paint()
       ..color = Colors.white.withValues(alpha: 0.3)
-      ..strokeWidth = 1.2
+      ..strokeWidth = 1.0
       ..style = PaintingStyle.stroke;
 
-    const tickCount = 48;
+    const tickCount = 40;
     for (int i = 0; i < tickCount; i++) {
       final angle = (i * 2 * math.pi) / tickCount;
       final x1 = center.dx + radius * math.cos(angle);

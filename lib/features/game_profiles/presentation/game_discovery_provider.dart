@@ -119,7 +119,11 @@ class InstalledGamesNotifier extends StateNotifier<InstalledGamesState> {
   Future<bool> launchActiveGame() async {
     final game = state.activeGame;
     if (game == null) return false;
-    return await _service.launchGame(game.packageName);
+    return await _service.launchGame(
+      game.packageName,
+      gameName: game.name,
+      targetFps: game.targetFps,
+    );
   }
 }
 

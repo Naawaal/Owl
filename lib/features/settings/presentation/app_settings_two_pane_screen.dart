@@ -1,18 +1,23 @@
 // language: Dart, file: app_settings_two_pane_screen.dart, target: Flutter / Owl Game Turbo
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:owl/features/settings/domain/models/game_turbo_settings.dart';
+import 'package:owl/features/settings/presentation/settings_provider.dart';
 import 'package:owl_design/owl_design.dart';
 
 /// Authentic Xiaomi HyperOS Game Turbo Two-Pane Global App Settings Screen.
 ///
-/// Implements a categorized two-column landscape view:
+/// Implements a categorized two-column landscape view with full logic integration:
 /// - Left Sidebar: Category navigation (General, Performance, DND, AI Core)
-/// - Right Pane: Setting rows with title, description, and [MiuiSwitch] controls.
-class AppSettingsTwoPaneScreen extends StatefulWidget {
+/// - Right Pane: Setting rows with title, description, [MiuiSwitch], and [OemSegmentedChips].
+/// - Real-time persistence and system integration via [gameTurboSettingsProvider].
+class AppSettingsTwoPaneScreen extends ConsumerStatefulWidget {
   const AppSettingsTwoPaneScreen({super.key});
 
   @override
-  State<AppSettingsTwoPaneScreen> createState() => _AppSettingsTwoPaneScreenState();
+  ConsumerState<AppSettingsTwoPaneScreen> createState() =>
+      _AppSettingsTwoPaneScreenState();
 }
 
 enum AppSettingCategory {
@@ -25,39 +30,22 @@ enum AppSettingCategory {
   final String label;
 }
 
-class _AppSettingsTwoPaneScreenState extends State<AppSettingsTwoPaneScreen> {
+class _AppSettingsTwoPaneScreenState
+    extends ConsumerState<AppSettingsTwoPaneScreen> {
   AppSettingCategory _selectedCategory = AppSettingCategory.general;
-
-  // General Settings State
-  bool _gameTurboMaster = true;
-  bool _inGameShortcuts = true;
-  String _shortcutEdge = 'Left';
-
-  // Performance Settings State
-  bool _perfOptimization = true;
-  bool _wifiBoost = true;
-  bool _touchBoost = true;
-  bool _audioEnhance = false;
-
-  // DND Settings State
-  bool _restrictFloating = true;
-  bool _silenceCalls = true;
-  bool _lockGestures = false;
-
-  // Guardian AI Settings State
-  bool _guardianEngine = true;
-  bool _tacticalVoice = true;
-  bool _missingRadar = true;
 
   @override
   Widget build(BuildContext context) {
+    final settings = ref.watch(gameTurboSettingsProvider);
+    final notifier = ref.read(gameTurboSettingsProvider.notifier);
+
     return Scaffold(
       backgroundColor: const Color(0xFF090C13),
       body: SafeArea(
         child: Column(
           children: [
             // Top Bar
-            _buildTopBar(context),
+            _buildTopBar(context, notifier),
 
             // Two-Pane Content
             Expanded(
@@ -70,7 +58,7 @@ class _AppSettingsTwoPaneScreenState extends State<AppSettingsTwoPaneScreen> {
                   Container(width: 1, color: const Color(0x14FFFFFF)),
 
                   // Right Content Pane
-                  Expanded(child: _buildContentPane()),
+                  Expanded(child: _buildContentPane(settings, notifier)),
                 ],
               ),
             ),
@@ -80,7 +68,8 @@ class _AppSettingsTwoPaneScreenState extends State<AppSettingsTwoPaneScreen> {
     );
   }
 
-  Widget _buildTopBar(BuildContext context) {
+  Widget _buildTopBar(
+      BuildContext context, GameTurboSettingsNotifier notifier) {
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -91,7 +80,8 @@ class _AppSettingsTwoPaneScreenState extends State<AppSettingsTwoPaneScreen> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, size: 16, color: Colors.white),
+            icon: const Icon(Icons.arrow_back_ios_new,
+                size: 16, color: Colors.white),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
             onPressed: () => Navigator.of(context).maybePop(),
@@ -107,12 +97,30 @@ class _AppSettingsTwoPaneScreenState extends State<AppSettingsTwoPaneScreen> {
             ),
           ),
           const Spacer(),
+          TextButton(
+            onPressed: notifier.resetToDefaults,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text(
+              'Reset Default',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0x99FFFFFF),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
               color: const Color(0x1A007AFF),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: ColorSemantics.turboBlue.withValues(alpha: 0.3)),
+              border: Border.all(
+                  color: ColorSemantics.turboBlue.withValues(alpha: 0.3)),
             ),
             child: const Text(
               'HYPEROS 6.0',
@@ -145,12 +153,17 @@ class _AppSettingsTwoPaneScreenState extends State<AppSettingsTwoPaneScreen> {
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 140),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
               decoration: BoxDecoration(
-                color: isSelected ? const Color(0x1A007AFF) : Colors.transparent,
+                color: isSelected
+                    ? const Color(0x1A007AFF)
+                    : Colors.transparent,
                 border: Border(
                   left: BorderSide(
-                    color: isSelected ? ColorSemantics.turboBlue : Colors.transparent,
+                    color: isSelected
+                        ? ColorSemantics.turboBlue
+                        : Colors.transparent,
                     width: 3.5,
                   ),
                 ),
@@ -160,7 +173,8 @@ class _AppSettingsTwoPaneScreenState extends State<AppSettingsTwoPaneScreen> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? Colors.white : const Color(0x8AFFFFFF),
+                  color:
+                      isSelected ? Colors.white : const Color(0x8AFFFFFF),
                   letterSpacing: -0.1,
                 ),
               ),
@@ -171,159 +185,204 @@ class _AppSettingsTwoPaneScreenState extends State<AppSettingsTwoPaneScreen> {
     );
   }
 
-  Widget _buildContentPane() {
+  Widget _buildContentPane(
+      GameTurboSettings settings, GameTurboSettingsNotifier notifier) {
     switch (_selectedCategory) {
       case AppSettingCategory.general:
-        return _buildGeneralSettings();
+        return _buildGeneralSettings(settings, notifier);
       case AppSettingCategory.performance:
-        return _buildPerformanceSettings();
+        return _buildPerformanceSettings(settings, notifier);
       case AppSettingCategory.dnd:
-        return _buildDndSettings();
+        return _buildDndSettings(settings, notifier);
       case AppSettingCategory.guardianAi:
-        return _buildGuardianAiSettings();
+        return _buildGuardianAiSettings(settings, notifier);
     }
   }
 
-  Widget _buildGeneralSettings() {
+  Widget _buildGeneralSettings(
+      GameTurboSettings settings, GameTurboSettingsNotifier notifier) {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
         _buildSettingRow(
           title: 'Game Turbo Master Engine',
-          subtitle: 'Improve game experience with hardware-level optimization and background cooling.',
+          subtitle:
+              'Improve your gaming experience with hardware-level acceleration and background cooling.',
           control: MiuiSwitch(
-            value: _gameTurboMaster,
-            onChanged: (val) => setState(() => _gameTurboMaster = val),
+            value: settings.gameTurboMaster,
+            onChanged: notifier.toggleGameTurboMaster,
           ),
         ),
         _buildDivider(),
         _buildSettingRow(
           title: 'In-Game Floating Shortcuts',
-          subtitle: 'Swipe from the edge of the screen to open the Game Turbo floating toolbox.',
+          subtitle:
+              'Swipe from the top side edge of the screen to view floating toolbox.',
           control: MiuiSwitch(
-            value: _inGameShortcuts,
-            onChanged: (val) => setState(() => _inGameShortcuts = val),
+            value: settings.inGameShortcuts,
+            onChanged: notifier.toggleInGameShortcuts,
           ),
         ),
         _buildDivider(),
         _buildSettingRow(
           title: 'Shortcut Edge Position',
-          subtitle: 'Choose which side of the screen displays the floating trigger handle.',
+          subtitle: 'Choose edge handle anchor on the display.',
           control: OemSegmentedChips<String>(
-            options: const ['Left', 'Right'],
-            selected: _shortcutEdge,
-            onSelected: (val) => setState(() => _shortcutEdge = val),
+            options: const ['Top-Left', 'Left Edge', 'Top-Right'],
+            selected: settings.shortcutEdgePosition,
+            onSelected: notifier.setShortcutEdgePosition,
+          ),
+        ),
+        _buildDivider(),
+        _buildSettingRow(
+          title: 'Content recommendations',
+          subtitle: 'Receive gaming-related content recommendations.',
+          control: MiuiSwitch(
+            value: settings.contentRecommendations,
+            onChanged: notifier.toggleContentRecommendations,
+          ),
+        ),
+        _buildDivider(),
+        _buildSettingRow(
+          title: 'Remove added games from Home screen',
+          subtitle:
+              'Don\'t show the games that were added to the gamebox on the Home screen.',
+          control: MiuiSwitch(
+            value: settings.hideGamesFromHomeScreen,
+            onChanged: notifier.toggleHideGamesFromHomeScreen,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildPerformanceSettings() {
+  Widget _buildPerformanceSettings(
+      GameTurboSettings settings, GameTurboSettingsNotifier notifier) {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
         _buildSettingRow(
           title: 'Performance Optimization',
-          subtitle: 'Automatically adjust clock frequencies to maintain stable frame rates.',
+          subtitle:
+              'Prioritize CPU and GPU allocation to maintain stable frame rates.',
           control: MiuiSwitch(
-            value: _perfOptimization,
-            onChanged: (val) => setState(() => _perfOptimization = val),
+            value: settings.performanceOptimization,
+            onChanged: notifier.togglePerformanceOptimization,
           ),
         ),
         _buildDivider(),
         _buildSettingRow(
           title: 'Wi-Fi Speed Boost',
-          subtitle: 'Reduce latency by 10-20ms via low-latency dual-band Wi-Fi routing.',
+          subtitle:
+              'Reduce network delay by switching to fastest available low-latency channel.',
           control: MiuiSwitch(
-            value: _wifiBoost,
-            onChanged: (val) => setState(() => _wifiBoost = val),
+            value: settings.wifiSpeedBoost,
+            onChanged: notifier.toggleWifiSpeedBoost,
           ),
         ),
         _buildDivider(),
         _buildSettingRow(
-          title: 'Touch Response Acceleration',
-          subtitle: 'Prioritize screen touch events to achieve instant skill actuation.',
+          title: 'Aggressive Memory Cleanup',
+          subtitle:
+              'Purge non-essential background services before game launch.',
           control: MiuiSwitch(
-            value: _touchBoost,
-            onChanged: (val) => setState(() => _touchBoost = val),
+            value: settings.aggressiveMemoryCleanup,
+            onChanged: notifier.toggleAggressiveMemoryCleanup,
           ),
         ),
         _buildDivider(),
         _buildSettingRow(
           title: 'Spatial Audio Enhancement',
-          subtitle: 'Amplify footsteps and ambush audio cues during live match combat.',
+          subtitle:
+              'Amplify footsteps and ambush audio cues during live match combat.',
           control: MiuiSwitch(
-            value: _audioEnhance,
-            onChanged: (val) => setState(() => _audioEnhance = val),
+            value: settings.spatialAudio,
+            onChanged: notifier.toggleSpatialAudio,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildDndSettings() {
+  Widget _buildDndSettings(
+      GameTurboSettings settings, GameTurboSettingsNotifier notifier) {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
         _buildSettingRow(
-          title: 'Restrict Floating Notifications',
-          subtitle: 'Block banners, heads-up notifications, and floating app popups during combat.',
+          title: 'Restrict floating notifications',
+          subtitle: 'Don\'t display floating notifications during match.',
           control: MiuiSwitch(
-            value: _restrictFloating,
-            onChanged: (val) => setState(() => _restrictFloating = val),
+            value: settings.restrictFloatingNotifications,
+            onChanged: notifier.toggleRestrictFloatingNotifications,
           ),
         ),
         _buildDivider(),
         _buildSettingRow(
-          title: 'Silence Incoming Calls',
-          subtitle: 'Mute phone ringtones while gaming and auto-reject unknown calls.',
+          title: 'Restrict buttons and gestures',
+          subtitle:
+              'Prevent accidental touches of the notification bar and navigation gestures.',
           control: MiuiSwitch(
-            value: _silenceCalls,
-            onChanged: (val) => setState(() => _silenceCalls = val),
+            value: settings.restrictButtonsAndGestures,
+            onChanged: notifier.toggleRestrictButtonsAndGestures,
           ),
         ),
         _buildDivider(),
         _buildSettingRow(
-          title: 'Lock System Navigation Gestures',
-          subtitle: 'Require double-swipe to exit full-screen to prevent accidental home trigger.',
+          title: 'Answer calls hands-free',
+          subtitle: 'Open speakerphone automatically when answering calls.',
           control: MiuiSwitch(
-            value: _lockGestures,
-            onChanged: (val) => setState(() => _lockGestures = val),
+            value: settings.answerCallsHandsFree,
+            onChanged: notifier.toggleAnswerCallsHandsFree,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildGuardianAiSettings() {
+  Widget _buildGuardianAiSettings(
+      GameTurboSettings settings, GameTurboSettingsNotifier notifier) {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
         _buildSettingRow(
-          title: 'Guardian Tactical AI Engine',
-          subtitle: 'Run local on-device tactical analysis for dragon timers and gank alerts.',
+          title: 'Guardian Tactical Engine',
+          subtitle:
+              'Real-time MOBA visual parsing, enemy roam predictions & gank alerts.',
           control: MiuiSwitch(
-            value: _guardianEngine,
-            onChanged: (val) => setState(() => _guardianEngine = val),
+            value: settings.guardianTacticalEngine,
+            onChanged: notifier.toggleGuardianTacticalEngine,
           ),
         ),
         _buildDivider(),
         _buildSettingRow(
-          title: 'Tactical Voice Co-Pilot Prompts',
-          subtitle: 'Deliver spoken earphone alerts when major enemies burn ultimates or flash.',
+          title: 'AI Vision Inference Backend',
+          subtitle:
+              'Select on-device NPU for ultra-low latency (42ms) or cloud models.',
+          control: OemSegmentedChips<String>(
+            options: const ['Local NPU', 'Gemini 2.5', 'Claude 3.5'],
+            selected: settings.aiInferenceBackend,
+            onSelected: notifier.setAiInferenceBackend,
+          ),
+        ),
+        _buildDivider(),
+        _buildSettingRow(
+          title: 'Audio Tactical Callouts',
+          subtitle:
+              'Voice announcements for missing enemy mid/jungler and dragon spawns.',
           control: MiuiSwitch(
-            value: _tacticalVoice,
-            onChanged: (val) => setState(() => _tacticalVoice = val),
+            value: settings.tacticalAudioCallouts,
+            onChanged: notifier.toggleTacticalAudioCallouts,
           ),
         ),
         _buildDivider(),
         _buildSettingRow(
           title: 'Enemy Rotation & Missing Radar',
-          subtitle: 'Display radar pulse on minimap when enemy mid/jungler disappears from sight.',
+          subtitle:
+              'Display radar pulse on minimap when enemy mid/jungler disappears from sight.',
           control: MiuiSwitch(
-            value: _missingRadar,
-            onChanged: (val) => setState(() => _missingRadar = val),
+            value: settings.enemyMissingRadar,
+            onChanged: notifier.toggleEnemyMissingRadar,
           ),
         ),
       ],
