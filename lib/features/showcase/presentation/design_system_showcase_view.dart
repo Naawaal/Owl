@@ -163,10 +163,19 @@ class _DesignSystemShowcaseViewState
                   // 8. Typography Hierarchy
                   _buildSectionHeader(
                     'TYPOGRAPHY SPECIMENS',
-                    'JetBrains Mono tabular figures + Inter high-contrast interface hierarchy.',
+                    'Outfit-only hierarchy: interface, tactical, console & gauge roles.',
                     context,
                   ),
                   _buildTypographyPreview(context),
+                  const SizedBox(height: SpacingTokens.xl),
+
+                  // 9. Console & Cinematic Roles (Prototype Canonical)
+                  _buildSectionHeader(
+                    'CONSOLE & CINEMATIC ROLES',
+                    'Game Space Console, settings, toolbox, gauge & telemetry roles.',
+                    context,
+                  ),
+                  _buildConsoleRolesPreview(context),
                   const SizedBox(height: SpacingTokens.xxl),
                 ]),
               ),
@@ -233,7 +242,7 @@ class _DesignSystemShowcaseViewState
                         children: [
                           Text(
                             'OWL',
-                            style: GoogleFonts.jetBrainsMono(
+                            style: GoogleFonts.outfit(
                               fontSize: 16.0,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 2.0,
@@ -243,7 +252,7 @@ class _DesignSystemShowcaseViewState
                           const SizedBox(width: 6.0),
                           Text(
                             'HUD SYSTEM',
-                            style: GoogleFonts.jetBrainsMono(
+                            style: GoogleFonts.outfit(
                               fontSize: 12.0,
                               fontWeight: FontWeight.w600,
                               letterSpacing: 1.2,
@@ -274,7 +283,7 @@ class _DesignSystemShowcaseViewState
                   const SizedBox(width: SpacingTokens.xs),
                   Text(
                     'SYSTEM ONLINE',
-                    style: GoogleFonts.jetBrainsMono(
+                    style: GoogleFonts.outfit(
                       fontSize: 10.0,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.0,
@@ -307,7 +316,7 @@ class _DesignSystemShowcaseViewState
                     const SizedBox(width: 6.0),
                     Text(
                       'THEME MODE',
-                      style: GoogleFonts.jetBrainsMono(
+                      style: GoogleFonts.outfit(
                         fontSize: 10.0,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.8,
@@ -411,7 +420,7 @@ class _DesignSystemShowcaseViewState
             const SizedBox(width: 3.5),
             Text(
               label,
-              style: GoogleFonts.jetBrainsMono(
+              style: GoogleFonts.outfit(
                 fontSize: 9.0,
                 fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
                 letterSpacing: 0.5,
@@ -586,7 +595,7 @@ class _DesignSystemShowcaseViewState
                   right: 12,
                   child: Text(
                     'FPS: 60 • PING: 18ms',
-                    style: GoogleFonts.jetBrainsMono(
+                    style: GoogleFonts.outfit(
                       fontSize: 9.0,
                       fontWeight: FontWeight.w600,
                       color: colors.textMuted,
@@ -699,7 +708,7 @@ class _DesignSystemShowcaseViewState
               ),
               Text(
                 '${(_cooldownProgress * 100).toInt()}% READY',
-                style: GoogleFonts.jetBrainsMono(
+                style: GoogleFonts.outfit(
                   fontSize: 11.0,
                   fontWeight: FontWeight.w700,
                   color: colors.accentCyan,
@@ -789,7 +798,7 @@ class _DesignSystemShowcaseViewState
                   children: [
                     Text(
                       'STATUS: $_lastPingStatus',
-                      style: GoogleFonts.jetBrainsMono(
+                      style: GoogleFonts.outfit(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
                         color: colors.accentCyan,
@@ -1102,7 +1111,7 @@ class _DesignSystemShowcaseViewState
             const SizedBox(height: 2.0),
             Text(
               value,
-              style: GoogleFonts.jetBrainsMono(
+              style: GoogleFonts.outfit(
                 fontSize: 13.0,
                 fontWeight: FontWeight.w700,
                 color: accentColor,
@@ -1155,7 +1164,7 @@ class _DesignSystemShowcaseViewState
               ),
               _buildColorSwatch(
                 'Electric Purple',
-                isDark ? '#7928CA' : '#8B5CF6',
+                isDark ? '#7928CA' : '#7C3AED',
                 colors.accentPurple,
                 context,
               ),
@@ -1167,13 +1176,13 @@ class _DesignSystemShowcaseViewState
               ),
               _buildColorSwatch(
                 'Crimson Danger',
-                isDark ? '#FF0055' : '#E11D48',
+                isDark ? '#FF453A' : '#E11D48',
                 colors.alertDanger,
                 context,
               ),
               _buildColorSwatch(
                 'Emerald Success',
-                isDark ? '#06D6A0' : '#059669',
+                isDark ? '#30D158' : '#059669',
                 colors.alertSuccess,
                 context,
               ),
@@ -1238,7 +1247,7 @@ class _DesignSystemShowcaseViewState
                 ),
                 Text(
                   hex,
-                  style: GoogleFonts.jetBrainsMono(
+                  style: GoogleFonts.outfit(
                     fontSize: 9.5,
                     fontWeight: FontWeight.w400,
                     color: colors.textMuted,
@@ -1246,6 +1255,88 @@ class _DesignSystemShowcaseViewState
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 9. CONSOLE & CINEMATIC ROLES PREVIEW
+  // ---------------------------------------------------------------------------
+  Widget _buildConsoleRolesPreview(BuildContext context) {
+    final colors = ColorTokens.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return OwlGlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: SpacingTokens.sm,
+            runSpacing: SpacingTokens.sm,
+            children: [
+              _buildColorSwatch('Console Base',
+                  isDark ? '#07090F' : '#FFFFFF', colors.consoleBase, context),
+              _buildColorSwatch('Horizon Top',
+                  isDark ? '#090B12' : '#F8FAFC', colors.horizonTop, context),
+              _buildColorSwatch('Horizon Bottom',
+                  isDark ? '#06070B' : '#F1F5F9', colors.horizonBottom, context),
+              _buildColorSwatch('Settings Base',
+                  isDark ? '#080B10' : '#FFFFFF', colors.settingsBase, context),
+              _buildColorSwatch('Settings Panel',
+                  isDark ? '#0E131E' : '#F8FAFC', colors.settingsPanel, context),
+              _buildColorSwatch('Settings Card',
+                  isDark ? '70% #151C2A' : '#FFFFFF', colors.settingsCard, context),
+              _buildColorSwatch('Console Muted',
+                  isDark ? '#8E9BAE' : '#64748B', colors.consoleMuted, context),
+              _buildColorSwatch('Console Dim',
+                  isDark ? '#546173' : '#CBD5E1', colors.consoleDim, context),
+              _buildColorSwatch('Turbo Cyan',
+                  isDark ? '#00E5FF' : '#0E7490', colors.turboCyan, context),
+              _buildColorSwatch('HUD Crimson',
+                  isDark ? '#FF3B30' : '#DC2626', colors.hudCrimson, context),
+              _buildColorSwatch('Alert Crimson',
+                  isDark ? '#FF453A' : '#E11D48', colors.alertCrimson, context),
+              _buildColorSwatch('Emerald Live',
+                  isDark ? '#30D158' : '#059669', colors.emeraldLive, context),
+              _buildColorSwatch('Tactical Amber',
+                  isDark ? '#FF9F0A' : '#D97706', colors.tacticalAmber, context),
+              _buildColorSwatch('Telemetry Critical',
+                  isDark ? '#E63946' : '#E11D48', colors.telemetryCritical, context),
+              _buildColorSwatch('Telemetry Low',
+                  isDark ? '#EAB308' : '#D97706', colors.telemetryLow, context),
+              _buildColorSwatch('Play Wing Start', '80% #0062EB',
+                  colors.playWingStart, context),
+              _buildColorSwatch('Play Wing End', '96% #0088FF',
+                  colors.playWingEnd, context),
+              _buildColorSwatch('GPU Tab Fill', '88% #121620',
+                  colors.gpuTabFill, context),
+              _buildColorSwatch('Gold Deep',
+                  isDark ? '#FB8500' : '#B45309', colors.goldDeep, context),
+              _buildColorSwatch('Gold Solid',
+                  isDark ? '#FFD700' : '#D97706', colors.goldSolid, context),
+              _buildColorSwatch('Badge Yellow',
+                  isDark ? '#EAB308' : '#A16207', colors.badgeYellow, context),
+              _buildColorSwatch('Console Purple',
+                  isDark ? '#7C3AED' : '#7C3AED', colors.consolePurple, context),
+              _buildColorSwatch('Purple Vivid',
+                  isDark ? '#933AEA' : '#6D28D9', colors.consolePurpleVivid, context),
+              _buildColorSwatch('Gamebox Start', '#4338CA',
+                  colors.gameboxStart, context),
+              _buildColorSwatch('Gamebox End', '#6366F1',
+                  colors.gameboxEnd, context),
+              _buildColorSwatch('Toolbox BG', '94% #0E121B',
+                  colors.toolboxBg, context),
+              _buildColorSwatch('Gauge Laser',
+                  isDark ? '#FF5A5F' : '#E11D48', colors.gaugeLaser, context),
+              _buildColorSwatch('Radar Border', '55% #007AFF',
+                  colors.radarBorder, context),
+              _buildColorSwatch('Dialog Scrim', '95% #101420',
+                  colors.dialogBg, context),
+              _buildColorSwatch('Key Input Text',
+                  isDark ? '#00E5FF' : '#0E7490', colors.keyInputText, context),
+            ],
           ),
         ],
       ),
@@ -1263,7 +1354,7 @@ class _DesignSystemShowcaseViewState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildTypoItem(
-            'displayTimer (28sp, Bold, Tabular Mono)',
+            'displayTimer (28sp, Bold Outfit)',
             Text(
               '00:${_timerSeconds.toString().padLeft(2, '0')}',
               style: TypographyTokens.displayTimer.copyWith(
@@ -1296,7 +1387,7 @@ class _DesignSystemShowcaseViewState
           ),
           Divider(color: colors.borderGlass, height: 16.0),
           _buildTypoItem(
-            'tacticalLabel (11sp, Bold Monospace, +1.2px tracking)',
+            'tacticalLabel (11sp, Bold, +1.2px tracking)',
             Text(
               'OBJECTIVE VULNERABLE • FLANK FROM RIVER',
               style: TypographyTokens.tacticalLabel.copyWith(
@@ -1312,6 +1403,72 @@ class _DesignSystemShowcaseViewState
               'External non-invasive visual coach operating strictly via passive display.',
               style: TypographyTokens.bodyMedium.copyWith(
                 color: colors.textSecondary,
+              ),
+            ),
+            context,
+          ),
+          Divider(color: colors.borderGlass, height: 16.0),
+          _buildTypoItem(
+            'heroHeadline (24sp, Black)',
+            Text(
+              '5V5 ACTION GAMEPLAY',
+              style: TypographyTokens.heroHeadline.copyWith(
+                color: colors.textPrimary,
+              ),
+            ),
+            context,
+          ),
+          Divider(color: colors.borderGlass, height: 16.0),
+          _buildTypoItem(
+            'playWingTitle (19sp, Extra-Bold)',
+            Text(
+              'Play',
+              style: TypographyTokens.playWingTitle.copyWith(
+                color: colors.textPrimary,
+              ),
+            ),
+            context,
+          ),
+          Divider(color: colors.borderGlass, height: 16.0),
+          _buildTypoItem(
+            'gaugeNumerals (22sp, Extra-Bold)',
+            Text(
+              '120',
+              style: TypographyTokens.gaugeNumerals.copyWith(
+                color: colors.textPrimary,
+              ),
+            ),
+            context,
+          ),
+          Divider(color: colors.borderGlass, height: 16.0),
+          _buildTypoItem(
+            'settingsRowTitle (14sp, Semi-Bold)',
+            Text(
+              'Performance optimization',
+              style: TypographyTokens.settingsRowTitle.copyWith(
+                color: colors.textPrimary,
+              ),
+            ),
+            context,
+          ),
+          Divider(color: colors.borderGlass, height: 16.0),
+          _buildTypoItem(
+            'statusMicro (11.5sp, Semi-Bold)',
+            Text(
+              '71%  •  CPU 30%',
+              style: TypographyTokens.statusMicro.copyWith(
+                color: colors.textSecondary,
+              ),
+            ),
+            context,
+          ),
+          Divider(color: colors.borderGlass, height: 16.0),
+          _buildTypoItem(
+            'subpillLabel (9.5sp, Extra-Bold, +1.0px)',
+            Text(
+              'SKILL LEADS TO VICTORY',
+              style: TypographyTokens.subpillLabel.copyWith(
+                color: colors.textPrimary,
               ),
             ),
             context,

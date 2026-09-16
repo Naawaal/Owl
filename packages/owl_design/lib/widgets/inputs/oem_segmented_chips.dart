@@ -22,11 +22,14 @@ class OemSegmentedChips<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = ColorTokens.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0x66000000),
+        color: colors.isDark
+            ? ColorPrimitives.segTrackBlack40
+            : colors.surfaceElevated,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0x1AFFFFFF)),
+        border: Border.all(color: colors.borderGlass),
       ),
       padding: const EdgeInsets.all(2.5),
       child: Row(
@@ -48,12 +51,13 @@ class OemSegmentedChips<T> extends StatelessWidget {
               curve: Curves.easeOutCubic,
               padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
               decoration: BoxDecoration(
-                color: isSelected ? ColorSemantics.turboBlue : Colors.transparent,
+                color:
+                    isSelected ? colors.turboBlue : Colors.transparent,
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: ColorSemantics.turboBlue.withValues(alpha: 0.45),
+                          color: colors.turboBlue.withValues(alpha: 0.45),
                           blurRadius: 8,
                           offset: const Offset(0, 1),
                         ),
@@ -62,12 +66,15 @@ class OemSegmentedChips<T> extends StatelessWidget {
               ),
               child: Text(
                 label,
-                style: TextStyle(
-                  fontFamily: TypographyTokens.uiFontFamily,
+                style: TypographyTokens.bodySmallOf(context).copyWith(
                   fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                  color: isSelected ? Colors.white : const Color(0x99FFFFFF),
+                  fontWeight:
+                      isSelected ? FontWeight.w700 : FontWeight.w600,
+                  color: isSelected
+                      ? Colors.white
+                      : colors.textPrimary.withValues(alpha: 0.6),
                   letterSpacing: -0.1,
+                  height: 1.2,
                 ),
               ),
             ),

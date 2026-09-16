@@ -360,7 +360,7 @@ class _TacticalPingCardState extends State<_TacticalPingCard> {
                         Expanded(
                           child: Text(
                             ping.title,
-                            style: GoogleFonts.jetBrainsMono(
+                            style: GoogleFonts.outfit(
                               fontSize: 11.0,
                               fontWeight: FontWeight.w700,
                               color: colors.textPrimary,
@@ -382,7 +382,7 @@ class _TacticalPingCardState extends State<_TacticalPingCard> {
                             ),
                             child: Text(
                               ping.badgeText!,
-                              style: GoogleFonts.jetBrainsMono(
+                              style: GoogleFonts.outfit(
                                 fontSize: 8.0,
                                 fontWeight: FontWeight.w800,
                                 color: ping.accentColor,

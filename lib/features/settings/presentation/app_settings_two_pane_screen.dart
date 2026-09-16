@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:owl/features/settings/domain/models/game_turbo_settings.dart';
 import 'package:owl/features/settings/presentation/settings_provider.dart';
 import 'package:owl_design/owl_design.dart';
+import 'package:owl_storage/owl_storage.dart';
 
 /// Authentic Two-Pane Global Application & Tactical Settings Screen.
 ///
@@ -59,6 +60,12 @@ class _AppSettingsTwoPaneScreenState
   void initState() {
     super.initState();
     _selectedCategory = widget.initialCategory;
+    ref.read(gameTurboSettingsProvider.notifier).onPersistError = (message) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    };
     _loadCurrentApiKey();
   }
 
@@ -104,8 +111,11 @@ class _AppSettingsTwoPaneScreenState
     });
 
     try {
-      final latency =
-          await keyManager.testConnection(settings.activeAiProvider, text);
+      final latency = await keyManager.testConnection(
+        settings.activeAiProvider,
+        text,
+        model: settings.activeModel,
+      );
       await keyManager.saveApiKey(settings.activeAiProvider, text);
       if (mounted) {
         setState(() {
@@ -139,17 +149,28 @@ class _AppSettingsTwoPaneScreenState
       if (mounted) setState(() => _showToastAlert = false);
     });
 
+    final colors = ColorTokens.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+      SnackBar(
         content: Row(
           children: [
-            Icon(LucideIcons.alertTriangle, size: 16, color: Colors.amber),
-            SizedBox(width: 8),
-            Text('⚠️ Tactical Alert: Enemy Jungler missing from Bot River!'),
+            Icon(LucideIcons.alertTriangle, size: 16, color: colors.tacticalAmber),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '⚠️ Tactical Alert: Enemy Jungler missing from Bot River!',
+                style: TypographyTokens.bodySmallOf(context).copyWith(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           ],
         ),
-        backgroundColor: Color(0xFF161F2E),
-        duration: Duration(seconds: 3),
+        backgroundColor: colors.isLight
+            ? colors.surfaceElevated
+            : ColorPrimitives.toastScrim,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -159,84 +180,99 @@ class _AppSettingsTwoPaneScreenState
     final settings = ref.watch(gameTurboSettingsProvider);
     final notifier = ref.read(gameTurboSettingsProvider.notifier);
 
+    final colors = ColorTokens.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFF07090E),
-      body: SafeArea(
-        child: DefaultTextStyle.merge(
-          style: TextStyle(
-            fontFamily: TypographyTokens.uiFontFamily,
-          ),
-          child: Column(
-            children: [
-              // Top Navigation Bar
-              _buildTopBar(context),
+      backgroundColor: colors.consoleBase,
+      extendBodyBehindAppBar: true,
+      extendBody: true,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: OwlAtmosphericBackground()),
+          SafeArea(
+            left: false,
+            right: false,
+            child: DefaultTextStyle.merge(
+              style: TextStyle(
+                fontFamily: TypographyTokens.uiFontFamily,
+              ),
+              child: Column(
+                children: [
+                  // Top Navigation Bar
+                  _buildTopBar(context),
 
-              // Two-Pane Content Body
-              Expanded(
-                child: Stack(
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Left Category Sidebar
-                        _buildCategorySidebar(),
+                  // Two-Pane Content Body
+                  Expanded(
+                  child: Stack(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Left Category Sidebar
+                          _buildCategorySidebar(),
 
-                        // Vertical Divider
-                        Container(width: 1, color: const Color(0x1AFFFFFF)),
+                          // Vertical Divider
+                          Container(
+                              width: 1,
+                              color: colors.textPrimary
+                                  .withValues(alpha: 0.1)),
 
-                        // Right Content Pane — styled scrollbar + fade transition
-                        Expanded(
-                          child: Container(
-                            color: const Color(0xFF07090E),
-                            child: ScrollbarTheme(
-                              data: const ScrollbarThemeData(
-                                thumbColor: WidgetStatePropertyAll(Color(0x4400E5FF)),
-                                trackColor: WidgetStatePropertyAll(Color(0x0AFFFFFF)),
-                                thickness: WidgetStatePropertyAll(4),
-                                radius: Radius.circular(3),
-                              ),
-                              child: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 180),
-                                transitionBuilder: (child, animation) {
-                                  return FadeTransition(
-                                    opacity: animation,
-                                    child: SlideTransition(
-                                      position: Tween<Offset>(
-                                        begin: const Offset(0, 0.015),
-                                        end: Offset.zero,
-                                      ).animate(CurvedAnimation(
-                                        parent: animation,
-                                        curve: Curves.easeOut,
-                                      )),
-                                      child: child,
-                                    ),
-                                  );
-                                },
-                                child: KeyedSubtree(
-                                  key: ValueKey(_selectedCategory),
-                                  child: _buildContentPane(settings, notifier),
+                          // Right Content Pane — styled scrollbar + fade transition
+                          Expanded(
+                            child: Container(
+                              color: Colors.transparent,
+                              child: ScrollbarTheme(
+                                data: const ScrollbarThemeData(
+                                  thumbColor: WidgetStatePropertyAll(
+                                      ColorPrimitives.scrollThumbBlue50),
+                                  trackColor: WidgetStatePropertyAll(
+                                      ColorPrimitives.scrollTrackBlack25),
+                                  thickness: WidgetStatePropertyAll(4),
+                                  radius: Radius.circular(3),
+                                ),
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 180),
+                                  transitionBuilder: (child, animation) {
+                                    return FadeTransition(
+                                      opacity: animation,
+                                      child: SlideTransition(
+                                        position: Tween<Offset>(
+                                          begin: const Offset(0, 0.015),
+                                          end: Offset.zero,
+                                        ).animate(CurvedAnimation(
+                                          parent: animation,
+                                          curve: Curves.easeOut,
+                                        )),
+                                        child: child,
+                                      ),
+                                    );
+                                  },
+                                  child: KeyedSubtree(
+                                    key: ValueKey(_selectedCategory),
+                                    child: _buildContentPane(settings, notifier),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-
-                    // Floating In-App Tactical Toast Banner
-                    if (_showToastAlert)
-                      Positioned(
-                        top: 10,
-                        left: 240,
-                        right: 20,
-                        child: _buildTacticalToastBanner(),
+                        ],
                       ),
-                  ],
+
+                      // Floating In-App Tactical Toast Banner
+                      if (_showToastAlert)
+                        Positioned(
+                          top: 10,
+                          left: 240,
+                          right: 20,
+                          child: _buildTacticalToastBanner(),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -245,6 +281,7 @@ class _AppSettingsTwoPaneScreenState
   // TOP BAR (Clean: Back Button + Settings Title)
   // ---------------------------------------------------------------------------
   Widget _buildTopBar(BuildContext context) {
+    final colors = ColorTokens.of(context);
     final settings = ref.watch(gameTurboSettingsProvider);
     final providerLabel = switch (settings.activeAiProvider) {
       'openai' => 'OpenAI',
@@ -257,9 +294,17 @@ class _AppSettingsTwoPaneScreenState
     return Container(
       height: 54,
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: const BoxDecoration(
-        color: Color(0xF20E131E),
-        border: Border(bottom: BorderSide(color: Color(0x1AFFFFFF))),
+      decoration: BoxDecoration(
+        color: colors.isLight
+            ? colors.surfaceCard.withValues(alpha: 0.92)
+            : colors.settingsPanel.withValues(alpha: 0.75),
+        border: Border(
+          bottom: BorderSide(
+            color: colors.isLight
+                ? colors.borderGlass.withValues(alpha: 1.0)
+                : colors.textPrimary.withValues(alpha: 0.08),
+          ),
+        ),
       ),
       child: Row(
         children: [
@@ -270,14 +315,16 @@ class _AppSettingsTwoPaneScreenState
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: const Color(0x0AFFFFFF),
+                color: colors.textPrimary.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0x1FFFFFFF)),
+                border: Border.all(
+                  color: colors.textPrimary.withValues(alpha: 0.12),
+                ),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.chevron_left,
                 size: 20,
-                color: Colors.white,
+                color: colors.textPrimary,
               ),
             ),
           ),
@@ -288,23 +335,20 @@ class _AppSettingsTwoPaneScreenState
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Settings',
-                style: TextStyle(
-                  fontSize: 15,
+                style: TypographyTokens.dialogTitleOf(context).copyWith(
                   fontWeight: FontWeight.w700,
-                  color: Colors.white,
                   letterSpacing: -0.2,
                 ),
               ),
               Text(
                 '$providerLabel • $modelShort',
-                style: TextStyle(
+                style: TypographyTokens.settingsRowDescOf(context).copyWith(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0x8AFFFFFF),
                   letterSpacing: 0.3,
-                  fontFamily: TypographyTokens.monoFontFamily,
+                  color: colors.textPrimary.withValues(alpha: 0.54),
                 ),
               ),
             ],
@@ -316,9 +360,13 @@ class _AppSettingsTwoPaneScreenState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: const Color(0x1F007AFF),
+              color: colors.isLight
+                  ? colors.turboBlue.withValues(alpha: 0.08)
+                  : ColorPrimitives.selectBlue12,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0x59007AFF)),
+              border: Border.all(
+                color: colors.turboBlue.withValues(alpha: 0.35),
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -333,10 +381,15 @@ class _AppSettingsTwoPaneScreenState
                     child: Container(
                       width: 6,
                       height: 6,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF00E5FF),
+                      decoration: BoxDecoration(
+                        color: colors.turboCyan,
                         shape: BoxShape.circle,
-                        boxShadow: [BoxShadow(color: Color(0x8800E5FF), blurRadius: 6)],
+                        boxShadow: [
+                          BoxShadow(
+                            color: colors.turboCyan.withValues(alpha: 0.53),
+                            blurRadius: 6,
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -345,11 +398,10 @@ class _AppSettingsTwoPaneScreenState
                 const SizedBox(width: 6),
                 Text(
                   'CLOUD API READY',
-                  style: TextStyle(
+                  style: TypographyTokens.tacticalBadgeOf(context).copyWith(
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
-                    color: const Color(0xFF00E5FF),
-                    fontFamily: TypographyTokens.monoFontFamily,
+                    color: colors.keyInputText,
                     letterSpacing: 0.4,
                   ),
                 ),
@@ -365,9 +417,22 @@ class _AppSettingsTwoPaneScreenState
   // SIDEBAR NAVIGATION (1:1 with Prototype Categories & Badges)
   // ---------------------------------------------------------------------------
   Widget _buildCategorySidebar() {
+    final colors = ColorTokens.of(context);
     return Container(
       width: 220,
-      color: const Color(0xF20A0E16),
+      decoration: BoxDecoration(
+        color: colors.isLight
+            ? colors.surfaceElevated.withValues(alpha: 0.85)
+            : colors.settingsCard.withValues(alpha: 0.6),
+        border: Border(
+          right: BorderSide(
+            color: colors.isLight
+                ? colors.borderGlass.withValues(alpha: 0.8)
+                : Colors.transparent,
+            width: 0.5,
+          ),
+        ),
+      ),
       child: ListView(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
         children: [
@@ -388,13 +453,15 @@ class _AppSettingsTwoPaneScreenState
                         horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0x1F007AFF)
+                          ? (colors.isLight
+                              ? colors.turboBlue.withValues(alpha: 0.12)
+                              : ColorPrimitives.selectBlue12)
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(8),
                       border: Border(
                         left: BorderSide(
                           color: isSelected
-                              ? ColorSemantics.turboBlue
+                              ? colors.turboBlue
                               : Colors.transparent,
                           width: 3,
                         ),
@@ -406,21 +473,22 @@ class _AppSettingsTwoPaneScreenState
                           cat.icon,
                           size: 16,
                           color: isSelected
-                              ? const Color(0xFF00E5FF)
-                              : const Color(0x8AFFFFFF),
+                              ? colors.turboCyan
+                              : colors.textPrimary.withValues(alpha: 0.54),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             cat.label,
-                            style: TextStyle(
+                            style:
+                                TypographyTokens.titleSmallOf(context).copyWith(
                               fontSize: 12,
                               fontWeight: isSelected
                                   ? FontWeight.w700
                                   : FontWeight.w500,
                               color: isSelected
-                                  ? Colors.white
-                                  : const Color(0x8AFFFFFF),
+                                  ? colors.textPrimary
+                                  : colors.textPrimary.withValues(alpha: 0.54),
                               letterSpacing: -0.1,
                             ),
                           ),
@@ -441,24 +509,30 @@ class _AppSettingsTwoPaneScreenState
   // TACTICAL TOAST BANNER (1:1 with Prototype)
   // ---------------------------------------------------------------------------
   Widget _buildTacticalToastBanner() {
+    final colors = ColorTokens.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xF5101624),
+        color: colors.isLight
+            ? colors.surfaceCard.withValues(alpha: 0.9)
+            : colors.surfaceElevated.withValues(alpha: 0.8),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0x33007AFF)),
-        boxShadow: const [
+        border: Border.all(
+          color: colors.turboBlue.withValues(alpha: 0.2),
+        ),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x80000000),
+            color: colors.textPrimary.withValues(alpha: 0.08),
             blurRadius: 16,
-            offset: Offset(0, 6),
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(LucideIcons.alertTriangle, size: 18, color: Colors.amber),
-          SizedBox(width: 10),
+          Icon(LucideIcons.alertTriangle,
+              size: 18, color: colors.tacticalAmber),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -466,18 +540,17 @@ class _AppSettingsTwoPaneScreenState
               children: [
                 Text(
                   '⚠️ Tactical Voice Callout',
-                  style: TextStyle(
+                  style: TypographyTokens.dialogActionOf(context).copyWith(
                     fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.amber,
+                    color: colors.tacticalAmber,
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
                   '"Enemy Mid is rotating Bot river! Fall back to turret."',
-                  style: TextStyle(
+                  style: TypographyTokens.bodySmallOf(context).copyWith(
                     fontSize: 10.5,
-                    color: Colors.white,
+                    color: colors.textPrimary,
                   ),
                 ),
               ],
@@ -517,7 +590,7 @@ class _AppSettingsTwoPaneScreenState
     GameTurboSettingsNotifier notifier,
   ) {
     return ListView(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.fromLTRB(22, 22, 22, 22 + MediaQuery.paddingOf(context).bottom),
       children: [
         _buildPaneHeader(
           'General Preferences',
@@ -528,20 +601,22 @@ class _AppSettingsTwoPaneScreenState
           _buildSettingRow(
             title: 'App Theme',
             hint:
-                'Choose system default matching device OS, forced dark MOBA theme, or light mode.',
+                'Choose system default matching device OS, light mode, or forced dark MOBA theme.',
             control: OemSegmentedChips<ThemeMode>(
               options: const [
                 ThemeMode.system,
+                ThemeMode.light,
                 ThemeMode.dark,
-                ThemeMode.light
               ],
-              selected: settings.themeMode,
+              selected: ref.watch(themeModeProvider),
               labelBuilder: (m) => switch (m) {
                 ThemeMode.system => 'System',
-                ThemeMode.dark => 'Dark HUD',
                 ThemeMode.light => 'Light',
+                ThemeMode.dark => 'Dark',
               },
-              onSelected: notifier.setThemeMode,
+              onSelected: (mode) => ref
+                  .read(themeModeProvider.notifier)
+                  .setThemeMode(mode),
             ),
           ),
 
@@ -566,41 +641,46 @@ class _AppSettingsTwoPaneScreenState
 
           // Reset All Settings Row (Styled Red Tinted in Prototype)
           Container(
-            color: const Color(0x08FF453A),
+            color:
+                ColorTokens.of(context).alertCrimson.withValues(alpha: 0.03),
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Reset All Settings',
-                        style: TextStyle(
+                        style: TypographyTokens.settingsRowTitleOf(context).copyWith(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
-                          color: ColorSemantics.turboCrimson,
+                          color: ColorTokens.of(context).telemetryCritical,
                         ),
                       ),
-                      SizedBox(height: 3),
+                      const SizedBox(height: 3),
                       Text(
                         'Clear all custom role configurations, thresholds, and restore factory defaults.',
-                        style: TextStyle(
+                        style: TypographyTokens.settingsRowDescOf(context).copyWith(
                           fontSize: 10.5,
-                          color: Color(0x88FFFFFF),
+                          color: ColorTokens.of(context).textPrimary
+                              .withValues(alpha: 0.53),
                         ),
                       ),
                     ],
                   ),
                 ),
                 OutlinedButton.icon(
-                  icon: const Icon(LucideIcons.rotateCcw,
-                      size: 13, color: ColorSemantics.turboCrimson),
-                  label: const Text('Reset to Factory Defaults',
-                      style: TextStyle(
-                          fontSize: 11, color: ColorSemantics.turboCrimson)),
+                  icon: Icon(LucideIcons.rotateCcw,
+                      size: 13, color: ColorTokens.of(context).telemetryCritical),
+                  label: Text('Reset to Factory Defaults',
+                      style: TypographyTokens.dialogActionOf(context).copyWith(
+                          fontSize: 11,
+                          color: ColorTokens.of(context).telemetryCritical)),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0x55FF453A)),
+                    side: BorderSide(
+                        color: ColorTokens.of(context).alertCrimson
+                            .withValues(alpha: 0.33)),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8)),
                   ),
@@ -652,7 +732,7 @@ class _AppSettingsTwoPaneScreenState
     };
 
     return ListView(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.fromLTRB(22, 22, 22, 22 + MediaQuery.paddingOf(context).bottom),
       children: [
         _buildPaneHeader(
           'AI Provider & Model Configuration',
@@ -670,9 +750,14 @@ class _AppSettingsTwoPaneScreenState
           // Dark background + border-bottom matches: background: rgba(0,0,0,0.15)
           // Horizontal scroll wrapper prevents overflow on narrow screens
           Container(
-            decoration: const BoxDecoration(
-              color: Color(0x26000000),
-              border: Border(bottom: BorderSide(color: Color(0x14FFFFFF))),
+            decoration: BoxDecoration(
+              color: ColorTokens.of(context).isLight
+                  ? Colors.transparent
+                  : ColorPrimitives.scrimBlack15,
+              border: Border(
+                  bottom: BorderSide(
+                      color: ColorTokens.of(context).textPrimary
+                          .withValues(alpha: 0.08))),
             ),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -754,28 +839,29 @@ class _AppSettingsTwoPaneScreenState
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final isCompact = constraints.maxWidth < 580;
+                final inputColors = ColorTokens.of(context);
 
                 Widget statusBadge;
                 if (_keyTestResult != null) {
                   statusBadge = _buildKeyStatusBadge(
                     _keyTestResult!,
-                    const Color(0xFF30D158),
-                    const Color(0x2230D158),
-                    const Color(0x5530D158),
+                    inputColors.emeraldLive,
+                    inputColors.emeraldLive.withValues(alpha: 0.13),
+                    inputColors.emeraldLive.withValues(alpha: 0.33),
                   );
                 } else if (_keyController.text.isNotEmpty) {
                   statusBadge = _buildKeyStatusBadge(
                     '✓ Key Active',
-                    const Color(0xFF30D158),
-                    const Color(0x2230D158),
-                    const Color(0x5530D158),
+                    inputColors.emeraldLive,
+                    inputColors.emeraldLive.withValues(alpha: 0.13),
+                    inputColors.emeraldLive.withValues(alpha: 0.33),
                   );
                 } else {
                   statusBadge = _buildKeyStatusBadge(
                     '● Key Missing',
-                    const Color(0xFFFF9F0A),
-                    const Color(0x22FF9F0A),
-                    const Color(0x66FF9F0A),
+                    inputColors.tacticalAmber,
+                    inputColors.tacticalAmber.withValues(alpha: 0.13),
+                    inputColors.tacticalAmber.withValues(alpha: 0.4),
                   );
                 }
 
@@ -786,10 +872,9 @@ class _AppSettingsTwoPaneScreenState
                       children: [
                         Text(
                           '$providerDisplayName API Key',
-                          style: const TextStyle(
+                          style: TypographyTokens.settingsRowTitleOf(context).copyWith(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w700,
-                            color: Colors.white,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -797,11 +882,12 @@ class _AppSettingsTwoPaneScreenState
                       ],
                     ),
                     const SizedBox(height: 3),
-                    const Text(
+                    Text(
                       'Stored in on-device Keystore (AES-256). Calls route directly from device to provider API.',
-                      style: TextStyle(
+                      style: TypographyTokens.settingsRowDescOf(context).copyWith(
                         fontSize: 10.5,
-                        color: Color(0x88FFFFFF),
+                        color: ColorTokens.of(context).textPrimary
+                            .withValues(alpha: 0.53),
                         height: 1.35,
                       ),
                     ),
@@ -816,33 +902,39 @@ class _AppSettingsTwoPaneScreenState
                         child: TextField(
                           controller: _keyController,
                           obscureText: _obscureKey,
-                          style: TextStyle(
+                          style: TypographyTokens.keyInputOf(context).copyWith(
                             fontSize: 11,
-                            color: const Color(0xFF00E5FF),
-                            fontFamily: TypographyTokens.monoFontFamily,
                           ),
                           decoration: InputDecoration(
                             hintText: 'Enter API Key',
-                            hintStyle: const TextStyle(
-                              color: Color(0x44FFFFFF),
+                            hintStyle: TypographyTokens.keyInputOf(context).copyWith(
                               fontSize: 11,
+                              color: ColorTokens.of(context).textPrimary
+                                  .withValues(alpha: 0.27),
                             ),
                             filled: true,
-                            fillColor: const Color(0x80000000),
+                            fillColor: inputColors.isDark
+                                ? ColorComponentTokens.keyInputBg
+                                : inputColors.inputBg,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 7),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: Color(0x14FFFFFF)),
+                              borderSide: BorderSide(
+                                  color: ColorTokens.of(context).textPrimary
+                                      .withValues(alpha: 0.08)),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: Color(0x14FFFFFF)),
+                              borderSide: BorderSide(
+                                  color: ColorTokens.of(context).textPrimary
+                                      .withValues(alpha: 0.08)),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                               borderSide: BorderSide(
-                                color: ColorSemantics.turboBlue.withValues(alpha: 0.6),
+                                color: ColorTokens.turboBlue
+                                    .withValues(alpha: 0.6),
                               ),
                             ),
                             suffixIcon: IconButton(
@@ -851,7 +943,8 @@ class _AppSettingsTwoPaneScreenState
                               icon: Icon(
                                 _obscureKey ? Icons.visibility_off : Icons.visibility,
                                 size: 14,
-                                color: const Color(0x88FFFFFF),
+                                color: ColorTokens.of(context).textPrimary
+                                    .withValues(alpha: 0.53),
                               ),
                               onPressed: () => setState(() => _obscureKey = !_obscureKey),
                             ),
@@ -871,8 +964,10 @@ class _AppSettingsTwoPaneScreenState
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                         decoration: BoxDecoration(
-                          color: const Color(0x1F007AFF),
-                          border: Border.all(color: const Color(0x66007AFF)),
+                          color: ColorPrimitives.selectBlue12,
+                          border: Border.all(
+                              color: ColorTokens.turboBlue
+                                  .withValues(alpha: 0.4)),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
@@ -884,18 +979,17 @@ class _AppSettingsTwoPaneScreenState
                                 height: 11,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: Colors.white,
+                                  color: ColorTokens.turboBlue,
                                 ),
                               )
                             else
-                              const Icon(LucideIcons.checkCheck, size: 12, color: Colors.white),
+                              Icon(LucideIcons.checkCheck,
+                                  size: 12, color: ColorTokens.of(context).textPrimary),
                             const SizedBox(width: 7),
                             Text(
                               _isValidatingKey ? 'Testing...' : 'Save & Test',
-                              style: const TextStyle(
+                              style: TypographyTokens.buttonTextOf(context).copyWith(
                                 fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
                               ),
                             ),
                           ],
@@ -910,9 +1004,9 @@ class _AppSettingsTwoPaneScreenState
                         padding: const EdgeInsets.only(top: 5),
                         child: Text(
                           '⚠️ $_keyValidationError',
-                          style: const TextStyle(
+                          style: TypographyTokens.dialogActionOf(context).copyWith(
                             fontSize: 10,
-                            color: ColorSemantics.turboCrimson,
+                            color: ColorTokens.of(context).telemetryCritical,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -959,26 +1053,29 @@ class _AppSettingsTwoPaneScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Select Active Tactical Model',
-                        style: TextStyle(
+                        style: TypographyTokens.settingsRowTitleOf(context).copyWith(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
-                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 3),
-                      const Text(
+                      Text(
                         'Choose between ultra-fast Flash/Mini models for combat callouts or larger models for macro analysis.',
-                        style: TextStyle(fontSize: 10.5, color: Color(0x88FFFFFF)),
+                        style: TypographyTokens.settingsRowDescOf(context).copyWith(
+                          fontSize: 10.5,
+                          color: ColorTokens.of(context).textPrimary
+                              .withValues(alpha: 0.53),
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         '⇄ Swipe horizontally if options exceed space',
-                        style: TextStyle(
+                        style: TypographyTokens.bodySmallOf(context).copyWith(
                           fontSize: 9.5,
-                          color: const Color(0x55FFFFFF),
-                          fontFamily: TypographyTokens.monoFontFamily,
+                          color: ColorTokens.of(context).textPrimary
+                              .withValues(alpha: 0.33),
                         ),
                       ),
                     ],
@@ -1020,11 +1117,10 @@ class _AppSettingsTwoPaneScreenState
       ),
       child: Text(
         text,
-        style: TextStyle(
+        style: TypographyTokens.tacticalBadgeOf(context).copyWith(
           fontSize: 9,
           fontWeight: FontWeight.w700,
           color: textColor,
-          fontFamily: TypographyTokens.monoFontFamily,
         ),
       ),
     );
@@ -1047,14 +1143,22 @@ class _AppSettingsTwoPaneScreenState
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0x1F007AFF) : const Color(0x07FFFFFF),
+          color: isSelected
+              ? ColorTokens.turboBlue.withValues(alpha: 0.12)
+              : ColorTokens.of(context).textPrimary.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? ColorSemantics.turboBlue : const Color(0x14FFFFFF),
+            color: isSelected
+                ? ColorTokens.turboBlue
+                : ColorTokens.of(context).textPrimary.withValues(alpha: 0.08),
             width: isSelected ? 1.4 : 1.0,
           ),
           boxShadow: isSelected
-              ? [BoxShadow(color: ColorSemantics.turboBlue.withValues(alpha: 0.22), blurRadius: 12)]
+              ? [
+                  BoxShadow(
+                      color: ColorTokens.turboBlue.withValues(alpha: 0.22),
+                      blurRadius: 12)
+                ]
               : null,
         ),
         child: Column(
@@ -1068,10 +1172,15 @@ class _AppSettingsTwoPaneScreenState
                   child: Text(
                     name,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: TypographyTokens.buttonTextOf(context).copyWith(
                       fontSize: 11,
-                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
-                      color: isSelected ? Colors.white : const Color(0xB3FFFFFF),
+                      fontWeight: isSelected
+                          ? FontWeight.w800
+                          : FontWeight.w700,
+                      color: isSelected
+                          ? ColorTokens.turboBlue
+                          : ColorTokens.of(context).textPrimary
+                              .withValues(alpha: 0.7),
                     ),
                   ),
                 ),
@@ -1079,11 +1188,10 @@ class _AppSettingsTwoPaneScreenState
                 // Tag as plain mono text (prototype: .provider-tag is just text, no bg chip)
                 Text(
                   tag,
-                  style: TextStyle(
+                  style: TypographyTokens.telemetryBadge.copyWith(
                     fontSize: 8.5,
                     fontWeight: FontWeight.w800,
-                    color: const Color(0xFF00E5FF),
-                    fontFamily: TypographyTokens.monoFontFamily,
+                    color: ColorTokens.of(context).keyInputText,
                   ),
                 ),
               ],
@@ -1091,9 +1199,9 @@ class _AppSettingsTwoPaneScreenState
             const SizedBox(height: 4),
             Text(
               hint,
-              style: const TextStyle(
+              style: TypographyTokens.bodySmallOf(context).copyWith(
                 fontSize: 9.5,
-                color: Color(0x73FFFFFF),
+                color: ColorTokens.of(context).textPrimary.withValues(alpha: 0.45),
               ),
             ),
           ],
@@ -1110,7 +1218,7 @@ class _AppSettingsTwoPaneScreenState
     GameTurboSettingsNotifier notifier,
   ) {
     return ListView(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.fromLTRB(22, 22, 22, 22 + MediaQuery.paddingOf(context).bottom),
       children: [
         _buildPaneHeader(
           'Tactical Assistant & AI Engine',
@@ -1163,29 +1271,32 @@ class _AppSettingsTwoPaneScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Preferred Role Specialization',
-                        style: TextStyle(
+                        style: TypographyTokens.settingsRowTitleOf(context).copyWith(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
-                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 3),
-                      const Text(
+                      Text(
                         'Keep on Default Auto so the AI detects your role dynamically, or swipe to manually lock a position.',
-                        style: TextStyle(
-                            fontSize: 10.5, color: Color(0x88FFFFFF)),
+                        style: TypographyTokens.settingsRowDescOf(context).copyWith(
+                          fontSize: 10.5,
+                          color: ColorTokens.of(context).textPrimary
+                              .withValues(alpha: 0.53),
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         settings.preferredRole == 'auto'
                             ? '✓ Auto-detects Smite / Retribution / Roaming boots from match data.'
                             : '• Fixed role override: ${settings.preferredRole.toUpperCase()} (Manual lock).',
-                        style: const TextStyle(
+                        style: TypographyTokens.tacticalBadgeOf(context).copyWith(
                           fontSize: 9.5,
-                          color: Color(0xFF00E5FF),
                           fontWeight: FontWeight.w600,
+                          letterSpacing: 0.0,
+                          color: ColorTokens.of(context).keyInputText,
                         ),
                       ),
                     ],
@@ -1258,10 +1369,9 @@ class _AppSettingsTwoPaneScreenState
           padding: const EdgeInsets.only(top: 10, bottom: 8),
           child: Text(
             'Individual Tactical Feature Toggles'.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 10,
+            style: TypographyTokens.sectionLabelOf(context).copyWith(
               fontWeight: FontWeight.w800,
-              color: Color(0x73FFFFFF),
+              color: ColorTokens.of(context).textPrimary.withValues(alpha: 0.45),
               letterSpacing: 0.6,
             ),
           ),
@@ -1318,7 +1428,7 @@ class _AppSettingsTwoPaneScreenState
     GameTurboSettingsNotifier notifier,
   ) {
     return ListView(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.fromLTRB(22, 22, 22, 22 + MediaQuery.paddingOf(context).bottom),
       children: [
         _buildPaneHeader(
           'Voice Callouts & Haptic Alerts',
@@ -1358,34 +1468,35 @@ class _AppSettingsTwoPaneScreenState
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Speech Cooldown Buffer',
-                        style: TextStyle(
+                        style: TypographyTokens.settingsRowTitleOf(context).copyWith(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
-                          color: Colors.white,
                         ),
                       ),
-                      SizedBox(height: 3),
+                      const SizedBox(height: 3),
                       Text(
                         'Minimum cooldown pause between spoken callouts to prevent audio clutter.',
-                        style: TextStyle(
-                            fontSize: 10.5, color: Color(0x88FFFFFF)),
+                        style: TypographyTokens.settingsRowDescOf(context).copyWith(
+                          fontSize: 10.5,
+                          color: ColorTokens.of(context).textPrimary
+                              .withValues(alpha: 0.53),
+                        ),
                       ),
                     ],
                   ),
                 ),
                 Text(
                   '${settings.speechCooldownSeconds}s',
-                  style: TextStyle(
+                  style: TypographyTokens.tacticalValue.copyWith(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
-                    color: const Color(0xFF00E5FF),
-                    fontFamily: TypographyTokens.monoFontFamily,
+                    color: ColorTokens.of(context).keyInputText,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1393,9 +1504,10 @@ class _AppSettingsTwoPaneScreenState
                   width: 140,
                   child: SliderTheme(
                     data: SliderTheme.of(context).copyWith(
-                      activeTrackColor: ColorSemantics.turboBlue,
-                      inactiveTrackColor: const Color(0x33FFFFFF),
-                      thumbColor: Colors.white,
+                      activeTrackColor: ColorTokens.turboBlue,
+                      inactiveTrackColor: ColorTokens.of(context).textPrimary
+                          .withValues(alpha: 0.2),
+                      thumbColor: ColorTokens.of(context).textPrimary,
                       trackHeight: 3,
                     ),
                     child: Slider(
@@ -1439,35 +1551,41 @@ class _AppSettingsTwoPaneScreenState
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Test Voice & Haptic Alert',
-                        style: TextStyle(
+                        style: TypographyTokens.settingsRowTitleOf(context).copyWith(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
-                          color: Colors.white,
                         ),
                       ),
-                      SizedBox(height: 3),
+                      const SizedBox(height: 3),
                       Text(
                         'Simulate a live tactical callout banner and test vibration pulse.',
-                        style: TextStyle(
-                            fontSize: 10.5, color: Color(0x88FFFFFF)),
+                        style: TypographyTokens.settingsRowDescOf(context).copyWith(
+                          fontSize: 10.5,
+                          color: ColorTokens.of(context).textPrimary
+                              .withValues(alpha: 0.53),
+                        ),
                       ),
                     ],
                   ),
                 ),
                 ElevatedButton.icon(
                   icon: const Icon(LucideIcons.play, size: 12),
-                  label:
-                      const Text('Play Test', style: TextStyle(fontSize: 11)),
+                  label: Text('Play Test',
+                      style: TypographyTokens.buttonTextOf(context)
+                          .copyWith(fontSize: 11)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0x24007AFF),
-                    foregroundColor: const Color(0xFF00E5FF),
-                    side: const BorderSide(color: Color(0x55007AFF)),
+                    backgroundColor: ColorTokens.turboBlue
+                        .withValues(alpha: 0.14),
+                    foregroundColor: ColorTokens.of(context).turboCyan,
+                    side: BorderSide(
+                        color: ColorTokens.turboBlue
+                            .withValues(alpha: 0.33)),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8)),
                   ),
@@ -1489,7 +1607,7 @@ class _AppSettingsTwoPaneScreenState
     GameTurboSettingsNotifier notifier,
   ) {
     return ListView(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.fromLTRB(22, 22, 22, 22 + MediaQuery.paddingOf(context).bottom),
       children: [
         _buildPaneHeader(
           'Hardware Footprint & Adaptive Throttling',
@@ -1552,9 +1670,11 @@ class _AppSettingsTwoPaneScreenState
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           decoration: BoxDecoration(
-            color: const Color(0x0AFFFFFF),
+            color: ColorTokens.of(context).textPrimary.withValues(alpha: 0.04),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0x1AFFFFFF)),
+            border: Border.all(
+                color:
+                    ColorTokens.of(context).textPrimary.withValues(alpha: 0.1)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -1562,7 +1682,7 @@ class _AppSettingsTwoPaneScreenState
               _buildTelemetryColumn(
                 'Cloud Latency',
                 settings.activeAiProvider == 'gemini' ? '38 ms' : '110 ms',
-                const Color(0xFF00E5FF),
+                ColorTokens.of(context).turboCyan,
               ),
               _buildTelemetryColumn(
                 'Sampling Rate',
@@ -1571,11 +1691,12 @@ class _AppSettingsTwoPaneScreenState
                     : settings.performanceMode == 'saver'
                         ? '1.0 FPS'
                         : '5.2 FPS',
-                const Color(0xFF30D158),
+                ColorTokens.of(context).emeraldLive,
               ),
-              _buildTelemetryColumn(
-                  'Thermal State', '34.2°C', const Color(0xFF30D158)),
-              _buildTelemetryColumn('RAM Footprint', '86 MB', Colors.white),
+              _buildTelemetryColumn('Thermal State', '34.2°C',
+                  ColorTokens.of(context).emeraldLive),
+              _buildTelemetryColumn('RAM Footprint', '86 MB',
+                  ColorTokens.of(context).textPrimary),
             ],
           ),
         ),
@@ -1588,21 +1709,20 @@ class _AppSettingsTwoPaneScreenState
       children: [
         Text(
           label.toUpperCase(),
-          style: const TextStyle(
+          style: TypographyTokens.tacticalBadgeOf(context).copyWith(
             fontSize: 9,
             fontWeight: FontWeight.w700,
-            color: Color(0x73FFFFFF),
+            color: ColorTokens.of(context).textPrimary.withValues(alpha: 0.45),
             letterSpacing: 0.5,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           value,
-          style: TextStyle(
+          style: TypographyTokens.displayTimerSmall.copyWith(
             fontSize: 14,
             fontWeight: FontWeight.w800,
             color: color,
-            fontFamily: TypographyTokens.monoFontFamily,
           ),
         ),
       ],
@@ -1620,19 +1740,18 @@ class _AppSettingsTwoPaneScreenState
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TypographyTokens.headlineOf(context).copyWith(
               fontSize: 16,
               fontWeight: FontWeight.w800,
-              color: Colors.white,
               letterSpacing: -0.2,
             ),
           ),
           const SizedBox(height: 3),
           Text(
             description,
-            style: const TextStyle(
-              fontSize: 11.5,
-              color: Color(0x8AFFFFFF),
+            style: TypographyTokens.settingsRowDescOf(context).copyWith(
+              color:
+                  ColorTokens.of(context).textPrimary.withValues(alpha: 0.54),
               height: 1.4,
             ),
           ),
@@ -1642,19 +1761,37 @@ class _AppSettingsTwoPaneScreenState
   }
 
   Widget _buildSettingsCard(List<Widget> children) {
+    final colors = ColorTokens.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: const Color(0x0AFFFFFF),
+        color: colors.isLight
+            ? colors.surfaceCard.withValues(alpha: 0.82)
+            : colors.textPrimary.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x14FFFFFF)),
+        border: Border.all(
+          color: colors.borderGlass,
+        ),
+        boxShadow: colors.isLight
+            ? [
+                BoxShadow(
+                  color: colors.textPrimary.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         children: [
           for (int i = 0; i < children.length; i++) ...[
             children[i],
             if (i < children.length - 1)
-              const Divider(height: 1, thickness: 1, color: Color(0x0FFFFFFF)),
+              Divider(
+                height: 1,
+                thickness: 1,
+                color: colors.textPrimary.withValues(alpha: 0.06),
+              ),
           ],
         ],
       ),
@@ -1677,19 +1814,19 @@ class _AppSettingsTwoPaneScreenState
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TypographyTokens.settingsRowTitleOf(context).copyWith(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
                     letterSpacing: -0.1,
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   hint,
-                  style: const TextStyle(
+                  style: TypographyTokens.settingsRowDescOf(context).copyWith(
                     fontSize: 10.5,
-                    color: Color(0x88FFFFFF),
+                    color: ColorTokens.of(context).textPrimary
+                        .withValues(alpha: 0.53),
                     height: 1.35,
                   ),
                 ),

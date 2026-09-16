@@ -30,8 +30,8 @@ enum OwlTimerBadgeSize {
 }
 
 /// A bespoke cyber-tactical countdown timer badge engineered with:
-/// - Tabular figures & monospaced digits (`FontFeature.tabularFigures()`, `slashedZero()`)
-///   ensuring zero horizontal jitter or vibration during live countdown.
+/// - Outfit numerals in a fixed-width layout ensuring minimal horizontal
+///   jitter or vibration during live countdown.
 /// - Dynamic 3-stage urgency state machine:
 ///   * Normal (> 30s): Emerald / cyan steady status.
 ///   * Warning (<= 30s): Amber glow with gentle breathing animation.
@@ -208,32 +208,25 @@ class _OwlTimerBadgeState extends State<OwlTimerBadge>
               if (widget.label != null) ...[
                 Text(
                   widget.label!.toUpperCase(),
-                  style: GoogleFonts.jetBrainsMono(
+                  style: GoogleFonts.outfit(
                     fontSize: labelFontSize,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.0,
                     height: 1.1,
                     color: visualConfig.labelColor,
-                    fontFeatures: const [
-                      FontFeature.tabularFigures(),
-                    ],
                   ),
                 ),
                 const SizedBox(width: SpacingTokens.xs),
               ],
               Text(
                 timeString,
-                style: GoogleFonts.jetBrainsMono(
+                style: GoogleFonts.outfit(
                   fontSize: timerFontSize,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.2,
-                  height: 1.1,
-                  color: visualConfig.timerColor,
-                  fontFeatures: const [
-                    FontFeature.tabularFigures(),
-                    FontFeature.slashedZero(),
-                  ],
-                ),
+                    height: 1.1,
+                    color: visualConfig.timerColor,
+                  ),
               ),
             ],
           ),

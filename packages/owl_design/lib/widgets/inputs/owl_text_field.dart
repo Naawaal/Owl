@@ -215,7 +215,7 @@ class _OwlTextFieldState extends State<OwlTextField> {
 
     // Typography style
     final TextStyle inputTextStyle = widget.isMonospace
-        ? GoogleFonts.jetBrainsMono(
+        ? GoogleFonts.outfit(
             fontSize: 14.0,
             fontWeight: FontWeight.w500,
             color: widget.enabled ? t.textPrimary : t.textMuted,
@@ -229,7 +229,7 @@ class _OwlTextFieldState extends State<OwlTextField> {
           );
 
     final TextStyle hintTextStyle = widget.isMonospace
-        ? GoogleFonts.jetBrainsMono(
+        ? GoogleFonts.outfit(
             fontSize: 13.0,
             fontWeight: FontWeight.w400,
             color: t.textMuted,
@@ -273,7 +273,7 @@ class _OwlTextFieldState extends State<OwlTextField> {
                     ),
                     child: Text(
                       'MONO',
-                      style: GoogleFonts.jetBrainsMono(
+                      style: GoogleFonts.outfit(
                         fontSize: 9.0,
                         fontWeight: FontWeight.w700,
                         color: t.accentCyan,

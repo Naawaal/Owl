@@ -1,5 +1,4 @@
 // language: Dart, file: owl_tactical_pill.dart, target: Flutter / Owl MOBA HUD
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -285,15 +284,11 @@ class _OwlTacticalPillState extends State<OwlTacticalPill>
                       // Monospaced Countdown Timer
                       Text(
                         _formatTimer(widget.countdownSeconds),
-                        style: GoogleFonts.jetBrainsMono(
+                        style: GoogleFonts.outfit(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w700,
                           color: urgencyColor,
                           letterSpacing: -0.3,
-                          fontFeatures: const [
-                            ui.FontFeature.tabularFigures(),
-                            ui.FontFeature.slashedZero(),
-                          ],
                         ),
                       ),
 
@@ -401,7 +396,7 @@ class _OwlTacticalPillState extends State<OwlTacticalPill>
                     ),
                     child: Text(
                       'AI ACTIVE',
-                      style: GoogleFonts.jetBrainsMono(
+                      style: GoogleFonts.outfit(
                         fontSize: 8.0,
                         fontWeight: FontWeight.w700,
                         color: colors.accentCyan,
@@ -430,7 +425,7 @@ class _OwlTacticalPillState extends State<OwlTacticalPill>
                   const SizedBox(width: SpacingTokens.xs),
                   Text(
                     'SPAWN IN ${_formatTimer(widget.countdownSeconds)}',
-                    style: GoogleFonts.jetBrainsMono(
+                    style: GoogleFonts.outfit(
                       fontSize: 10.5,
                       fontWeight: FontWeight.w700,
                       color: accentColor,
@@ -482,7 +477,7 @@ class _OwlTacticalPillState extends State<OwlTacticalPill>
             const SizedBox(width: 3.5),
             Text(
               label,
-              style: GoogleFonts.jetBrainsMono(
+              style: GoogleFonts.outfit(
                 fontSize: 9.5,
                 fontWeight: FontWeight.w700,
                 color: color,

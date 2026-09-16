@@ -1,7 +1,7 @@
 // language: Dart, file: miui_switch.dart, target: Flutter / Owl Game Turbo
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:owl_design/theme/tokens/color_tokens.dart';
+import 'package:owl_design/theme/tokens/tokens.dart';
 
 /// Authentic Xiaomi MIUI / HyperOS pill toggle switch.
 ///
@@ -26,9 +26,16 @@ class MiuiSwitch extends StatelessWidget {
     const thumbSize = 18.0;
     const padding = 3.0;
 
-    final activeColor = ColorSemantics.turboBlue;
-    const inactiveColor = Color(0xFF232A38);
-    final borderColor = value ? ColorSemantics.turboBlueLight.withValues(alpha: 0.5) : const Color(0x33FFFFFF);
+    final colors = ColorTokens.of(context);
+    final activeColor = colors.turboBlue;
+    final inactiveColor = colors.isDark
+        ? ColorComponentTokens.switchOffBg
+        : colors.surfaceElevated;
+    final borderColor = value
+        ? colors.turboBlueLight.withValues(alpha: 0.5)
+        : (colors.isDark
+            ? ColorComponentTokens.switchOffBorder
+            : colors.borderGlassStrong);
 
     return Opacity(
       opacity: enabled ? 1.0 : 0.45,
@@ -50,12 +57,8 @@ class MiuiSwitch extends StatelessWidget {
             color: value ? activeColor : inactiveColor,
             border: Border.all(color: borderColor, width: 1.2),
             boxShadow: value
-                ? [
-                    BoxShadow(
-                      color: ColorSemantics.turboBlue.withValues(alpha: 0.4),
-                      blurRadius: 8,
-                      offset: const Offset(0, 1),
-                    ),
+                ? const [
+                    ElevationTokens.chipActiveGlow,
                   ]
                 : null,
           ),
@@ -72,11 +75,11 @@ class MiuiSwitch extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: Colors.white,
-                    boxShadow: [
+                    boxShadow: const [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.35),
+                        color: ColorPrimitives.scrimBlack35,
                         blurRadius: 4,
-                        offset: const Offset(0, 1.5),
+                        offset: Offset(0, 1.5),
                       ),
                     ],
                   ),

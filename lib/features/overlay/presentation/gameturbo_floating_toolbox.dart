@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:owl/features/ai_coach/data/coach_service.dart';
 import 'package:owl/features/overlay/data/system_stats_service.dart';
 import 'package:owl/features/settings/domain/models/game_turbo_settings.dart';
 import 'package:owl/features/settings/presentation/settings_provider.dart';
@@ -42,24 +43,40 @@ class _GameturboFloatingToolboxState
   bool _isVoiceChangerActive = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Request live advice once the toolbox opens; budgets inside the
+    // service suppress repeats. Never throws — failures stay silent here.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _requestAdvice();
+    });
+  }
+
+  void _requestAdvice() {
+    ref.read(coachServiceProvider.notifier).requestAdvice(
+          situation:
+              'Live coaching for ${widget.gameTitle} at ${widget.targetFps} FPS target.',
+        );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final settings = ref.watch(gameTurboSettingsProvider);
     final notifier = ref.read(gameTurboSettingsProvider.notifier);
+    final colors = ColorTokens.of(context);
 
     return Container(
       width: 290,
       decoration: BoxDecoration(
-        color: const Color(0xF50D111A),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0x33FFFFFF)),
+        color: colors.toolboxBg,
+        borderRadius: RadiusTokens.borderXl,
+        border: Border.all(color: colors.borderGlassStrong),
         boxShadow: [
+          ElevationTokens.toolboxShadow(colors.isLight),
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.88),
-            blurRadius: 40,
-            offset: const Offset(0, 16),
-          ),
-          BoxShadow(
-            color: ColorSemantics.turboBlue.withValues(alpha: 0.18),
+            color: colors.turboBlue
+                .withValues(alpha: colors.isLight ? 0.10 : 0.18),
             blurRadius: 20,
             offset: const Offset(0, 2),
           ),
@@ -80,41 +97,158 @@ class _GameturboFloatingToolboxState
 
           // 4. Essential 4 Tools (DND, Wi-Fi, AI, Voice Changer)
           _buildEssentialTools(settings, notifier),
-          const SizedBox(height: 6),
+          AppSpacing.gapV8,
+
+          // 5. Guardian AI Coach Callout (live advice, cached, else silent)
+          _buildGuardianCallout(),
+          AppSpacing.gapV8,
         ],
       ),
     );
   }
 
+  /// Live tactical advice feed. Shows fresh advice, falls back to
+  /// last-known advice, and stays silent when inference is unavailable —
+  /// never an error state, never blocking.
+  Widget _buildGuardianCallout() {
+    final colors = ColorTokens.of(context);
+    final adviceAsync = ref.watch(coachServiceProvider);
+    final lastKnown =
+        ref.read(coachServiceProvider.notifier).lastKnown;
+    final shown = adviceAsync.valueOrNull ?? lastKnown;
+
+    if (shown == null) {
+      if (!adviceAsync.isLoading) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 11,
+              height: 11,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.turboBlueLight,
+              ),
+            ),
+            const SizedBox(width: 7),
+            Text(
+              'Consulting coach…',
+              style: TypographyTokens.bodySmallOf(context).copyWith(
+                fontSize: 10.5,
+                color: colors.textMuted,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final isLive = identical(shown, adviceAsync.valueOrNull);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _requestAdvice,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: colors.surfaceGlass,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: colors.borderGlass),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    isLive
+                        ? 'GUARDIAN AI COACH • LIVE'
+                        : 'GUARDIAN AI COACH • LAST KNOWN',
+                    style: TypographyTokens.tacticalBadgeOf(context).copyWith(
+                      fontSize: 8.5,
+                      color: colors.turboBlueLight,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    shown.action,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TypographyTokens.titleSmallOf(context).copyWith(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    shown.warning ?? shown.reason,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TypographyTokens.bodySmallOf(context).copyWith(
+                      fontSize: 10.5,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.refresh_rounded,
+              size: 14,
+              color: colors.textMuted,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildHeader(GameTurboSettings settings) {
+    final colors = ColorTokens.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: const BoxDecoration(
-        color: Color(0x66080B12),
-        border: Border(bottom: BorderSide(color: Color(0x14FFFFFF))),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm - 2,
+        vertical: AppSpacing.pillPaddingVertical,
+      ),
+      decoration: BoxDecoration(
+        color: colors.isLight
+            ? colors.surfaceElevated.withValues(alpha: 0.7)
+            : colors.horizonTop.withValues(alpha: 0.4),
+        border: Border(
+          bottom: BorderSide(
+            color: colors.textPrimary.withValues(alpha: 0.08),
+          ),
+        ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Flexible(
+          Flexible(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   '⚡',
-                  style: TextStyle(fontSize: 12, color: ColorSemantics.turboCrimson),
+                  style: TypographyTokens.dialogTitleOf(context).copyWith(
+                    fontSize: 12,
+                    color: colors.telemetryCritical,
+                  ),
                 ),
-                SizedBox(width: 4),
+                AppSpacing.gapH4,
                 Flexible(
                   child: Text(
                     'Gaming tools',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: TypographyTokens.titleSmallOf(context).copyWith(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
-                      color: Colors.white,
                       letterSpacing: -0.2,
+                      color: colors.textPrimary,
                     ),
                   ),
                 ),
@@ -125,14 +259,18 @@ class _GameturboFloatingToolboxState
             behavior: HitTestBehavior.opaque,
             onTap: widget.onClose,
             child: Container(
-              width: 20,
-              height: 20,
-              decoration: const BoxDecoration(
-                color: Color(0x1AFFFFFF),
+              width: AppSizes.p24 - 4,
+              height: AppSizes.p24 - 4,
+              decoration: BoxDecoration(
+                color: colors.textPrimary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Center(
-                child: Icon(LucideIcons.x, size: 11, color: const Color(0xCCFFFFFF)),
+                child: Icon(
+                  LucideIcons.x,
+                  size: 11,
+                  color: colors.textPrimary.withValues(alpha: 0.8),
+                ),
               ),
             ),
           ),
@@ -142,9 +280,10 @@ class _GameturboFloatingToolboxState
   }
 
   Widget _buildReactorGauge(GameTurboSettings settings) {
+    final colors = ColorTokens.of(context);
     final isPerf = settings.performanceOptimization;
     final accentColor =
-        isPerf ? ColorSemantics.turboCrimson : ColorSemantics.turboBlueLight;
+        isPerf ? colors.telemetryCritical : colors.turboBlue;
 
     final statsAsync = ref.watch(systemStatsProvider);
     final stats = statsAsync.valueOrNull;
@@ -153,7 +292,11 @@ class _GameturboFloatingToolboxState
     final battery = stats?.battery ?? 78;
     final cpu = stats?.cpu ?? (isPerf ? 32 : 18);
     final gpu = stats?.gpu ?? (isPerf ? 58 : 34);
-    final liveFps = stats?.fps ?? (isPerf ? widget.targetFps : 60);
+    final liveFps = isPerf
+        ? (stats != null && stats.fps > 60 ? stats.fps : widget.targetFps)
+        : (stats?.fps != null ? math.min(stats!.fps, 60) : 60);
+    final dialMaxFps = math.max(widget.targetFps.toDouble(), 120.0);
+    final targetGaugeProgress = (liveFps / dialMaxFps).clamp(0.05, 1.0);
     final fpsText = '$liveFps';
     final cpuText = '$cpu%';
     final cpuProgress = (cpu / 100.0).clamp(0.05, 1.0);
@@ -166,13 +309,16 @@ class _GameturboFloatingToolboxState
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.pillPaddingVertical,
+      ),
       decoration: BoxDecoration(
         gradient: RadialGradient(
           center: Alignment.center,
           radius: 0.75,
           colors: [
-            accentColor.withValues(alpha: 0.14),
+            accentColor.withValues(alpha: colors.isLight ? 0.08 : 0.14),
             Colors.transparent,
           ],
         ),
@@ -185,11 +331,10 @@ class _GameturboFloatingToolboxState
             children: [
               Text(
                 timeStr,
-                style: TextStyle(
+                style: TypographyTokens.bodySmallOf(context).copyWith(
                   fontSize: 9,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xA6FFFFFF),
-                  fontFamily: TypographyTokens.monoFontFamily,
+                  color: colors.textPrimary.withValues(alpha: 0.65),
                 ),
               ),
               Row(
@@ -200,26 +345,25 @@ class _GameturboFloatingToolboxState
                         : LucideIcons.battery,
                     size: 11,
                     color: battery <= 20
-                        ? const Color(0xFFE63946)
+                        ? colors.telemetryCritical
                         : battery <= 40
-                            ? const Color(0xFFEAB308)
-                            : const Color(0xFF30D158),
+                            ? colors.telemetryLow
+                            : colors.emeraldLive,
                   ),
-                  const SizedBox(width: 3),
+                  AppSpacing.gapH4,
                   Text(
                     '$battery%',
-                    style: TextStyle(
+                    style: TypographyTokens.bodySmallOf(context).copyWith(
                       fontSize: 9,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xA6FFFFFF),
-                      fontFamily: TypographyTokens.monoFontFamily,
+                      color: colors.textPrimary.withValues(alpha: 0.65),
                     ),
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 2),
+          AppSpacing.gapV4,
 
           // Center Circular Tachometer Dial with Laser Flares
           SizedBox(
@@ -240,8 +384,8 @@ class _GameturboFloatingToolboxState
                           Colors.transparent,
                           accentColor.withValues(alpha: 0.4),
                           isPerf
-                              ? const Color(0xFFFF5A5F)
-                              : const Color(0xFF64B5F6),
+                              ? colors.gaugeLaser
+                              : colors.turboBlueLight,
                           accentColor.withValues(alpha: 0.4),
                           Colors.transparent,
                         ],
@@ -256,62 +400,75 @@ class _GameturboFloatingToolboxState
                   height: 66,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: const Color(0xF2070A10),
+                    color: colors.gaugeDialBg,
                     border: Border.all(
                       color: accentColor.withValues(alpha: 0.5),
                       width: 1.2,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: accentColor.withValues(alpha: 0.35),
+                        color: accentColor.withValues(
+                          alpha: colors.isLight ? 0.15 : 0.35,
+                        ),
                         blurRadius: 18,
                       ),
                     ],
                   ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // Dotted tick ring
-                      CustomPaint(
-                        size: const Size(66, 66),
-                        painter: _ReactorTickRingPainter(),
-                      ),
-
-                      // Central FPS Live Counter & Unit (Chinese label removed)
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween<double>(end: targetGaugeProgress),
+                    duration: const Duration(milliseconds: 400),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, animProgress, _) {
+                      return Stack(
+                        alignment: Alignment.center,
                         children: [
-                          Text(
-                            fpsText,
-                            style: TextStyle(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              fontFamily: TypographyTokens.monoFontFamily,
-                              letterSpacing: -0.5,
-                              height: 1.0,
+                          // Live animated tachometer sweep gauge
+                          CustomPaint(
+                            size: const Size(66, 66),
+                            painter: _ReactorTachometerPainter(
+                              progress: animProgress,
+                              accentColor: accentColor,
+                              trackColor: colors.isLight
+                                  ? colors.textPrimary.withValues(alpha: 0.10)
+                                  : ColorPrimitives.gaugeTickWhite30.withValues(alpha: 0.25),
+                              inactiveTickColor: colors.isLight
+                                  ? colors.textPrimary.withValues(alpha: 0.18)
+                                  : ColorPrimitives.gaugeTickWhite30.withValues(alpha: 0.40),
+                              isLight: colors.isLight,
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'FPS',
-                            style: TextStyle(
-                              fontSize: 8,
-                              fontWeight: FontWeight.w800,
-                              color: accentColor,
-                              fontFamily: TypographyTokens.monoFontFamily,
-                              letterSpacing: 0.8,
-                            ),
+
+                          // Central FPS Live Counter & Unit
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                fpsText,
+                                style: TypographyTokens.gaugeNumerals.copyWith(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w900,
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'FPS',
+                                style: TypographyTokens.gaugeCaption.copyWith(
+                                  fontSize: 8,
+                                  color: accentColor,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 5),
+          AppSpacing.gapV4,
 
           // Horizontal Live Telemetry Progress Meters (CPU & GPU)
           Row(
@@ -324,31 +481,31 @@ class _GameturboFloatingToolboxState
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        Text(
                           'CPU',
-                          style: TextStyle(
-                            fontSize: 7.5,
+                          style: TypographyTokens.gaugeCaption.copyWith(
                             fontWeight: FontWeight.w700,
-                            color: Color(0x80FFFFFF),
+                            letterSpacing: 0.0,
+                            color: colors.textPrimary.withValues(alpha: 0.55),
                           ),
                         ),
                         Text(
                           cpuText,
-                          style: TextStyle(
+                          style: TypographyTokens.objectiveTime.copyWith(
                             fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            fontFamily: TypographyTokens.monoFontFamily,
+                            color: colors.textPrimary,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 3),
+                    AppSpacing.gapV4,
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: RadiusTokens.borderXs,
                       child: Container(
                         height: 3.5,
-                        color: const Color(0x24FFFFFF),
+                        color: colors.isLight
+                            ? colors.textPrimary.withValues(alpha: 0.08)
+                            : ColorPrimitives.glassWhite14,
                         child: FractionallySizedBox(
                           alignment: Alignment.centerLeft,
                           widthFactor: cpuProgress,
@@ -368,7 +525,7 @@ class _GameturboFloatingToolboxState
                   ],
                 ),
               ),
-              const SizedBox(width: 14),
+              AppSpacing.gapH12,
 
               // GPU Meter
               Expanded(
@@ -378,31 +535,31 @@ class _GameturboFloatingToolboxState
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        Text(
                           'GPU',
-                          style: TextStyle(
-                            fontSize: 7.5,
+                          style: TypographyTokens.gaugeCaption.copyWith(
                             fontWeight: FontWeight.w700,
-                            color: Color(0x80FFFFFF),
+                            letterSpacing: 0.0,
+                            color: colors.textPrimary.withValues(alpha: 0.55),
                           ),
                         ),
                         Text(
                           gpuText,
-                          style: TextStyle(
+                          style: TypographyTokens.objectiveTime.copyWith(
                             fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            fontFamily: TypographyTokens.monoFontFamily,
+                            color: colors.textPrimary,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 3),
+                    AppSpacing.gapV4,
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: RadiusTokens.borderXs,
                       child: Container(
                         height: 3.5,
-                        color: const Color(0x24FFFFFF),
+                        color: colors.isLight
+                            ? colors.textPrimary.withValues(alpha: 0.08)
+                            : ColorPrimitives.glassWhite14,
                         child: FractionallySizedBox(
                           alignment: Alignment.centerLeft,
                           widthFactor: gpuProgress,
@@ -410,8 +567,8 @@ class _GameturboFloatingToolboxState
                             decoration: const BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
-                                  Color(0xFF8B5CF6),
-                                  Color(0xFFA78BFA),
+                                  ColorPrimitives.meterGpuStart,
+                                  ColorPrimitives.meterGpuEnd,
                                 ],
                               ),
                             ),
@@ -431,15 +588,23 @@ class _GameturboFloatingToolboxState
 
   Widget _buildModePills(
       GameTurboSettings settings, GameTurboSettingsNotifier notifier) {
+    final colors = ColorTokens.of(context);
     final isPerf = settings.performanceOptimization;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      padding: const EdgeInsets.all(3.5),
+      margin: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm - 2,
+        vertical: AppSpacing.pillPaddingVertical,
+      ),
+      padding: const EdgeInsets.all(3.0),
       decoration: BoxDecoration(
-        color: const Color(0x1AFFFFFF),
-        borderRadius: BorderRadius.circular(9999),
-        border: Border.all(color: const Color(0x14FFFFFF)),
+        color: colors.isLight
+            ? colors.surfaceCard.withValues(alpha: 0.8)
+            : colors.textPrimary.withValues(alpha: 0.1),
+        borderRadius: RadiusTokens.borderPill,
+        border: Border.all(
+          color: colors.borderGlass,
+        ),
       ),
       child: Row(
         children: [
@@ -453,18 +618,21 @@ class _GameturboFloatingToolboxState
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(vertical: 7.5),
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
                 decoration: BoxDecoration(
                   gradient: !isPerf
-                      ? const LinearGradient(
-                          colors: [Color(0xFF007AFF), Color(0xFF0055B8)],
+                      ? LinearGradient(
+                          colors: [
+                            colors.turboBlue,
+                            colors.turboBlueLight,
+                          ],
                         )
                       : null,
-                  borderRadius: BorderRadius.circular(9999),
+                  borderRadius: RadiusTokens.borderPill,
                   boxShadow: !isPerf
                       ? [
                           BoxShadow(
-                            color: ColorSemantics.turboBlue.withValues(alpha: 0.4),
+                            color: colors.turboBlue.withValues(alpha: 0.4),
                             blurRadius: 8,
                           ),
                         ]
@@ -473,17 +641,19 @@ class _GameturboFloatingToolboxState
                 alignment: Alignment.center,
                 child: Text(
                   'Balanced',
-                  style: TextStyle(
+                  style: TypographyTokens.buttonText.copyWith(
                     fontSize: 10.5,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.2,
-                    color: !isPerf ? Colors.white : const Color(0x80FFFFFF),
+                    color: !isPerf
+                        ? ColorComponentTokens.playWingFg
+                        : colors.textPrimary.withValues(alpha: 0.5),
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 4),
+          AppSpacing.gapH4,
 
           // 2. Performance Mode Pill
           Expanded(
@@ -495,18 +665,22 @@ class _GameturboFloatingToolboxState
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(vertical: 7.5),
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
                 decoration: BoxDecoration(
                   gradient: isPerf
-                      ? const LinearGradient(
-                          colors: [Color(0xFFFF3B30), Color(0xFFE63946)],
+                      ? LinearGradient(
+                          colors: [
+                            colors.hudCrimson,
+                            colors.telemetryCritical,
+                          ],
                         )
                       : null,
-                  borderRadius: BorderRadius.circular(9999),
+                  borderRadius: RadiusTokens.borderPill,
                   boxShadow: isPerf
                       ? [
                           BoxShadow(
-                            color: ColorSemantics.turboCrimson.withValues(alpha: 0.45),
+                            color: colors.telemetryCritical
+                                .withValues(alpha: 0.45),
                             blurRadius: 10,
                           ),
                         ]
@@ -515,10 +689,12 @@ class _GameturboFloatingToolboxState
                 alignment: Alignment.center,
                 child: Text(
                   'Performance',
-                  style: TextStyle(
+                  style: TypographyTokens.buttonText.copyWith(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
-                    color: isPerf ? Colors.white : const Color(0x80FFFFFF),
+                    color: isPerf
+                        ? ColorComponentTokens.playWingFg
+                        : colors.textPrimary.withValues(alpha: 0.5),
                   ),
                 ),
               ),
@@ -531,8 +707,12 @@ class _GameturboFloatingToolboxState
 
   Widget _buildEssentialTools(
       GameTurboSettings settings, GameTurboSettingsNotifier notifier) {
+    final colors = ColorTokens.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 3, 10, 3),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm - 2,
+        vertical: AppSpacing.xxs - 1,
+      ),
       child: Row(
         children: [
           // 1. DND (Block notifications)
@@ -541,12 +721,12 @@ class _GameturboFloatingToolboxState
               icon: LucideIcons.bellOff,
               label: 'DND',
               isActive: settings.restrictFloatingNotifications,
-              activeColor: ColorSemantics.turboCrimson,
+              activeColor: colors.telemetryCritical,
               onTap: () => notifier.toggleRestrictFloatingNotifications(
                   !settings.restrictFloatingNotifications),
             ),
           ),
-          const SizedBox(width: 5),
+          AppSpacing.gapH4,
 
           // 2. Wi-Fi Speed Boost
           Expanded(
@@ -554,12 +734,12 @@ class _GameturboFloatingToolboxState
               icon: LucideIcons.wifi,
               label: 'Wi-Fi',
               isActive: settings.wifiSpeedBoost,
-              activeColor: ColorSemantics.turboBlueLight,
+              activeColor: colors.turboBlueLight,
               onTap: () =>
                   notifier.toggleWifiSpeedBoost(!settings.wifiSpeedBoost),
             ),
           ),
-          const SizedBox(width: 5),
+          AppSpacing.gapH4,
 
           // 3. AI Assistant / Guide
           Expanded(
@@ -567,11 +747,11 @@ class _GameturboFloatingToolboxState
               icon: LucideIcons.bot,
               label: 'AI',
               isActive: _isAiActive,
-              activeColor: ColorSemantics.turboBlueLight,
+              activeColor: colors.turboBlueLight,
               onTap: () => setState(() => _isAiActive = !_isAiActive),
             ),
           ),
-          const SizedBox(width: 5),
+          AppSpacing.gapH4,
 
           // 4. Voice Changer
           Expanded(
@@ -579,7 +759,9 @@ class _GameturboFloatingToolboxState
               icon: LucideIcons.mic,
               label: 'Voice',
               isActive: _isVoiceChangerActive,
-              activeColor: const Color(0xFFA855F7),
+              activeColor: colors.isLight
+                  ? colors.turboBlue
+                  : ColorTokens.consolePurpleVivid,
               onTap: () => setState(
                   () => _isVoiceChangerActive = !_isVoiceChangerActive),
             ),
@@ -596,6 +778,7 @@ class _GameturboFloatingToolboxState
     required Color activeColor,
     required VoidCallback onTap,
   }) {
+    final colors = ColorTokens.of(context);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
@@ -604,16 +787,20 @@ class _GameturboFloatingToolboxState
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.pillPaddingVertical - 1,
+        ),
         decoration: BoxDecoration(
           color: isActive
-              ? activeColor.withValues(alpha: 0.18)
-              : const Color(0x14FFFFFF),
-          borderRadius: BorderRadius.circular(10),
+              ? activeColor.withValues(alpha: colors.isLight ? 0.14 : 0.18)
+              : (colors.isLight
+                  ? colors.surfaceCard
+                  : colors.textPrimary.withValues(alpha: 0.08)),
+          borderRadius: RadiusTokens.button,
           border: Border.all(
             color: isActive
-                ? activeColor.withValues(alpha: 0.7)
-                : const Color(0x1FFFFFFF),
+                ? activeColor.withValues(alpha: colors.isLight ? 0.8 : 0.7)
+                : colors.borderGlass,
           ),
         ),
         child: Column(
@@ -621,18 +808,21 @@ class _GameturboFloatingToolboxState
           children: [
             Icon(
               icon,
-              size: 14,
-              color: isActive ? activeColor : const Color(0x99FFFFFF),
+              size: AppSizes.p16 - 2,
+              color: isActive
+                  ? activeColor
+                  : colors.textPrimary.withValues(alpha: 0.6),
             ),
-            const SizedBox(height: 2),
+            AppSpacing.gapV4,
             Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: TypographyTokens.telemetryBadge.copyWith(
                 fontSize: 8,
-                fontWeight: FontWeight.w700,
-                color: isActive ? Colors.white : const Color(0x99FFFFFF),
+                color: isActive
+                    ? (colors.isLight ? activeColor : colors.textPrimary)
+                    : colors.textPrimary.withValues(alpha: 0.6),
               ),
             ),
           ],
@@ -642,28 +832,112 @@ class _GameturboFloatingToolboxState
   }
 }
 
-/// Custom painter rendering the fine dashed tick ring of the central tachometer dial.
-class _ReactorTickRingPainter extends CustomPainter {
+/// Custom painter rendering the dynamic tachometer sweep arc, glowing needle pip,
+/// and responsive ticks of the central reactor dial.
+class _ReactorTachometerPainter extends CustomPainter {
+  final double progress;
+  final Color accentColor;
+  final Color trackColor;
+  final Color inactiveTickColor;
+  final bool isLight;
+
+  const _ReactorTachometerPainter({
+    required this.progress,
+    required this.accentColor,
+    required this.trackColor,
+    required this.inactiveTickColor,
+    required this.isLight,
+  });
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width / 2) - 3;
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.3)
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke;
+    final radius = (size.width / 2) - 4.5;
+    final rect = Rect.fromCircle(center: center, radius: radius);
 
-    const tickCount = 40;
+    // 270 degree sweep from 135 deg (3*pi/4) to 405 deg (9*pi/4)
+    const startAngle = 0.75 * math.pi;
+    const totalSweep = 1.5 * math.pi;
+    final clampedProgress = progress.clamp(0.0, 1.0);
+
+    // 1. Background Track Arc
+    final trackPaint = Paint()
+      ..color = trackColor
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(rect, startAngle, totalSweep, false, trackPaint);
+
+    // 2. Active Progress Sweep Arc with Neon Glow
+    if (clampedProgress > 0.01) {
+      final activeSweep = totalSweep * clampedProgress;
+
+      if (!isLight) {
+        final glowPaint = Paint()
+          ..color = accentColor.withValues(alpha: 0.35)
+          ..strokeWidth = 5.0
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0);
+        canvas.drawArc(rect, startAngle, activeSweep, false, glowPaint);
+      }
+
+      final activePaint = Paint()
+        ..color = accentColor
+        ..strokeWidth = 3.0
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+      canvas.drawArc(rect, startAngle, activeSweep, false, activePaint);
+
+      // 3. Leading Needle Pip at active sweep tip
+      final tipAngle = startAngle + activeSweep;
+      final tipX = center.dx + radius * math.cos(tipAngle);
+      final tipY = center.dy + radius * math.sin(tipAngle);
+      final tipOffset = Offset(tipX, tipY);
+
+      // Outer glow circle
+      canvas.drawCircle(
+        tipOffset,
+        3.5,
+        Paint()..color = accentColor.withValues(alpha: isLight ? 0.3 : 0.5),
+      );
+      // Bright core
+      canvas.drawCircle(
+        tipOffset,
+        1.8,
+        Paint()..color = isLight ? accentColor : ColorPrimitives.coolWhite,
+      );
+    }
+
+    // 4. Tachometer Tick Marks (25 ticks across 270 deg)
+    const tickCount = 25;
     for (int i = 0; i < tickCount; i++) {
-      final angle = (i * 2 * math.pi) / tickCount;
-      final x1 = center.dx + radius * math.cos(angle);
-      final y1 = center.dy + radius * math.sin(angle);
-      final x2 = center.dx + (radius - 2.5) * math.cos(angle);
-      final y2 = center.dy + (radius - 2.5) * math.sin(angle);
-      canvas.drawLine(Offset(x1, y1), Offset(x2, y2), paint);
+      final fraction = i / (tickCount - 1);
+      final angle = startAngle + fraction * totalSweep;
+      final isTickActive = fraction <= clampedProgress;
+
+      final tickPaint = Paint()
+        ..color = isTickActive ? accentColor : inactiveTickColor
+        ..strokeWidth = isTickActive ? 1.4 : 0.9
+        ..style = PaintingStyle.stroke;
+
+      final rOuter = radius - 1.5;
+      final rInner = isTickActive ? (radius - 5.0) : (radius - 3.2);
+
+      final x1 = center.dx + rInner * math.cos(angle);
+      final y1 = center.dy + rInner * math.sin(angle);
+      final x2 = center.dx + rOuter * math.cos(angle);
+      final y2 = center.dy + rOuter * math.sin(angle);
+
+      canvas.drawLine(Offset(x1, y1), Offset(x2, y2), tickPaint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _ReactorTachometerPainter oldDelegate) =>
+      oldDelegate.progress != progress ||
+      oldDelegate.accentColor != accentColor ||
+      oldDelegate.trackColor != trackColor ||
+      oldDelegate.inactiveTickColor != inactiveTickColor ||
+      oldDelegate.isLight != isLight;
 }

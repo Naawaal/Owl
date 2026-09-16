@@ -9,9 +9,7 @@ import 'package:owl/features/settings/presentation/gpu_settings_two_pane_screen.
 import 'package:owl/features/settings/presentation/settings_provider.dart';
 import 'package:owl_design/owl_design.dart';
 
-
 import 'package:owl/features/overlay/data/system_stats_service.dart';
-
 
 /// In-Game HUD & Companion View matching the Game Space Console design system 1:1.
 ///
@@ -79,8 +77,10 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
       reverseCurve: Curves.easeInCubic,
     );
 
-    _toolboxScaleAnimation =
-        Tween<double>(begin: 0.94, end: 1.0).animate(curved);
+    _toolboxScaleAnimation = Tween<double>(
+      begin: 0.94,
+      end: 1.0,
+    ).animate(curved);
     _toolboxFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(curved);
     _toolboxSlideAnimation = Tween<Offset>(
       begin: const Offset(0.0, -0.04),
@@ -119,6 +119,7 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
   Widget build(BuildContext context) {
     final settings = ref.watch(gameTurboSettingsProvider);
     final game = widget.activeGame;
+    final colors = ColorTokens.of(context);
 
     // Dynamic edge handle and toolbox positioning from settings.shortcutEdgePosition
     double? handleTop = 10;
@@ -144,58 +145,12 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF07090F),
+      backgroundColor: colors.consoleBase,
       body: Stack(
         clipBehavior: Clip.none,
         children: [
-          // 1. Ambient Horizon (1:1 with GameSpaceConsoleScreen)
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF090B12),
-                    Color(0xFF06070B),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment(0.0, 0.0),
-                  radius: 0.85,
-                  colors: [
-                    Color(0x2E8B2BE2),
-                    Color(0x0D140A28),
-                    Color(0x0006070B),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            right: -120,
-            top: 0,
-            bottom: 0,
-            width: 420,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 0.6,
-                  colors: [
-                    const Color(0xFF006EFF).withValues(alpha: 0.10),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
+          // 1. Unified Console Atmospheric Background (Sector Shimmer in Light, Deep Horizon in Dark)
+          const Positioned.fill(child: OwlAtmosphericBackground()),
 
           // 2. Main In-Game Companion Stage
           SafeArea(
@@ -206,9 +161,7 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
 
                 // Center Game Hero Showcase
                 Expanded(
-                  child: Center(
-                    child: _buildCenterGameStage(game, settings),
-                  ),
+                  child: Center(child: _buildCenterGameStage(game, settings)),
                 ),
               ],
             ),
@@ -220,9 +173,7 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => _toggleToolbox(false),
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.25),
-                ),
+                child: Container(color: ColorPrimitives.scrimBlack25),
               ),
             ),
 
@@ -278,20 +229,24 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
   }
 
   Widget _buildTopStatusBar(InstalledGame? game) {
+    final colors = ColorTokens.of(context);
     final statsAsync = ref.watch(systemStatsProvider);
     final stats = statsAsync.valueOrNull;
     final battery = stats?.battery ?? 78;
     final cpu = stats?.cpu ?? 32;
     final battFraction = (battery / 100.0).clamp(0.0, 1.0);
     final battColor = battery <= 20
-        ? const Color(0xFFE63946)
+        ? colors.telemetryCritical
         : battery <= 40
-            ? const Color(0xFFEAB308)
-            : ColorSemantics.turboBlue;
+        ? colors.telemetryLow
+        : colors.telemetryNormal;
 
     return Container(
       height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.xxs,
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -300,24 +255,33 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
             behavior: HitTestBehavior.opaque,
             onTap: () => Navigator.of(context).maybePop(),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xxs,
+              ),
               decoration: BoxDecoration(
-                color: const Color(0x1AFFFFFF),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0x26FFFFFF)),
+                color: colors.isLight
+                    ? colors.surfaceElevated.withValues(alpha: 0.8)
+                    : colors.textPrimary.withValues(alpha: 0.1),
+                borderRadius: RadiusTokens.borderPill,
+                border: Border.all(color: colors.borderGlass),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(LucideIcons.chevronLeft, size: 12, color: Colors.white),
-                  const SizedBox(width: 4),
-                  const Text(
+                  Icon(
+                    LucideIcons.chevronLeft,
+                    size: AppSizes.p12,
+                    color: colors.textPrimary,
+                  ),
+                  AppSpacing.gapH4,
+                  Text(
                     'Game Space',
-                    style: TextStyle(
+                    style: TypographyTokens.titleSmallOf(context).copyWith(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
                       letterSpacing: 0.1,
+                      color: colors.textPrimary,
                     ),
                   ),
                 ],
@@ -331,26 +295,29 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
             children: [
               Text(
                 game?.name ?? 'Game In-Session',
-                style: const TextStyle(
+                style: TypographyTokens.titleSmallOf(context).copyWith(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFFE2E8F0),
+                  color: colors.textPrimary,
                 ),
               ),
-              const SizedBox(width: 8),
+              AppSpacing.gapH8,
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.xs - 2,
+                  vertical: 2,
+                ),
                 decoration: BoxDecoration(
-                  color: const Color(0x2E007AFF),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: ColorSemantics.turboBlue),
+                  color: colors.turboBlue.withValues(alpha: 0.18),
+                  borderRadius: RadiusTokens.borderXs,
+                  border: Border.all(color: colors.turboBlue),
                 ),
                 child: Text(
                   '${game?.targetFps ?? 120} FPS Max',
-                  style: const TextStyle(
+                  style: TypographyTokens.telemetryBadge.copyWith(
                     fontSize: 8.5,
                     fontWeight: FontWeight.w800,
-                    color: ColorSemantics.turboBlueLight,
+                    color: colors.turboBlueLight,
                   ),
                 ),
               ),
@@ -374,35 +341,45 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
                           child: Container(
                             decoration: BoxDecoration(
                               border: Border.all(
-                                  color: const Color(0xA6FFFFFF), width: 1.5),
+                                color: colors.textPrimary.withValues(
+                                  alpha: 0.65,
+                                ),
+                                width: 1.5,
+                              ),
                               borderRadius: BorderRadius.circular(3),
                             ),
                             padding: const EdgeInsets.all(1),
-                            child: LayoutBuilder(builder: (ctx, cst) {
-                              return Row(
-                                children: [
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 600),
-                                    width: cst.maxWidth * battFraction,
-                                    decoration: BoxDecoration(
-                                      color: battColor,
-                                      borderRadius: BorderRadius.circular(1),
+                            child: LayoutBuilder(
+                              builder: (ctx, cst) {
+                                return Row(
+                                  children: [
+                                    AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 600,
+                                      ),
+                                      width: cst.maxWidth * battFraction,
+                                      decoration: BoxDecoration(
+                                        color: battColor,
+                                        borderRadius: BorderRadius.circular(1),
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              );
-                            }),
+                                  ],
+                                );
+                              },
+                            ),
                           ),
                         ),
-                        const Positioned(
+                        Positioned(
                           right: 0,
                           child: SizedBox(
                             width: 2,
                             height: 4,
                             child: DecoratedBox(
                               decoration: BoxDecoration(
-                                color: Color(0xA6FFFFFF),
-                                borderRadius: BorderRadius.only(
+                                color: colors.textPrimary.withValues(
+                                  alpha: 0.65,
+                                ),
+                                borderRadius: const BorderRadius.only(
                                   topRight: Radius.circular(1),
                                   bottomRight: Radius.circular(1),
                                 ),
@@ -413,47 +390,45 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
                       ],
                     ),
                   ),
-                  const SizedBox(width: 5),
+                  AppSpacing.gapH4,
                   Text(
                     '$battery%',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFFE2E8F0),
-                    ),
+                    style: TypographyTokens.statusMicroOf(
+                      context,
+                    ).copyWith(fontSize: 11, color: colors.textPrimary),
                   ),
                 ],
               ),
-              const SizedBox(width: 14),
+              AppSpacing.gapH12,
 
               // CPU chip badge — live
               Row(
                 children: [
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.xxs - 1,
+                      vertical: 1,
+                    ),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(3),
                       border: Border.all(
-                          color: const Color(0x73FFFFFF), width: 1.2),
+                        color: colors.textPrimary.withValues(alpha: 0.45),
+                        width: 1.2,
+                      ),
                     ),
-                    child: const Text(
+                    child: Text(
                       'CPU',
-                      style: TextStyle(
-                        fontSize: 8,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFFCBD5E1),
+                      style: TypographyTokens.telemetryBadge.copyWith(
+                        color: colors.textPrimary,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 5),
+                  AppSpacing.gapH4,
                   Text(
                     '$cpu%',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFFE2E8F0),
-                    ),
+                    style: TypographyTokens.statusMicroOf(
+                      context,
+                    ).copyWith(fontSize: 11, color: colors.textPrimary),
                   ),
                 ],
               ),
@@ -465,24 +440,17 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
   }
 
   Widget _buildCenterGameStage(
-      InstalledGame? game, GameTurboSettings settings) {
+    InstalledGame? game,
+    GameTurboSettings settings,
+  ) {
+    final colors = ColorTokens.of(context);
     return Container(
       width: 520,
       height: 280,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0x2EFFFFFF)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0xD9000000),
-            blurRadius: 50,
-            offset: Offset(0, 20),
-          ),
-          BoxShadow(
-            color: Color(0x407C3AED),
-            blurRadius: 35,
-          ),
-        ],
+        borderRadius: RadiusTokens.borderXl,
+        border: Border.all(color: colors.borderGlass),
+        boxShadow: const [ElevationTokens.heroDeep, ElevationTokens.heroBloom],
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -490,10 +458,7 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
         children: [
           // Base Artwork
           if (game?.iconBytes != null)
-            Image.memory(
-              game!.iconBytes!,
-              fit: BoxFit.cover,
-            )
+            Image.memory(game!.iconBytes!, fit: BoxFit.cover)
           else
             Image.asset(
               'assets/images/wild_rift_splash.jpg',
@@ -507,9 +472,9 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Color(0x22000000),
-                  Color(0x660A0514),
-                  Color(0xF207080E),
+                  ColorComponentTokens.heroScrimTop,
+                  ColorComponentTokens.heroScrimMid,
+                  ColorComponentTokens.heroScrimBottom,
                 ],
                 stops: [0.0, 0.45, 0.95],
               ),
@@ -518,9 +483,9 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
 
           // Overlay Guide Info Banner at bottom of card
           Positioned(
-            bottom: 18,
-            left: 20,
-            right: 20,
+            bottom: AppSpacing.md + 2,
+            left: AppSpacing.lg - 4,
+            right: AppSpacing.lg - 4,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -531,21 +496,22 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
                     children: [
                       Row(
                         children: [
-                          const Text(
+                          Text(
                             '⚡',
-                            style: TextStyle(fontSize: 14),
+                            style: TypographyTokens.dialogTitleOf(
+                              context,
+                            ).copyWith(fontSize: 14),
                           ),
-                          const SizedBox(width: 6),
+                          AppSpacing.gapH8,
                           Expanded(
                             child: Text(
                               game?.name ?? 'Game Space Live Match',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 14,
+                              style: TypographyTokens.titleSmall.copyWith(
                                 fontWeight: FontWeight.w800,
-                                color: Colors.white,
                                 letterSpacing: -0.2,
+                                color: ColorComponentTokens.playWingFg,
                               ),
                             ),
                           ),
@@ -556,30 +522,32 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
                         '${game?.category ?? 'Gaming Engine'} · Game Turbo Active',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TypographyTokens.bodySmall.copyWith(
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
-                          color: Color(0xFF94A3B8),
+                          color: ColorComponentTokens.playWingSubFg,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
+                AppSpacing.gapH12,
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () => _toggleToolbox(true),
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.pillPaddingVertical,
+                    ),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF007AFF), Color(0xFF0055B8)],
+                      gradient: LinearGradient(
+                        colors: [colors.turboBlue, colors.turboBlueLight],
                       ),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: RadiusTokens.button,
                       boxShadow: [
                         BoxShadow(
-                          color: ColorSemantics.turboBlue.withValues(alpha: 0.4),
+                          color: colors.turboBlue.withValues(alpha: 0.4),
                           blurRadius: 10,
                         ),
                       ],
@@ -587,14 +555,18 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(LucideIcons.sliders, size: 12, color: Colors.white),
-                        const SizedBox(width: 5),
-                        const Text(
+                        Icon(
+                          LucideIcons.sliders,
+                          size: AppSizes.p12,
+                          color: ColorComponentTokens.playWingFg,
+                        ),
+                        AppSpacing.gapH4,
+                        Text(
                           'Open Turbo HUD',
-                          style: TextStyle(
+                          style: TypographyTokens.buttonText.copyWith(
                             fontSize: 10.5,
                             fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                            color: ColorComponentTokens.playWingFg,
                           ),
                         ),
                       ],
@@ -610,6 +582,7 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
   }
 
   Widget _buildEdgeHandle(InstalledGame? game) {
+    final colors = ColorTokens.of(context);
     final stats = ref.watch(systemStatsProvider).valueOrNull;
     final liveFps = stats?.fps ?? (game?.targetFps ?? 120);
 
@@ -617,18 +590,18 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
       behavior: HitTestBehavior.opaque,
       onTap: () => _toggleToolbox(true),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.pillPaddingVertical - 1,
+        ),
         decoration: BoxDecoration(
-          color: const Color(0xE00D121B),
-          borderRadius: BorderRadius.circular(9999),
-          border: Border.all(color: const Color(0x4D3B82F6), width: 1.5),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black87,
-              blurRadius: 16,
-              offset: Offset(0, 4),
-            ),
-          ],
+          color: colors.toolboxBg,
+          borderRadius: RadiusTokens.borderPill,
+          border: Border.all(
+            color: colors.turboBlueLight.withValues(alpha: 0.4),
+            width: 1.5,
+          ),
+          boxShadow: [ElevationTokens.toolboxShadow(colors.isLight)],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -636,34 +609,31 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
             // Pulsing emerald dot
             ScaleTransition(
               scale: _dotPulseAnimation,
-              child: const DecoratedBox(
+              child: DecoratedBox(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Color(0xFF30D158),
+                  color: colors.emeraldLive,
                   boxShadow: [
-                    BoxShadow(color: Color(0xFF30D158), blurRadius: 8),
+                    BoxShadow(color: colors.emeraldLive, blurRadius: 8),
                   ],
                 ),
-                child: SizedBox(width: 6, height: 6),
+                child: const SizedBox(width: 6, height: 6),
               ),
             ),
-            const SizedBox(width: 6),
-            const Text(
+            AppSpacing.gapH8,
+            Text(
               '⚡',
-              style: TextStyle(
-                fontSize: 10,
-                color: ColorSemantics.turboBlueLight,
-              ),
+              style: TypographyTokens.dialogTitleOf(
+                context,
+              ).copyWith(fontSize: 10, color: colors.turboBlueLight),
             ),
-            const SizedBox(width: 4),
+            AppSpacing.gapH4,
             Text(
               'TURBO $liveFps FPS',
-              style: TextStyle(
-                fontSize: 10,
+              style: TypographyTokens.tacticalBadgeOf(context).copyWith(
                 fontWeight: FontWeight.w800,
-                color: Colors.white,
                 letterSpacing: 0.2,
-                fontFamily: TypographyTokens.monoFontFamily,
+                color: colors.textPrimary,
               ),
             ),
           ],

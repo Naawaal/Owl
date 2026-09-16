@@ -277,11 +277,13 @@ class GameTurboOverlayService : Service() {
         val cardWidth = dp(288f)
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = GradientDrawable().apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.parseColor("#F5090B12"), Color.parseColor("#FA06070B"))
+            ).apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dp(18f).toFloat()
-                setColor(Color.parseColor("#F50E121B"))
-                setStroke(dp(1f), Color.parseColor("#33FFFFFF"))
+                setStroke(dp(1f), Color.parseColor("#26389BFF"))
             }
             setPadding(dp(12f), dp(9f), dp(12f), dp(9f))
             layoutParams = FrameLayout.LayoutParams(
@@ -1199,27 +1201,77 @@ class ReactorGaugeView(context: Context) : View(context) {
         ringPaint.strokeWidth = 1.2f * density
         canvas.drawCircle(cx, cy, radius - (0.6f * density), ringPaint)
 
-        // 4. Fine 36 Radial Tick Marks
+        // 4. 270-degree Tachometer Sweep Arc (from 135 deg to 405 deg)
+        val arcRadius = radius - (3.5f * density)
+        val arcRect = RectF(cx - arcRadius, cy - arcRadius, cx + arcRadius, cy + arcRadius)
+        val startAngle = 135f
+        val totalSweep = 270f
+        val progress = (fpsValue.toFloat() / 120f).coerceIn(0.05f, 1.0f)
+        val activeSweep = totalSweep * progress
+
+        // Track Arc (Inactive)
+        val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 2.2f * density
+            strokeCap = Paint.Cap.ROUND
+            color = Color.parseColor("#26FFFFFF")
+        }
+        canvas.drawArc(arcRect, startAngle, totalSweep, false, trackPaint)
+
+        // Active Neon Progress Sweep Arc
+        val activePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 2.8f * density
+            strokeCap = Paint.Cap.ROUND
+            color = accentColor
+        }
+        canvas.drawArc(arcRect, startAngle, activeSweep, false, activePaint)
+
+        // Leading Pip / Needle Tip at Active Arc Edge
+        val tipAngleRad = Math.toRadians((startAngle + activeSweep).toDouble())
+        val tipX = cx + (arcRadius * Math.cos(tipAngleRad)).toFloat()
+        val tipY = cy + (arcRadius * Math.sin(tipAngleRad)).toFloat()
+
+        val pipGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = accentGlow
+        }
+        canvas.drawCircle(tipX, tipY, 3.5f * density, pipGlowPaint)
+
+        val pipCorePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.WHITE
+        }
+        canvas.drawCircle(tipX, tipY, 1.8f * density, pipCorePaint)
+
+        // 5. Radial Tick Marks (25 ticks spanning 270 deg)
         tickPaint.strokeWidth = 1.0f * density
-        val tickCount = 36
-        val tickLength = 2.8f * density
-        val rOuter = radius - (2f * density)
-        val rInner = rOuter - tickLength
+        val tickCount = 25
+        val rOuter = arcRadius - (1.5f * density)
         for (i in 0 until tickCount) {
-            val angle = (i * 2 * Math.PI) / tickCount
-            val x1 = cx + rOuter * Math.cos(angle).toFloat()
-            val y1 = cy + rOuter * Math.sin(angle).toFloat()
-            val x2 = cx + rInner * Math.cos(angle).toFloat()
-            val y2 = cy + rInner * Math.sin(angle).toFloat()
+            val fraction = i.toFloat() / (tickCount - 1).toFloat()
+            val angleDeg = startAngle + fraction * totalSweep
+            val angleRad = Math.toRadians(angleDeg.toDouble())
+            val isActive = fraction <= progress
+
+            val tickLength = if (isActive) 4.2f * density else 2.5f * density
+            val rInner = rOuter - tickLength
+            tickPaint.color = if (isActive) accentColor else Color.parseColor("#4DFFFFFF")
+            tickPaint.strokeWidth = if (isActive) 1.3f * density else 0.9f * density
+
+            val x1 = cx + rOuter * Math.cos(angleRad).toFloat()
+            val y1 = cy + rOuter * Math.sin(angleRad).toFloat()
+            val x2 = cx + rInner * Math.cos(angleRad).toFloat()
+            val y2 = cy + rInner * Math.sin(angleRad).toFloat()
             canvas.drawLine(x1, y1, x2, y2, tickPaint)
         }
 
-        // 5. High-Contrast FPS Numerical Readout
+        // 6. High-Contrast FPS Numerical Readout
         fpsTextPaint.textSize = 18f * density
         val fpsStr = fpsValue.toString()
         canvas.drawText(fpsStr, cx, cy + (2f * density), fpsTextPaint)
 
-        // 6. FPS Unit Tag
+        // 7. FPS Unit Tag
         unitTextPaint.textSize = 7.5f * density
         unitTextPaint.color = if (isPerformanceMode) Color.parseColor("#FF5A5F") else Color.parseColor("#389BFF")
         canvas.drawText("FPS", cx, cy + (12f * density), unitTextPaint)

@@ -14,7 +14,6 @@ import 'package:owl/features/settings/presentation/gpu_settings_two_pane_screen.
 import 'package:owl_design/owl_design.dart';
 import 'package:owl/features/overlay/data/system_stats_service.dart';
 
-
 /// 1:1 Authentic Xiaomi Game Turbo Game Space Console Screen.
 ///
 /// Features:
@@ -32,8 +31,7 @@ class GameSpaceConsoleScreen extends ConsumerStatefulWidget {
       _GameSpaceConsoleScreenState();
 }
 
-class _GameSpaceConsoleScreenState
-    extends ConsumerState<GameSpaceConsoleScreen>
+class _GameSpaceConsoleScreenState extends ConsumerState<GameSpaceConsoleScreen>
     with SingleTickerProviderStateMixin {
   int _activeHeroIndex = 0;
   bool _isOverlayToolboxOpen = false;
@@ -52,24 +50,15 @@ class _GameSpaceConsoleScreenState
     _toolboxSlideAnimation = Tween<Offset>(
       begin: const Offset(0.0, -0.06),
       end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: controller,
-      curve: Curves.easeOutCubic,
-    ));
+    ).animate(CurvedAnimation(parent: controller, curve: Curves.easeOutCubic));
     _toolboxScaleAnimation = Tween<double>(
       begin: 0.94,
       end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: controller,
-      curve: Curves.easeOutCubic,
-    ));
+    ).animate(CurvedAnimation(parent: controller, curve: Curves.easeOutCubic));
     _toolboxFadeAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: controller,
-      curve: Curves.easeOut,
-    ));
+    ).animate(CurvedAnimation(parent: controller, curve: Curves.easeOut));
     _toolboxController = controller;
   }
 
@@ -133,64 +122,69 @@ class _GameSpaceConsoleScreenState
     return await showDialog<bool>(
           context: context,
           barrierDismissible: true,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: const Color(0xF2101420),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-              side: const BorderSide(color: Color(0x33FFFFFF)),
-            ),
-            title: const Row(
-              children: [
-                Text('⚡',
-                    style: TextStyle(
-                        fontSize: 18, color: ColorSemantics.turboBlueLight)),
-                SizedBox(width: 8),
-                Text(
-                  'Display Over Apps',
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white),
+          builder: (ctx) {
+            final dialogColors = ColorTokens.of(ctx);
+            return AlertDialog(
+              backgroundColor: dialogColors.dialogBg,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: dialogColors.borderGlassStrong),
+              ),
+              title: Row(
+                children: [
+                  Text(
+                    '⚡',
+                    style: TypographyTokens.dialogTitle.copyWith(
+                      fontSize: 18,
+                      color: ColorTokens.turboBlueLight,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Display Over Apps',
+                    style: TypographyTokens.dialogTitle,
+                  ),
+                ],
+              ),
+              content: Text(
+                'To display the floating Game Turbo handle & live FPS meter over your game, Owl needs "Display over other apps" permission.',
+                style: TypographyTokens.dialogBody,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: Text(
+                    'Skip to In-App HUD',
+                    style: TypographyTokens.dialogAction.copyWith(
+                      color: dialogColors.textPrimary.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ColorSemantics.turboBlue,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                  ),
+                  onPressed: () async {
+                    await ref
+                        .read(gameDiscoveryServiceProvider)
+                        .requestOverlayPermission();
+                    if (ctx.mounted) Navigator.of(ctx).pop(true);
+                  },
+                  child: Text(
+                    'Grant Permission',
+                    style: TypographyTokens.dialogAction,
+                  ),
                 ),
               ],
-            ),
-            content: const Text(
-              'To display the floating Game Turbo handle & live FPS meter over your game, Owl needs "Display over other apps" permission.',
-              style: TextStyle(
-                  fontSize: 12, color: Color(0xCCFFFFFF), height: 1.4),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text(
-                  'Skip to In-App HUD',
-                  style: TextStyle(color: Color(0x99FFFFFF), fontSize: 12),
-                ),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ColorSemantics.turboBlue,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                ),
-                onPressed: () async {
-                  await ref
-                      .read(gameDiscoveryServiceProvider)
-                      .requestOverlayPermission();
-                  if (ctx.mounted) Navigator.of(ctx).pop(true);
-                },
-                child: const Text(
-                  'Grant Permission',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ) ??
         true;
   }
@@ -206,8 +200,9 @@ class _GameSpaceConsoleScreenState
           await _showOverlayPermissionDialog();
         }
       }
-      externalLaunched =
-          await ref.read(installedGamesProvider.notifier).launchActiveGame();
+      externalLaunched = await ref
+          .read(installedGamesProvider.notifier)
+          .launchActiveGame();
     }
     if (mounted) {
       // When a real external game was successfully launched on Android,
@@ -230,65 +225,17 @@ class _GameSpaceConsoleScreenState
   @override
   Widget build(BuildContext context) {
     _ensureInitialized();
+    final owlColors = ColorTokens.of(context);
     final gameState = ref.watch(installedGamesProvider);
-    final deckGames =
-        gameState.games.where((g) => g.isInGameSpace).toList();
+    final deckGames = gameState.games.where((g) => g.isInGameSpace).toList();
     final activeGame = gameState.activeGame ?? deckGames.firstOrNull;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF07090F),
+      backgroundColor: owlColors.consoleBase,
       body: Stack(
         children: [
-          // 1. Ambient Horizon — 1:1 from finalized prototype:
-          // base linear #090B12 -> #06070B + purple ellipse 48% + blue glow 90%
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF090B12),
-                    Color(0xFF06070B),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment(0.0, 0.0),
-                  radius: 0.85,
-                  colors: [
-                    Color(0x2E8B2BE2),
-                    Color(0x0D140A28),
-                    Color(0x0006070B),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          // Blue glow anchored right-center (circle at 90% 50%)
-          Positioned(
-            right: -120,
-            top: 0,
-            bottom: 0,
-            width: 420,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 0.6,
-                  colors: [
-                    const Color(0xFF006EFF).withValues(alpha: 0.10),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
+          // 1. Ambient Horizon (Dark) or Sector Shimmer (Light) — 1:1 prototype match
+          const Positioned.fill(child: OwlAtmosphericBackground()),
 
           // 2. Main Console Layout
           SafeArea(
@@ -317,11 +264,16 @@ class _GameSpaceConsoleScreenState
                             // Center Hero Showcase — fills middle space and scales down to prevent overlap
                             Expanded(
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
                                 child: Center(
                                   child: FittedBox(
                                     fit: BoxFit.scaleDown,
-                                    child: _buildCenterStage(activeGame, deckGames),
+                                    child: _buildCenterStage(
+                                      activeGame,
+                                      deckGames,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -353,9 +305,7 @@ class _GameSpaceConsoleScreenState
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => _toggleOverlayToolbox(false),
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.35),
-                ),
+                child: Container(color: ColorPrimitives.scrimBlack35),
               ),
             ),
 
@@ -377,7 +327,8 @@ class _GameSpaceConsoleScreenState
                     child: FadeTransition(
                       opacity: _toolboxFadeAnimation!,
                       child: GameturboFloatingToolbox(
-                        gameTitle: activeGame?.name ?? 'Mobile Legends: Bang Bang',
+                        gameTitle:
+                            activeGame?.name ?? 'Mobile Legends: Bang Bang',
                         targetFps: activeGame?.targetFps ?? 120,
                         onClose: () => _toggleOverlayToolbox(false),
                         onOpenGpuSettings: () => _openGpuSettings(activeGame),
@@ -394,6 +345,7 @@ class _GameSpaceConsoleScreenState
   }
 
   Widget _buildTopStatusBar() {
+    final owlColors = ColorTokens.of(context);
     final statsAsync = ref.watch(systemStatsProvider);
     final stats = statsAsync.valueOrNull;
     // Live reference defaults while loading / on error: 78% / 32%.
@@ -403,10 +355,10 @@ class _GameSpaceConsoleScreenState
     // Battery fill fraction (clamp 0–1)
     final battFraction = (battery / 100.0).clamp(0.0, 1.0);
     final battColor = battery <= 20
-        ? const Color(0xFFE63946)
+        ? owlColors.telemetryCritical
         : battery <= 40
-            ? const Color(0xFFEAB308)
-            : ColorSemantics.turboBlue;
+        ? owlColors.telemetryLow
+        : owlColors.telemetryNormal;
     final battLabel = '$battery%';
     final cpuLabel = '$cpu%';
 
@@ -434,36 +386,46 @@ class _GameSpaceConsoleScreenState
                           child: Container(
                             decoration: BoxDecoration(
                               border: Border.all(
-                                  color: const Color(0xA6FFFFFF), width: 1.5),
+                                color: owlColors.textPrimary.withValues(
+                                  alpha: 0.65,
+                                ),
+                                width: 1.5,
+                              ),
                               borderRadius: BorderRadius.circular(3),
                             ),
                             padding: const EdgeInsets.all(1),
-                            child: LayoutBuilder(builder: (ctx, cst) {
-                              return Row(
-                                children: [
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 600),
-                                    width: cst.maxWidth * battFraction,
-                                    decoration: BoxDecoration(
-                                      color: battColor,
-                                      borderRadius: BorderRadius.circular(1),
+                            child: LayoutBuilder(
+                              builder: (ctx, cst) {
+                                return Row(
+                                  children: [
+                                    AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 600,
+                                      ),
+                                      width: cst.maxWidth * battFraction,
+                                      decoration: BoxDecoration(
+                                        color: battColor,
+                                        borderRadius: BorderRadius.circular(1),
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              );
-                            }),
+                                  ],
+                                );
+                              },
+                            ),
                           ),
                         ),
                         // nub
-                        const Positioned(
+                        Positioned(
                           right: 0,
                           child: SizedBox(
                             width: 2,
                             height: 4,
                             child: DecoratedBox(
                               decoration: BoxDecoration(
-                                color: Color(0xA6FFFFFF),
-                                borderRadius: BorderRadius.only(
+                                color: owlColors.textPrimary.withValues(
+                                  alpha: owlColors.isLight ? 0.75 : 0.65,
+                                ),
+                                borderRadius: const BorderRadius.only(
                                   topRight: Radius.circular(1),
                                   bottomRight: Radius.circular(1),
                                 ),
@@ -477,10 +439,8 @@ class _GameSpaceConsoleScreenState
                   const SizedBox(width: 6),
                   Text(
                     battLabel,
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFFE2E8F0),
+                    style: TypographyTokens.statusMicro.copyWith(
+                      color: owlColors.textPrimary,
                     ),
                   ),
                 ],
@@ -491,30 +451,31 @@ class _GameSpaceConsoleScreenState
               Row(
                 children: [
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 3,
+                      vertical: 1,
+                    ),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(3),
                       border: Border.all(
-                          color: const Color(0x73FFFFFF), width: 1.2),
+                        color: owlColors.textPrimary.withValues(
+                          alpha: owlColors.isLight ? 0.4 : 0.45,
+                        ),
+                        width: 1.2,
+                      ),
                     ),
-                    child: const Text(
+                    child: Text(
                       'CPU',
-                      style: TextStyle(
-                        fontSize: 8,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFFCBD5E1),
-                        letterSpacing: 0.2,
+                      style: TypographyTokens.telemetryBadge.copyWith(
+                        color: owlColors.textSecondary,
                       ),
                     ),
                   ),
                   const SizedBox(width: 6),
                   Text(
                     cpuLabel,
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFFE2E8F0),
+                    style: TypographyTokens.statusMicro.copyWith(
+                      color: owlColors.textPrimary,
                     ),
                   ),
                 ],
@@ -525,31 +486,31 @@ class _GameSpaceConsoleScreenState
               Row(
                 children: [
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 3,
+                      vertical: 1,
+                    ),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(3),
                       border: Border.all(
-                          color: const Color(0x7330D158), width: 1.2),
+                        color: owlColors.emeraldLive.withValues(
+                          alpha: owlColors.isLight ? 0.6 : 0.45,
+                        ),
+                        width: 1.2,
+                      ),
                     ),
-                    child: const Text(
+                    child: Text(
                       'FPS',
-                      style: TextStyle(
-                        fontSize: 8,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF30D158),
-                        letterSpacing: 0.2,
+                      style: TypographyTokens.telemetryBadge.copyWith(
+                        color: owlColors.emeraldLive,
                       ),
                     ),
                   ),
                   const SizedBox(width: 6),
                   Text(
                     '${stats?.fps ?? 120}',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFFE2E8F0),
-                      fontFamily: TypographyTokens.monoFontFamily,
+                    style: TypographyTokens.statusMicro.copyWith(
+                      color: owlColors.textPrimary,
                     ),
                   ),
                 ],
@@ -565,19 +526,23 @@ class _GameSpaceConsoleScreenState
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: _isOverlayToolboxOpen
-                    ? const Color(0x33007AFF)
-                    : const Color(0x14FFFFFF),
+                    ? owlColors.turboBlue.withValues(alpha: 0.2)
+                    : (owlColors.isLight
+                          ? owlColors.turboBlue.withValues(alpha: 0.08)
+                          : owlColors.textPrimary.withValues(alpha: 0.08)),
                 borderRadius: BorderRadius.circular(9999),
                 border: Border.all(
                   color: _isOverlayToolboxOpen
-                      ? ColorSemantics.turboBlueLight
-                      : const Color(0x2E3B82F6),
+                      ? owlColors.turboBlueLight
+                      : (owlColors.isLight
+                            ? owlColors.turboBlue.withValues(alpha: 0.25)
+                            : owlColors.turboBlue.withValues(alpha: 0.18)),
                   width: 1.2,
                 ),
                 boxShadow: _isOverlayToolboxOpen
                     ? [
                         BoxShadow(
-                          color: ColorSemantics.turboBlue.withValues(alpha: 0.35),
+                          color: owlColors.turboBlue.withValues(alpha: 0.35),
                           blurRadius: 8,
                         ),
                       ]
@@ -589,27 +554,27 @@ class _GameSpaceConsoleScreenState
                   Container(
                     width: 6,
                     height: 6,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF30D158),
+                    decoration: BoxDecoration(
+                      color: owlColors.emeraldLive,
                       shape: BoxShape.circle,
                     ),
                   ),
                   const SizedBox(width: 6),
                   Text(
                     'TURBO ${stats?.fps ?? 120} FPS',
-                    style: TextStyle(
-                      fontSize: 10,
+                    style: TypographyTokens.tacticalBadge.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: Colors.white,
                       letterSpacing: 0.4,
-                      fontFamily: TypographyTokens.monoFontFamily,
+                      color: owlColors.textPrimary,
                     ),
                   ),
                   const SizedBox(width: 4),
                   Icon(
                     _isOverlayToolboxOpen ? Icons.close : Icons.tune,
                     size: 11,
-                    color: ColorSemantics.turboBlueLight,
+                    color: owlColors.isLight
+                        ? owlColors.turboBlue
+                        : owlColors.turboBlueLight,
                   ),
                 ],
               ),
@@ -622,33 +587,40 @@ class _GameSpaceConsoleScreenState
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: _openAddGames,
-                child: const Padding(
-                  padding: EdgeInsets.all(2),
-                  child: Icon(Icons.add,
-                      size: 19, color: Color(0xFFE2E8F0)),
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: Icon(
+                    Icons.add,
+                    size: 19,
+                    color: owlColors.textPrimary,
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: _openAppSettings,
-                child: const Padding(
-                  padding: EdgeInsets.all(2),
-                  child: Icon(Icons.settings_outlined,
-                      size: 18, color: Color(0xFFE2E8F0)),
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: Icon(
+                    Icons.settings_outlined,
+                    size: 18,
+                    color: owlColors.textPrimary,
+                  ),
                 ),
               ),
             ],
           ),
         ],
- 
       ),
     );
   }
 
-
   Widget _buildLeftSidebar(
-      List<InstalledGame> deckGames, InstalledGame? activeGame) {
+    List<InstalledGame> deckGames,
+    InstalledGame? activeGame,
+  ) {
+    final owlColors = ColorTokens.of(context);
     return SizedBox(
       width: 188,
       child: Column(
@@ -663,23 +635,22 @@ class _GameSpaceConsoleScreenState
                 margin: const EdgeInsets.symmetric(horizontal: 4),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0x1AFFFFFF),
+                  color: owlColors.textPrimary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0x33FFFFFF)),
+                  border: Border.all(color: owlColors.borderGlassStrong),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.add, size: 16, color: ColorSemantics.turboBlueLight),
-                    SizedBox(width: 8),
+                    Icon(Icons.add, size: 16, color: owlColors.turboBlueLight),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Add First Game',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white),
+                        style: TypographyTokens.statusMicro.copyWith(
+                          fontSize: 11.0,
+                        ),
                       ),
                     ),
                   ],
@@ -696,8 +667,7 @@ class _GameSpaceConsoleScreenState
                 itemCount: deckGames.length,
                 itemBuilder: (context, index) {
                   final game = deckGames[index];
-                  final isActive =
-                      game.packageName == activeGame?.packageName;
+                  final isActive = game.packageName == activeGame?.packageName;
 
                   return GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -715,20 +685,34 @@ class _GameSpaceConsoleScreenState
                       padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
                       decoration: BoxDecoration(
                         color: isActive
-                            ? const Color(0x14FFFFFF)
+                            ? (owlColors.isLight
+                                  ? owlColors.turboBlue.withValues(alpha: 0.08)
+                                  : owlColors.textPrimary.withValues(
+                                      alpha: 0.08,
+                                    ))
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: isActive
-                              ? const Color(0x14FFFFFF)
+                              ? (owlColors.isLight
+                                    ? owlColors.turboBlue.withValues(
+                                        alpha: 0.25,
+                                      )
+                                    : owlColors.textPrimary.withValues(
+                                        alpha: 0.08,
+                                      ))
                               : Colors.transparent,
                         ),
                         boxShadow: isActive
-                            ? const [
+                            ? [
                                 BoxShadow(
-                                  color: Color(0x66000000),
-                                  blurRadius: 20,
-                                  offset: Offset(0, 4),
+                                  color: owlColors.isLight
+                                      ? owlColors.turboBlue.withValues(
+                                          alpha: 0.08,
+                                        )
+                                      : ColorPrimitives.segTrackBlack40,
+                                  blurRadius: owlColors.isLight ? 12 : 20,
+                                  offset: const Offset(0, 4),
                                 ),
                               ]
                             : null,
@@ -747,12 +731,13 @@ class _GameSpaceConsoleScreenState
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                     colors: [
-                                      Color(0xFF1E3A8A),
-                                      Color(0xFF3B82F6),
+                                      ColorComponentTokens.gameboxStart,
+                                      ColorComponentTokens.gameboxEnd,
                                     ],
                                   ),
                                   border: Border.all(
-                                      color: const Color(0x26FFFFFF)),
+                                    color: ColorPrimitives.glassWhite15,
+                                  ),
                                 ),
                                 clipBehavior: Clip.antiAlias,
                                 child: game.iconBytes != null
@@ -760,9 +745,11 @@ class _GameSpaceConsoleScreenState
                                         game.iconBytes!,
                                         fit: BoxFit.cover,
                                       )
-                                    : const Icon(
+                                    : Icon(
                                         Icons.sports_esports_outlined,
-                                        color: Colors.white54,
+                                        color: owlColors.textPrimary.withValues(
+                                          alpha: 0.54,
+                                        ),
                                         size: 22,
                                       ),
                               ),
@@ -771,9 +758,11 @@ class _GameSpaceConsoleScreenState
                                 right: 0,
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 3, vertical: 1),
+                                    horizontal: 3,
+                                    vertical: 1,
+                                  ),
                                   decoration: const BoxDecoration(
-                                    color: Color(0xFFEAB308),
+                                    color: ColorComponentTokens.gameboxBadgeBg,
                                     borderRadius: BorderRadius.only(
                                       topLeft: Radius.circular(4),
                                     ),
@@ -782,12 +771,13 @@ class _GameSpaceConsoleScreenState
                                     game.category.contains('MOBA')
                                         ? '5v5'
                                         : '${game.targetFps}F',
-                                    style: const TextStyle(
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.w900,
-                                      color: Colors.black,
-                                      height: 1,
-                                    ),
+                                    style: TypographyTokens.telemetryBadge
+                                        .copyWith(
+                                          fontWeight: FontWeight.w900,
+                                          color: ColorComponentTokens
+                                              .gameboxBadgeFg,
+                                          height: 1,
+                                        ),
                                   ),
                                 ),
                               ),
@@ -800,12 +790,12 @@ class _GameSpaceConsoleScreenState
                               game.name,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
+                              style: TypographyTokens.titleSmall.copyWith(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
                                 color: isActive
-                                    ? Colors.white
-                                    : const Color(0xFFCBD5E1),
+                                    ? owlColors.textPrimary
+                                    : owlColors.textSecondary,
                                 height: 1.25,
                               ),
                             ),
@@ -823,7 +813,10 @@ class _GameSpaceConsoleScreenState
   }
 
   Widget _buildCenterStage(
-      InstalledGame? activeGame, List<InstalledGame> deckGames) {
+    InstalledGame? activeGame,
+    List<InstalledGame> deckGames,
+  ) {
+    final owlColors = ColorTokens.of(context);
     void switchGameDelta(int delta) {
       if (deckGames.isEmpty) return;
       HapticFeedback.selectionClick();
@@ -832,6 +825,7 @@ class _GameSpaceConsoleScreenState
       final target = deckGames[newIndex % deckGames.length];
       ref.read(installedGamesProvider.notifier).selectGame(target);
     }
+
     // 1:1 from finalized prototype — static cinematic showcase:
     // splash left + inset gameplay 290x165 gold border + TRIPLE KILL
     // + gold gradient headline + purple subpill + 5-bar pagination.
@@ -852,224 +846,207 @@ class _GameSpaceConsoleScreenState
             }
           },
           child: Container(
-          width: 500,
-          height: 295,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0x24FFFFFF)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0xD9000000),
-                blurRadius: 50,
-                offset: Offset(0, 20),
+            width: 500,
+            height: 295,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: owlColors.isLight
+                    ? owlColors.borderGlassStrong
+                    : ColorComponentTokens.heroCardBorder,
               ),
-              BoxShadow(
-                color: Color(0x407C3AED),
-                blurRadius: 35,
-              ),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Base splash — bundled cinematic artwork (left-center)
-              Image.asset(
-                'assets/images/wild_rift_splash.jpg',
-                fit: BoxFit.cover,
-                alignment: Alignment.centerLeft,
-              ),
-              // Cinematic legibility gradient: 10% -> 40% -> 95%
-              Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x1A000000),
-                      Color(0x660A0514),
-                      Color(0xF207080E),
-                    ],
-                    stops: [0.0, 0.4, 0.9],
+              boxShadow: ElevationTokens.heroShadows(owlColors.isLight),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Base splash — bundled cinematic artwork (left-center)
+                Image.asset(
+                  'assets/images/wild_rift_splash.jpg',
+                  fit: BoxFit.cover,
+                  alignment: Alignment.centerLeft,
+                ),
+                // Cinematic legibility gradient: 10% -> 40% -> 95%
+                Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        ColorComponentTokens.heroScrimTop,
+                        ColorComponentTokens.heroScrimMid,
+                        ColorComponentTokens.heroScrimBottom,
+                      ],
+                      stops: [0.0, 0.4, 0.9],
+                    ),
                   ),
                 ),
-              ),
 
-              // Inset gameplay preview — top 22 right 22, 290x165 r12
-              Positioned(
-                top: 22,
-                right: 22,
-                child: Container(
-                  width: 290,
-                  height: 165,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0x73FFD700),
-                      width: 1.5,
+                // Inset gameplay preview — top 22 right 22, 290x165 r12
+                Positioned(
+                  top: 22,
+                  right: 22,
+                  child: Container(
+                    width: 290,
+                    height: 165,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: ColorComponentTokens.goldBorder,
+                        width: 1.5,
+                      ),
+                      boxShadow: const [
+                        ElevationTokens.toolboxDeep,
+                        BoxShadow(
+                          color: ColorPrimitives.goldGlow25,
+                          blurRadius: 20,
+                        ),
+                      ],
+                      image: const DecorationImage(
+                        image: AssetImage('assets/images/moba_gameplay_bg.jpg'),
+                        fit: BoxFit.cover,
+                      ),
                     ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0xE6000000),
-                        blurRadius: 30,
-                        offset: Offset(0, 8),
-                      ),
-                      BoxShadow(
-                        color: Color(0x40FFD700),
-                        blurRadius: 20,
-                      ),
-                    ],
-                    image: const DecorationImage(
-                      image: AssetImage(
-                          'assets/images/moba_gameplay_bg.jpg'),
-                      fit: BoxFit.cover,
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      children: [
+                        // Inner vignette
+                        Container(
+                          decoration: const BoxDecoration(
+                            gradient: RadialGradient(
+                              center: Alignment.center,
+                              radius: 0.7,
+                              colors: [
+                                Colors.transparent,
+                                ColorPrimitives.scrimBlack60,
+                              ],
+                            ),
+                          ),
+                        ),
+                        // Triple-kill badge — top centered
+                        Positioned(
+                          top: 10,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: ColorComponentTokens.tripleKillBg,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: ColorTokens.goldSolid,
+                                ),
+                                boxShadow: const [ElevationTokens.goldBadge],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.flash_on,
+                                    size: 10,
+                                    color: ColorTokens.goldSolid,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    'TRIPLE KILL',
+                                    style: TypographyTokens.tripleKillLabel,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Stack(
+                ),
+
+                // Bottom headline cluster
+                Positioned(
+                  left: 20,
+                  right: 20,
+                  bottom: 16,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Inner vignette
+                      // Gold gradient headline 24px 900
+                      ShaderMask(
+                        shaderCallback: (bounds) => const LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            ColorTokens.textPrimary,
+                            ColorPrimitives.goldPale,
+                            ColorPrimitives.amberWarning,
+                            ColorPrimitives.goldDeep,
+                          ],
+                          stops: [0.0, 0.4, 0.8, 1.0],
+                        ).createShader(bounds),
+                        child: Text(
+                          activeGame?.name.toUpperCase() ??
+                              '5V5 ACTION GAMEPLAY',
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TypographyTokens.heroHeadline,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      // Purple subpill
                       Container(
-                        decoration: const BoxDecoration(
-                          gradient: RadialGradient(
-                            center: Alignment.center,
-                            radius: 0.7,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(9999),
+                          gradient: LinearGradient(
                             colors: [
-                              Colors.transparent,
-                              Color(0x99000000),
+                              owlColors.consolePurple.withValues(alpha: 0.5),
+                              owlColors.consolePurpleVivid.withValues(
+                                alpha: 0.85,
+                              ),
+                              owlColors.consolePurple.withValues(alpha: 0.5),
                             ],
                           ),
-                        ),
-                      ),
-                      // Triple-kill badge — top centered
-                      Positioned(
-                        top: 10,
-                        left: 0,
-                        right: 0,
-                        child: Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xBF000000),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                  color: Color(0xFFFFD700)),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x80FFD700),
-                                  blurRadius: 10,
-                                ),
-                              ],
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.flash_on,
-                                    size: 10, color: Color(0xFFFFD700)),
-                                SizedBox(width: 5),
-                                Text(
-                                  'TRIPLE KILL',
-                                  style: TextStyle(
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.w900,
-                                    color: Color(0xFFFFD700),
-                                    letterSpacing: 0.3,
-                                  ),
-                                ),
-                              ],
-                            ),
+                          border: Border.all(
+                            color: ColorComponentTokens.subpillBorder,
                           ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: ColorPrimitives.subpillGlow40,
+                              blurRadius: 16,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.auto_awesome,
+                              size: 10,
+                              color: owlColors.textPrimary,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'SKILL LEADS TO VICTORY',
+                              style: TypographyTokens.subpillLabel,
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-
-              // Bottom headline cluster
-              Positioned(
-                left: 20,
-                right: 20,
-                bottom: 16,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Gold gradient headline 24px 900
-                    ShaderMask(
-                      shaderCallback: (bounds) =>
-                          const LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.white,
-                          Color(0xFFFFE89E),
-                          Color(0xFFFFB703),
-                          Color(0xFFFB8500),
-                        ],
-                        stops: [0.0, 0.4, 0.8, 1.0],
-                      ).createShader(bounds),
-                      child: Text(
-                        activeGame?.name.toUpperCase() ?? '5V5 ACTION GAMEPLAY',
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          letterSpacing: 0.5,
-                          height: 1.1,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    // Purple subpill
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 3),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(9999),
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0x807C3AED),
-                            Color(0xD9933AEA),
-                            Color(0x807C3AED),
-                          ],
-                        ),
-                        border: Border.all(
-                            color: const Color(0x73D8B4FE)),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x669333EA),
-                            blurRadius: 16,
-                          ),
-                        ],
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.auto_awesome,
-                              size: 10, color: Colors.white),
-                          SizedBox(width: 6),
-                          Text(
-                            'SKILL LEADS TO VICTORY',
-                            style: TextStyle(
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        )),
+        ),
         const SizedBox(height: 14),
 
         // 5-bar pagination — gap 6, h3, w14 / active w22 blue glow
@@ -1092,14 +1069,13 @@ class _GameSpaceConsoleScreenState
                 height: 3,
                 decoration: BoxDecoration(
                   color: isActive
-                      ? ColorSemantics.turboBlue
-                      : const Color(0x33FFFFFF),
+                      ? owlColors.turboBlue
+                      : owlColors.textPrimary.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(3),
                   boxShadow: isActive
                       ? [
                           BoxShadow(
-                            color: ColorSemantics.turboBlue
-                                .withValues(alpha: 0.45),
+                            color: owlColors.turboBlue.withValues(alpha: 0.45),
                             blurRadius: 8,
                           ),
                         ]
@@ -1113,11 +1089,10 @@ class _GameSpaceConsoleScreenState
     );
   }
 
-
-
   Widget _buildPlayWing(InstalledGame? activeGame) {
     // Signature Game Turbo Play wing — 175x114, blue gradient,
     // uniform hairline border (radius-safe) + stronger left edge accent.
+    final owlColors = ColorTokens.of(context);
     return SizedBox(
       width: 175,
       child: GestureDetector(
@@ -1128,121 +1103,113 @@ class _GameSpaceConsoleScreenState
           child: Container(
             width: 175,
             height: 114,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [
-                Color(0xCC0062EB),
-                Color(0xF50088FF),
-              ],
-            ),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(18),
-              bottomLeft: Radius.circular(18),
-            ),
-            border: Border.all(
-              color: const Color(0x26FFFFFF),
-              width: 1,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x73007AFF),
-                blurRadius: 30,
-                offset: Offset(-8, 0),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [owlColors.playWingStart, owlColors.playWingEnd],
               ),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 20, 10),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Left edge accent on the container edge (radius-safe).
-                Positioned(
-                  left: -14,
-                  top: -10,
-                  bottom: -10,
-                  child: Container(
-                    width: 1.5,
-                    color: const Color(0x4DFFFFFF),
-                  ),
-                ),
-                // Chevron accent — right 6, white 50%
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: Icon(
-                      Icons.chevron_right,
-                      size: 18,
-                      color: Colors.white.withValues(alpha: 0.5),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(18),
+                bottomLeft: Radius.circular(18),
+              ),
+              border: Border.all(
+                color: owlColors.isLight
+                    ? owlColors.turboBlue.withValues(alpha: 0.25)
+                    : owlColors.textPrimary.withValues(alpha: 0.15),
+                width: 1,
+              ),
+              boxShadow: [ElevationTokens.playWingShadow(owlColors.isLight)],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 20, 10),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Left edge accent on the container edge (radius-safe).
+                  Positioned(
+                    left: -14,
+                    top: -10,
+                    bottom: -10,
+                    child: Container(
+                      width: 1.5,
+                      color: ColorComponentTokens.playWingBorder,
                     ),
                   ),
-                ),
-                const Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.bolt, size: 17, color: Colors.white),
-                        SizedBox(width: 6),
-                        Text(
-                          'Play',
-                          style: TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 6),
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 6),
-                      child: Text(
-                        'Game Turbo can turn on automatically',
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xD9FFFFFF),
-                          height: 1.3,
-                        ),
+                  // Chevron accent — right 6, white 50%
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Icon(
+                        Icons.chevron_right,
+                        size: 18,
+                        color: ColorPrimitives.scrimWhite50,
                       ),
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.bolt,
+                            size: 17,
+                            color: ColorComponentTokens.playWingFg,
+                          ),
+                          const SizedBox(width: 6),
+                          Text('Play', style: TypographyTokens.playWingTitle),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: Text(
+                          'Game Turbo can turn on automatically',
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TypographyTokens.playWingSubtitle,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildBottomGpuTab(InstalledGame? activeGame) {
     // Beveled trapezoid tab — polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%)
-    // 240x40, #121620 88%, accent bar 28x3 blue, label 11.5 w600 #94A3B8.
+    // 240x40, with theme-aware border and ambient shadow.
+    final owlColors = ColorTokens.of(context);
     return Align(
       alignment: Alignment.bottomCenter,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => _openGpuSettings(activeGame),
-        child: ClipPath(
-          clipper: _GpuTabClipper(),
+        child: CustomPaint(
+          painter: _GpuTabBorderPainter(
+            borderColor: owlColors.isLight
+                ? owlColors.borderGlassStrong
+                : ColorPrimitives.glassWhite15,
+            fillColor: owlColors.gpuTabFill,
+            shadowColor: owlColors.isLight
+                ? owlColors.textPrimary.withValues(alpha: 0.08)
+                : Colors.transparent,
+          ),
           child: Container(
             width: 240,
             height: 40,
-            color: const Color(0xE0121620),
             padding: const EdgeInsets.only(top: 4),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1251,25 +1218,23 @@ class _GameSpaceConsoleScreenState
                   width: 28,
                   height: 3,
                   decoration: BoxDecoration(
-                    color: ColorSemantics.turboBlue,
+                    color: owlColors.turboBlue,
                     borderRadius: BorderRadius.circular(3),
                     boxShadow: [
                       BoxShadow(
-                        color: ColorSemantics.turboBlue
-                            .withValues(alpha: 0.45),
+                        color: owlColors.turboBlue.withValues(
+                          alpha: owlColors.isLight ? 0.35 : 0.45,
+                        ),
                         blurRadius: 8,
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'GPU settings',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF94A3B8),
-                    letterSpacing: 0.2,
+                  style: TypographyTokens.gpuTabLabel.copyWith(
+                    color: owlColors.textSecondary,
                   ),
                 ),
               ],
@@ -1281,19 +1246,55 @@ class _GameSpaceConsoleScreenState
   }
 }
 
-/// Trapezoid clip matching prototype:
-/// clip-path: polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%)
-class _GpuTabClipper extends CustomClipper<Path> {
+/// Custom painter for the beveled GPU tab trapezoid:
+/// Draws the angled fill, stroke along the visible top/side borders,
+/// and subtle elevation shadow in light mode.
+class _GpuTabBorderPainter extends CustomPainter {
+  const _GpuTabBorderPainter({
+    required this.borderColor,
+    required this.fillColor,
+    required this.shadowColor,
+  });
+
+  final Color borderColor;
+  final Color fillColor;
+  final Color shadowColor;
+
   @override
-  Path getClip(Size size) {
-    return Path()
-      ..moveTo(size.width * 0.10, 0)
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(0, size.height)
+      ..lineTo(size.width * 0.10, 0)
       ..lineTo(size.width * 0.90, 0)
       ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
       ..close();
+
+    if (shadowColor.a > 0) {
+      canvas.drawShadow(path, shadowColor, 8.0, false);
+    }
+
+    final fillPaint = Paint()
+      ..color = fillColor
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(path, fillPaint);
+
+    final borderPaint = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    final borderPath = Path()
+      ..moveTo(0, size.height)
+      ..lineTo(size.width * 0.10, 0)
+      ..lineTo(size.width * 0.90, 0)
+      ..lineTo(size.width, size.height);
+    canvas.drawPath(borderPath, borderPaint);
   }
 
   @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+  bool shouldRepaint(covariant _GpuTabBorderPainter oldDelegate) {
+    return oldDelegate.borderColor != borderColor ||
+        oldDelegate.fillColor != fillColor ||
+        oldDelegate.shadowColor != shadowColor;
+  }
 }

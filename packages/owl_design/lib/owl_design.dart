@@ -18,6 +18,7 @@ export 'widgets/buttons/owl_button.dart';
 export 'widgets/buttons/owl_icon_button.dart';
 
 // Cards
+export 'widgets/cards/owl_atmospheric_background.dart';
 export 'widgets/cards/owl_glass_card.dart';
 
 // HUD

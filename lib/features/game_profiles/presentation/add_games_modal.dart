@@ -235,7 +235,7 @@ class _AddGamesModalState extends ConsumerState<AddGamesModal> {
                                         style: TextStyle(
                                           fontSize: 10,
                                           color: Color(0x66FFFFFF),
-                                          fontFamily: TypographyTokens.monoFontFamily,
+                                          fontFamily: TypographyTokens.uiFontFamily,
                                         ),
                                       ),
                                     ],

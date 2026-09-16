@@ -12,6 +12,7 @@ export 'buttons/owl_icon_button.dart';
 
 // Cards & Surfaces
 export 'cards/owl_glass_card.dart';
+export 'cards/owl_atmospheric_background.dart';
 
 // Badges & Telemetry
 export 'badges/owl_badge.dart';

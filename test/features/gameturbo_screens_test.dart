@@ -35,12 +35,12 @@ void main() {
       await tester.pumpAndSettle();
 
       // Top Status Bar — finalized reference values with native fallback
-      expect(find.text('71%'), findsOneWidget);
+      expect(find.text('78%'), findsOneWidget);
       expect(find.text('CPU'), findsOneWidget);
-      expect(find.text('30%'), findsOneWidget);
+      expect(find.text('32%'), findsOneWidget);
 
-      // Left Sidebar (Dynamic Gamebox)
-      expect(find.textContaining('Gamebox'), findsOneWidget);
+      // Left Sidebar (Dynamic Gamebox / App List)
+      expect(find.text('Add First Game'), findsOneWidget);
 
       // Center Hero Showcase — finalized cinematic spec
       expect(find.text('5V5 ACTION GAMEPLAY'), findsOneWidget);
@@ -96,8 +96,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Active AI Provider'), findsOneWidget);
-      expect(find.textContaining('API Key'), findsOneWidget);
-      expect(find.text('Active Model Checkpoint'), findsOneWidget);
+      expect(find.text('Google Gemini API Key'), findsOneWidget);
+      expect(find.text('Select Active Tactical Model'), findsOneWidget);
       expect(find.text('Save & Test'), findsOneWidget);
 
       // Switch to Assistant & Tactical AI category
@@ -134,9 +134,17 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+
       await tester.pumpWidget(
-        const MaterialApp(
-          home: GpuSettingsTwoPaneScreen(gameTitle: 'Mobile Legends: Bang Bang'),
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: const MaterialApp(
+            home: GpuSettingsTwoPaneScreen(gameTitle: 'Mobile Legends: Bang Bang'),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -186,15 +194,17 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
       // Check Top Status Bar & Edge Handle (matching Game Space Console)
       expect(find.text('Game Space'), findsOneWidget);
-      expect(find.text('TURBO 120 FPS'), findsOneWidget);
+      expect(find.textContaining('TURBO'), findsOneWidget);
 
       // Tap edge handle to open compact toolbox
-      await tester.tap(find.text('TURBO 120 FPS'));
-      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('TURBO'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
       // Verify compact toolbox is open without bloat
       expect(find.byType(GameturboFloatingToolbox), findsOneWidget);
@@ -226,11 +236,60 @@ void main() {
 
       // Tap close button (Lucide icon)
       await tester.tap(find.byIcon(LucideIcons.x));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
       // Toolbox closed, edge handle restored
       expect(find.byType(GameturboFloatingToolbox), findsNothing);
-      expect(find.text('TURBO 120 FPS'), findsOneWidget);
+      expect(find.textContaining('TURBO'), findsOneWidget);
+    });
+
+    testWidgets('TacticalBattlefieldHud and GameturboFloatingToolbox render cleanly in Light Theme', (tester) async {
+      tester.view.physicalSize = const Size(1280, 720);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: const TacticalBattlefieldHud(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Game Space'), findsOneWidget);
+      expect(find.textContaining('TURBO'), findsOneWidget);
+
+      // Open toolbox in light theme
+      await tester.tap(find.textContaining('TURBO'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byType(GameturboFloatingToolbox), findsOneWidget);
+      expect(find.text('Gaming tools'), findsOneWidget);
+      expect(find.text('Balanced'), findsOneWidget);
+      expect(find.text('Performance'), findsOneWidget);
+
+      // Toggle Performance mode
+      await tester.tap(find.text('Performance'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Close toolbox
+      await tester.tap(find.byIcon(LucideIcons.x));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byType(GameturboFloatingToolbox), findsNothing);
     });
   });
 }

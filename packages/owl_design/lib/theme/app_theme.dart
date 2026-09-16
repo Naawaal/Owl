@@ -49,40 +49,43 @@ abstract final class AppTheme {
 
   /// Builds the modern minimalist Light ThemeData (Linear / Scandinavian aesthetic).
   static ThemeData get lightTheme {
+    const owl = OwlColors.light;
     final textTheme = TextTheme(
       displayLarge: TypographyTokens.displayTimerLarge.copyWith(
-        color: const Color(0xFF0F172A),
+        color: owl.textPrimary,
       ),
       displayMedium: TypographyTokens.displayTimer.copyWith(
-        color: const Color(0xFF0F172A),
+        color: owl.textPrimary,
       ),
       displaySmall: TypographyTokens.displayTimerSmall.copyWith(
-        color: const Color(0xFF0F172A),
+        color: owl.textPrimary,
       ),
       headlineMedium: TypographyTokens.headline.copyWith(
-        color: const Color(0xFF0F172A),
+        color: owl.textPrimary,
       ),
       titleMedium: TypographyTokens.titleMedium.copyWith(
-        color: const Color(0xFF0F172A),
+        color: owl.textPrimary,
       ),
       titleSmall: TypographyTokens.titleSmall.copyWith(
-        color: const Color(0xFF475569),
+        color: owl.textSecondary,
       ),
       bodyLarge: TypographyTokens.bodyMedium.copyWith(
-        color: const Color(0xFF0F172A),
+        color: owl.textPrimary,
       ),
       bodyMedium: TypographyTokens.bodyMedium.copyWith(
-        color: const Color(0xFF0F172A),
+        color: owl.textPrimary,
       ),
       bodySmall: TypographyTokens.bodySmall.copyWith(
-        color: const Color(0xFF475569),
+        color: owl.textSecondary,
       ),
-      labelLarge: TypographyTokens.buttonText,
+      labelLarge: TypographyTokens.buttonText.copyWith(
+        color: owl.buttonPrimaryFg,
+      ),
       labelMedium: TypographyTokens.tacticalLabel.copyWith(
-        color: const Color(0xFF475569),
+        color: owl.textSecondary,
       ),
       labelSmall: TypographyTokens.tacticalBadge.copyWith(
-        color: const Color(0xFF475569),
+        color: owl.textSecondary,
       ),
     );
 
@@ -133,7 +136,7 @@ abstract final class AppTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: TypographyTokens.headline.copyWith(
-          color: const Color(0xFF0F172A),
+          color: owl.textPrimary,
         ),
         iconTheme: const IconThemeData(color: Color(0xFF0F172A), size: 20),
       ),
@@ -280,19 +283,44 @@ abstract final class AppTheme {
 
   /// Builds the complete OLED Dark ThemeData configured with the 3-tier token architecture.
   static ThemeData get darkTheme {
+    const owl = OwlColors.dark;
     final textTheme = TextTheme(
-      displayLarge: TypographyTokens.displayTimerLarge,
-      displayMedium: TypographyTokens.displayTimer,
-      displaySmall: TypographyTokens.displayTimerSmall,
-      headlineMedium: TypographyTokens.headline,
-      titleMedium: TypographyTokens.titleMedium,
-      titleSmall: TypographyTokens.titleSmall,
-      bodyLarge: TypographyTokens.bodyMedium,
-      bodyMedium: TypographyTokens.bodyMedium,
-      bodySmall: TypographyTokens.bodySmall,
-      labelLarge: TypographyTokens.buttonText,
-      labelMedium: TypographyTokens.tacticalLabel,
-      labelSmall: TypographyTokens.tacticalBadge,
+      displayLarge: TypographyTokens.displayTimerLarge.copyWith(
+        color: owl.textPrimary,
+      ),
+      displayMedium: TypographyTokens.displayTimer.copyWith(
+        color: owl.textPrimary,
+      ),
+      displaySmall: TypographyTokens.displayTimerSmall.copyWith(
+        color: owl.textPrimary,
+      ),
+      headlineMedium: TypographyTokens.headline.copyWith(
+        color: owl.textPrimary,
+      ),
+      titleMedium: TypographyTokens.titleMedium.copyWith(
+        color: owl.textPrimary,
+      ),
+      titleSmall: TypographyTokens.titleSmall.copyWith(
+        color: owl.textPrimary,
+      ),
+      bodyLarge: TypographyTokens.bodyMedium.copyWith(
+        color: owl.textSecondary,
+      ),
+      bodyMedium: TypographyTokens.bodyMedium.copyWith(
+        color: owl.textSecondary,
+      ),
+      bodySmall: TypographyTokens.bodySmall.copyWith(
+        color: owl.textMuted,
+      ),
+      labelLarge: TypographyTokens.buttonText.copyWith(
+        color: owl.buttonPrimaryFg,
+      ),
+      labelMedium: TypographyTokens.tacticalLabel.copyWith(
+        color: owl.textSecondary,
+      ),
+      labelSmall: TypographyTokens.tacticalBadge.copyWith(
+        color: owl.textPrimary,
+      ),
     );
 
     return ThemeData(
@@ -343,7 +371,9 @@ abstract final class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        titleTextStyle: TypographyTokens.headline,
+        titleTextStyle: TypographyTokens.headline.copyWith(
+          color: owl.textPrimary,
+        ),
         iconTheme: const IconThemeData(
           color: ColorTokens.textPrimary,
           size: 20,
@@ -555,6 +585,8 @@ class OwlThemeExtension extends ThemeExtension<OwlThemeExtension> {
 /// Ergonomic extension on BuildContext to access Owl theme and tokens.
 extension OwlThemeContextX on BuildContext {
   ThemeData get theme => Theme.of(this);
+  ColorScheme get colorScheme => Theme.of(this).colorScheme;
+  TextTheme get textTheme => Theme.of(this).textTheme;
   OwlThemeExtension get owlTheme =>
       Theme.of(this).extension<OwlThemeExtension>()!;
   OwlColors get owlColors => ColorTokens.of(this);

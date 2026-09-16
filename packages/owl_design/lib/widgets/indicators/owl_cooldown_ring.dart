@@ -99,16 +99,12 @@ class OwlCooldownRing extends StatelessWidget {
                 Text(
                   centerText!,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.jetBrainsMono(
+                  style: GoogleFonts.outfit(
                     fontSize: (size * 0.28).clamp(10.0, 20.0),
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.2,
                     height: 1.0,
                     color: effectiveActiveColor,
-                    fontFeatures: const [
-                      FontFeature.tabularFigures(),
-                      FontFeature.slashedZero(),
-                    ],
                   ),
                 ),
             ],

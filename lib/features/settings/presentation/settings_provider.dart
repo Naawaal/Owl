@@ -1,9 +1,12 @@
 // language: Dart, file: settings_provider.dart, target: Flutter / Owl MOBA Companion
+import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:owl/features/overlay/data/system_stats_service.dart';
 import 'package:owl/features/settings/domain/models/game_turbo_settings.dart';
+import 'package:owl_network/owl_network.dart';
 import 'package:owl_storage/owl_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -19,10 +22,23 @@ final gameTurboSettingsProvider =
   return GameTurboSettingsNotifier(prefs);
 });
 
+/// Typed outcome of a settings persist attempt.
+enum SettingsPersistResult { ok, storageUnavailable, writeFailed }
+
 /// StateNotifier that manages and persists all Owl tactical settings.
 class GameTurboSettingsNotifier extends StateNotifier<GameTurboSettings> {
   final SharedPreferences? _prefs;
   static const String _storageKey = 'owl_game_turbo_settings_v2';
+  static const int _schemaVersion = 3;
+  static const MethodChannel _gamesChannel = MethodChannel('com.example.owl/games');
+
+  /// Set by the settings UI to surface write failures (snackbar/toast).
+  void Function(String message)? onPersistError;
+
+  String? _lastPersistError;
+
+  /// Last persist failure message, if any. Null when the last write succeeded.
+  String? get lastPersistError => _lastPersistError;
 
   GameTurboSettingsNotifier(this._prefs)
       : super(_loadInitialSettings(_prefs));
@@ -31,9 +47,22 @@ class GameTurboSettingsNotifier extends StateNotifier<GameTurboSettings> {
     if (prefs == null) return GameTurboSettings.defaultSettings;
     try {
       final raw = prefs.getString(_storageKey);
-      if (raw != null && raw.isNotEmpty) {
-        final map = jsonDecode(raw) as Map<String, dynamic>;
-        return GameTurboSettings.fromMap(map);
+      if (raw == null || raw.isEmpty) {
+        return GameTurboSettings.defaultSettings;
+      }
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        if (decoded['version'] == _schemaVersion &&
+            decoded['settings'] is Map) {
+          return GameTurboSettings.fromMap(
+            Map<String, dynamic>.from(decoded['settings'] as Map),
+          );
+        }
+        if (!decoded.containsKey('version')) {
+          // Legacy unversioned v2 payload: accept once, rewrite on next write.
+          return GameTurboSettings.fromMap(decoded);
+        }
+        // Unknown or newer schema: defaults, never partial application.
       }
     } catch (_) {
       // Fallback on corrupt json
@@ -41,21 +70,67 @@ class GameTurboSettingsNotifier extends StateNotifier<GameTurboSettings> {
     return GameTurboSettings.defaultSettings;
   }
 
-  Future<void> _persist(GameTurboSettings next) async {
+  Future<bool> _persist(GameTurboSettings next) async {
     state = next;
+    _lastPersistError = null;
+    if (_prefs == null) {
+      _reportPersistError(
+        'Settings storage unavailable — change kept for this session only.',
+      );
+      return false;
+    }
+    try {
+      final envelope = {
+        'version': _schemaVersion,
+        'settings': next.toMap(),
+      };
+      final ok = await _prefs.setString(_storageKey, jsonEncode(envelope));
+      if (!ok) {
+        _reportPersistError(
+          'Could not save settings — change kept for this session only.',
+        );
+        return false;
+      }
+      return true;
+    } catch (_) {
+      _reportPersistError(
+        'Could not save settings — change kept for this session only.',
+      );
+      return false;
+    }
+  }
+
+  void _reportPersistError(String message) {
+    _lastPersistError = message;
+    try {
+      onPersistError?.call(message);
+    } catch (_) {}
+  }
+
+  /// Clears the last persist error, if any.
+  void clearPersistError() {
+    _lastPersistError = null;
+  }
+
+  /// Rewrites a legacy unversioned payload in the v3 envelope, preserving
+  /// current values. Idempotent: newer, current, and corrupt payloads are
+  /// left untouched.
+  Future<void> migrateLegacyPayloadIfNeeded() async {
     if (_prefs == null) return;
     try {
-      final jsonStr = jsonEncode(next.toMap());
-      await _prefs.setString(_storageKey, jsonStr);
+      final raw = _prefs.getString(_storageKey);
+      if (raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic> &&
+          !decoded.containsKey('version') &&
+          decoded.containsKey('activeAiProvider')) {
+        await _persist(state);
+      }
     } catch (_) {}
   }
 
   // --- Category 1: General Preferences ---
-
-  void setThemeMode(ThemeMode mode) {
-    HapticFeedback.selectionClick();
-    _persist(state.copyWith(themeMode: mode));
-  }
+  // Note: theme is owned by themeModeProvider (owl_theme_mode), not this blob.
 
   void setInterfaceLanguage(String languageCode) {
     HapticFeedback.selectionClick();
@@ -213,6 +288,24 @@ class GameTurboSettingsNotifier extends StateNotifier<GameTurboSettings> {
   void togglePerformanceOptimization(bool value) {
     HapticFeedback.selectionClick();
     _persist(state.copyWith(performanceOptimization: value));
+    // Fire-and-forget is safe: errors are contained inside.
+    unawaited(applyPersistedHardwareState());
+  }
+
+  /// Re-applies persisted hardware-affecting state to the FPS tracker and
+  /// the native layer. Invoked once at boot (see main.dart) and on every
+  /// performance toggle. Never throws: channel errors are contained, so
+  /// tests run platform-free with zero native leakage.
+  Future<void> applyPersistedHardwareState() async {
+    final isPerf = state.performanceOptimization;
+    RealTimeFpsTracker.instance.setModeTarget(isPerf ? 120 : 60);
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await _gamesChannel.invokeMethod('setPerformanceMode', {
+        'isPerformance': isPerf,
+        'targetFps': isPerf ? 120 : 60,
+      });
+    } catch (_) {}
   }
 
   void toggleWifiSpeedBoost(bool value) {
@@ -238,6 +331,93 @@ class GameTurboSettingsNotifier extends StateNotifier<GameTurboSettings> {
     _persist(state.copyWith(guardianTacticalEngine: value));
   }
 
+  // --- GPU Settings Screen (global profile) ---
+
+  void setGpuFpsTarget(String value) {
+    HapticFeedback.selectionClick();
+    _persist(state.copyWith(gpuFpsTarget: value));
+  }
+
+  void setGpuResolution(String value) {
+    HapticFeedback.selectionClick();
+    _persist(state.copyWith(gpuResolution: value));
+  }
+
+  void setGpuMsaa(String value) {
+    HapticFeedback.selectionClick();
+    _persist(state.copyWith(gpuMsaa: value));
+  }
+
+  void setGpuAniso(String value) {
+    HapticFeedback.selectionClick();
+    _persist(state.copyWith(gpuAniso: value));
+  }
+
+  void setGpuColorStyle(String value) {
+    HapticFeedback.selectionClick();
+    _persist(state.copyWith(gpuColorStyle: value));
+  }
+
+  void toggleGpuDynamicContrast(bool value) {
+    HapticFeedback.selectionClick();
+    _persist(state.copyWith(gpuDynamicContrast: value));
+  }
+
+  void toggleGpuHorizonBrightness(bool value) {
+    HapticFeedback.selectionClick();
+    _persist(state.copyWith(gpuHorizonBrightness: value));
+  }
+
+  void setGpuTouchSampling(String value) {
+    HapticFeedback.selectionClick();
+    _persist(state.copyWith(gpuTouchSampling: value));
+  }
+
+  void setGpuSkillPrecision(String value) {
+    HapticFeedback.selectionClick();
+    _persist(state.copyWith(gpuSkillPrecision: value));
+  }
+
+  void setGpuMistouchRejection(String value) {
+    HapticFeedback.selectionClick();
+    _persist(state.copyWith(gpuMistouchRejection: value));
+  }
+
+  void toggleGpuThreatRadar(bool value) {
+    HapticFeedback.selectionClick();
+    _persist(state.copyWith(gpuThreatRadar: value));
+  }
+
+  void toggleGpuObjectiveRings(bool value) {
+    HapticFeedback.selectionClick();
+    _persist(state.copyWith(gpuObjectiveRings: value));
+  }
+
+  void toggleGpuSmiteThreshold(bool value) {
+    HapticFeedback.selectionClick();
+    _persist(state.copyWith(gpuSmiteThreshold: value));
+  }
+
+  /// Resets only the GPU settings screen profile to defaults.
+  void resetGpuSettings() {
+    HapticFeedback.mediumImpact();
+    _persist(state.copyWith(
+      gpuFpsTarget: '120',
+      gpuResolution: '1080p',
+      gpuMsaa: '4X',
+      gpuAniso: '8X',
+      gpuColorStyle: 'Vibrant HDR',
+      gpuDynamicContrast: true,
+      gpuHorizonBrightness: true,
+      gpuTouchSampling: '720Hz Ultra',
+      gpuSkillPrecision: 'Extreme',
+      gpuMistouchRejection: 'Medium',
+      gpuThreatRadar: true,
+      gpuObjectiveRings: true,
+      gpuSmiteThreshold: true,
+    ));
+  }
+
   void resetToDefaults() {
     HapticFeedback.mediumImpact();
     _persist(GameTurboSettings.defaultSettings);
@@ -250,15 +430,20 @@ final apiKeyManagerProvider = Provider<ApiKeyManager>((ref) {
   try {
     secureStorage = ref.watch(secureStorageServiceProvider);
   } catch (_) {}
-  return ApiKeyManager(secureStorage);
+  ApiClient? api;
+  try {
+    api = ref.watch(apiClientProvider);
+  } catch (_) {}
+  return ApiKeyManager(secureStorage, api);
 });
 
 /// Service class managing secure API keys and validation logic.
 class ApiKeyManager {
   final SecureStorageService? _secureStorage;
+  final ApiClient? _apiClient;
   static final Map<String, String> _memoryCache = {};
 
-  ApiKeyManager(this._secureStorage);
+  ApiKeyManager(this._secureStorage, [this._apiClient]);
 
   /// Validates the format of an API key for a specified provider.
   String? validateKeyFormat(String provider, String key) {
@@ -315,22 +500,63 @@ class ApiKeyManager {
     }
   }
 
-  /// Simulates an authenticated ping to verify key latency.
-  Future<int> testConnection(String provider, String key) async {
+  /// Verifies [key] against the live provider with a cheap read-only call.
+  /// Returns measured round-trip latency in milliseconds.
+  /// Throws on format errors, auth failures, and network failures with
+  /// distinct messages. Never logs key material (see `maskApiKey`).
+  Future<int> testConnection(String provider, String key,
+      {String? model}) async {
     final validationError = validateKeyFormat(provider, key);
     if (validationError != null) {
       throw Exception(validationError);
     }
+    final api = _apiClient;
+    if (api == null) {
+      throw Exception('Network client unavailable in this context.');
+    }
 
-    // Simulate network round-trip handshake
-    await Future.delayed(const Duration(milliseconds: 320));
-    final baseLatency = switch (provider) {
-      'gemini' => 38,
-      'openai' => 110,
-      'claude' => 135,
-      _ => 90,
-    };
-    return baseLatency + (DateTime.now().millisecond % 15);
+    final client = inferenceClientFor(providerId: provider, api: api);
+    final result = await client.verifyKey(
+      apiKey: key.trim(),
+      model: model ?? _defaultModelFor(provider),
+    );
+    if (result.ok) return result.latencyMs;
+
+    switch (result.failure) {
+      case InferenceFailure.auth:
+        throw Exception(
+          'Authentication failed for ${maskApiKey(key)}. Check the key and try again.',
+        );
+      case InferenceFailure.network:
+        throw Exception(
+          'No network connection. Check connectivity and try again.',
+        );
+      case InferenceFailure.timeout:
+        throw Exception(
+          'Verification timed out. Check connectivity and try again.',
+        );
+      case InferenceFailure.rateLimited:
+        throw Exception(
+          'Provider rate limit reached. Wait a moment and try again.',
+        );
+      case InferenceFailure.unknown:
+      case null:
+        throw Exception('Key verification failed. Try again.');
+    }
+  }
+
+  String _defaultModelFor(String provider) {
+    switch (provider) {
+      case 'openai':
+        return 'gpt-4o-mini';
+      case 'claude':
+        return 'claude-3-5-haiku-20241022';
+      case 'deepseek':
+        return 'deepseek/deepseek-chat';
+      case 'gemini':
+      default:
+        return 'gemini-2.0-flash';
+    }
   }
 
   AIProvider _mapToStorageProvider(String provider) {

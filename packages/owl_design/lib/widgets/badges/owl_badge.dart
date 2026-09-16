@@ -118,7 +118,7 @@ class OwlBadge extends StatelessWidget {
           ],
           Text(
             label.toUpperCase(),
-            style: GoogleFonts.jetBrainsMono(
+            style: GoogleFonts.outfit(
               fontSize: fontSize,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.0,

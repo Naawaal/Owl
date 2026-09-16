@@ -1,5 +1,5 @@
 // language: Dart, file: game_turbo_settings.dart, target: Flutter / Owl MOBA Companion
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 /// Comprehensive settings model for the Owl MOBA AI Tactical Companion.
 ///
@@ -13,7 +13,7 @@ import 'package:flutter/material.dart';
 @immutable
 class GameTurboSettings {
   // --- Category 1: General Preferences ---
-  final ThemeMode themeMode;
+  // Note: theme is owned by themeModeProvider (owl_theme_mode), not this blob.
   final String interfaceLanguage;
 
   // --- Category 2: AI Provider & Models ---
@@ -54,9 +54,23 @@ class GameTurboSettings {
   final bool restrictButtonsAndGestures;
   final bool guardianTacticalEngine;
 
+  // --- GPU Settings Screen (global profile) ---
+  final String gpuFpsTarget;
+  final String gpuResolution;
+  final String gpuMsaa;
+  final String gpuAniso;
+  final String gpuColorStyle;
+  final bool gpuDynamicContrast;
+  final bool gpuHorizonBrightness;
+  final String gpuTouchSampling;
+  final String gpuSkillPrecision;
+  final String gpuMistouchRejection;
+  final bool gpuThreatRadar;
+  final bool gpuObjectiveRings;
+  final bool gpuSmiteThreshold;
+
   const GameTurboSettings({
     // General
-    this.themeMode = ThemeMode.dark,
     this.interfaceLanguage = 'en',
 
     // AI Provider & Models
@@ -96,13 +110,27 @@ class GameTurboSettings {
     this.restrictFloatingNotifications = true,
     this.restrictButtonsAndGestures = true,
     this.guardianTacticalEngine = true,
+
+    // GPU Settings Screen (global profile)
+    this.gpuFpsTarget = '120',
+    this.gpuResolution = '1080p',
+    this.gpuMsaa = '4X',
+    this.gpuAniso = '8X',
+    this.gpuColorStyle = 'Vibrant HDR',
+    this.gpuDynamicContrast = true,
+    this.gpuHorizonBrightness = true,
+    this.gpuTouchSampling = '720Hz Ultra',
+    this.gpuSkillPrecision = 'Extreme',
+    this.gpuMistouchRejection = 'Medium',
+    this.gpuThreatRadar = true,
+    this.gpuObjectiveRings = true,
+    this.gpuSmiteThreshold = true,
   });
 
   /// Factory default configuration calibrated for Owl MOBA AI Tactical Companion.
   static const GameTurboSettings defaultSettings = GameTurboSettings();
 
   GameTurboSettings copyWith({
-    ThemeMode? themeMode,
     String? interfaceLanguage,
     String? activeAiProvider,
     String? activeModel,
@@ -132,9 +160,21 @@ class GameTurboSettings {
     bool? restrictFloatingNotifications,
     bool? restrictButtonsAndGestures,
     bool? guardianTacticalEngine,
+    String? gpuFpsTarget,
+    String? gpuResolution,
+    String? gpuMsaa,
+    String? gpuAniso,
+    String? gpuColorStyle,
+    bool? gpuDynamicContrast,
+    bool? gpuHorizonBrightness,
+    String? gpuTouchSampling,
+    String? gpuSkillPrecision,
+    String? gpuMistouchRejection,
+    bool? gpuThreatRadar,
+    bool? gpuObjectiveRings,
+    bool? gpuSmiteThreshold,
   }) {
     return GameTurboSettings(
-      themeMode: themeMode ?? this.themeMode,
       interfaceLanguage: interfaceLanguage ?? this.interfaceLanguage,
       activeAiProvider: activeAiProvider ?? this.activeAiProvider,
       activeModel: activeModel ?? this.activeModel,
@@ -171,12 +211,26 @@ class GameTurboSettings {
           restrictButtonsAndGestures ?? this.restrictButtonsAndGestures,
       guardianTacticalEngine:
           guardianTacticalEngine ?? this.guardianTacticalEngine,
+      gpuFpsTarget: gpuFpsTarget ?? this.gpuFpsTarget,
+      gpuResolution: gpuResolution ?? this.gpuResolution,
+      gpuMsaa: gpuMsaa ?? this.gpuMsaa,
+      gpuAniso: gpuAniso ?? this.gpuAniso,
+      gpuColorStyle: gpuColorStyle ?? this.gpuColorStyle,
+      gpuDynamicContrast: gpuDynamicContrast ?? this.gpuDynamicContrast,
+      gpuHorizonBrightness:
+          gpuHorizonBrightness ?? this.gpuHorizonBrightness,
+      gpuTouchSampling: gpuTouchSampling ?? this.gpuTouchSampling,
+      gpuSkillPrecision: gpuSkillPrecision ?? this.gpuSkillPrecision,
+      gpuMistouchRejection:
+          gpuMistouchRejection ?? this.gpuMistouchRejection,
+      gpuThreatRadar: gpuThreatRadar ?? this.gpuThreatRadar,
+      gpuObjectiveRings: gpuObjectiveRings ?? this.gpuObjectiveRings,
+      gpuSmiteThreshold: gpuSmiteThreshold ?? this.gpuSmiteThreshold,
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'themeMode': themeMode.name,
       'interfaceLanguage': interfaceLanguage,
       'activeAiProvider': activeAiProvider,
       'activeModel': activeModel,
@@ -206,19 +260,24 @@ class GameTurboSettings {
       'restrictFloatingNotifications': restrictFloatingNotifications,
       'restrictButtonsAndGestures': restrictButtonsAndGestures,
       'guardianTacticalEngine': guardianTacticalEngine,
+      'gpuFpsTarget': gpuFpsTarget,
+      'gpuResolution': gpuResolution,
+      'gpuMsaa': gpuMsaa,
+      'gpuAniso': gpuAniso,
+      'gpuColorStyle': gpuColorStyle,
+      'gpuDynamicContrast': gpuDynamicContrast,
+      'gpuHorizonBrightness': gpuHorizonBrightness,
+      'gpuTouchSampling': gpuTouchSampling,
+      'gpuSkillPrecision': gpuSkillPrecision,
+      'gpuMistouchRejection': gpuMistouchRejection,
+      'gpuThreatRadar': gpuThreatRadar,
+      'gpuObjectiveRings': gpuObjectiveRings,
+      'gpuSmiteThreshold': gpuSmiteThreshold,
     };
   }
 
   factory GameTurboSettings.fromMap(Map<String, dynamic> map) {
-    final themeStr = map['themeMode'] as String?;
-    final theme = switch (themeStr) {
-      'light' => ThemeMode.light,
-      'system' => ThemeMode.system,
-      _ => ThemeMode.dark,
-    };
-
     return GameTurboSettings(
-      themeMode: theme,
       interfaceLanguage: map['interfaceLanguage'] as String? ?? 'en',
       activeAiProvider: map['activeAiProvider'] as String? ?? 'gemini',
       activeModel: map['activeModel'] as String? ?? 'gemini-2.0-flash',
@@ -255,6 +314,20 @@ class GameTurboSettings {
           map['restrictButtonsAndGestures'] as bool? ?? true,
       guardianTacticalEngine:
           map['guardianTacticalEngine'] as bool? ?? true,
+      gpuFpsTarget: map['gpuFpsTarget'] as String? ?? '120',
+      gpuResolution: map['gpuResolution'] as String? ?? '1080p',
+      gpuMsaa: map['gpuMsaa'] as String? ?? '4X',
+      gpuAniso: map['gpuAniso'] as String? ?? '8X',
+      gpuColorStyle: map['gpuColorStyle'] as String? ?? 'Vibrant HDR',
+      gpuDynamicContrast: map['gpuDynamicContrast'] as bool? ?? true,
+      gpuHorizonBrightness: map['gpuHorizonBrightness'] as bool? ?? true,
+      gpuTouchSampling: map['gpuTouchSampling'] as String? ?? '720Hz Ultra',
+      gpuSkillPrecision: map['gpuSkillPrecision'] as String? ?? 'Extreme',
+      gpuMistouchRejection:
+          map['gpuMistouchRejection'] as String? ?? 'Medium',
+      gpuThreatRadar: map['gpuThreatRadar'] as bool? ?? true,
+      gpuObjectiveRings: map['gpuObjectiveRings'] as bool? ?? true,
+      gpuSmiteThreshold: map['gpuSmiteThreshold'] as bool? ?? true,
     );
   }
 
@@ -268,7 +341,6 @@ class GameTurboSettings {
       identical(this, other) ||
       other is GameTurboSettings &&
           runtimeType == other.runtimeType &&
-          themeMode == other.themeMode &&
           interfaceLanguage == other.interfaceLanguage &&
           activeAiProvider == other.activeAiProvider &&
           activeModel == other.activeModel &&
@@ -298,11 +370,23 @@ class GameTurboSettings {
           restrictFloatingNotifications ==
               other.restrictFloatingNotifications &&
           restrictButtonsAndGestures == other.restrictButtonsAndGestures &&
-          guardianTacticalEngine == other.guardianTacticalEngine;
+          guardianTacticalEngine == other.guardianTacticalEngine &&
+          gpuFpsTarget == other.gpuFpsTarget &&
+          gpuResolution == other.gpuResolution &&
+          gpuMsaa == other.gpuMsaa &&
+          gpuAniso == other.gpuAniso &&
+          gpuColorStyle == other.gpuColorStyle &&
+          gpuDynamicContrast == other.gpuDynamicContrast &&
+          gpuHorizonBrightness == other.gpuHorizonBrightness &&
+          gpuTouchSampling == other.gpuTouchSampling &&
+          gpuSkillPrecision == other.gpuSkillPrecision &&
+          gpuMistouchRejection == other.gpuMistouchRejection &&
+          gpuThreatRadar == other.gpuThreatRadar &&
+          gpuObjectiveRings == other.gpuObjectiveRings &&
+          gpuSmiteThreshold == other.gpuSmiteThreshold;
 
   @override
   int get hashCode => Object.hashAll([
-        themeMode,
         interfaceLanguage,
         activeAiProvider,
         activeModel,
@@ -332,5 +416,18 @@ class GameTurboSettings {
         restrictFloatingNotifications,
         restrictButtonsAndGestures,
         guardianTacticalEngine,
+        gpuFpsTarget,
+        gpuResolution,
+        gpuMsaa,
+        gpuAniso,
+        gpuColorStyle,
+        gpuDynamicContrast,
+        gpuHorizonBrightness,
+        gpuTouchSampling,
+        gpuSkillPrecision,
+        gpuMistouchRejection,
+        gpuThreatRadar,
+        gpuObjectiveRings,
+        gpuSmiteThreshold,
       ]);
 }

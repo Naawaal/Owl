@@ -82,6 +82,8 @@ abstract final class ColorPrimitives {
   static const Color alertWarningLight = Color(0xFFD97706); // Amber 600
   static const Color alertDangerLight = Color(0xFFE11D48); // Rose 600
   static const Color alertSuccessLight = Color(0xFF059669); // Emerald 600
+  static const Color sectorSkyLight = Color(0xFFE0F2FE); // Sky 100 for Sector Shimmer
+  static const Color sectorLavenderLight = Color(0xFFEDE9FE); // Violet 100 for Sector Shimmer
 
   // Translucent Light Glass Fills
   static const Color glassWhite95 = Color(0xF2FFFFFF);
@@ -89,6 +91,121 @@ abstract final class ColorPrimitives {
   static const Color glassWhite70 = Color(0xB3FFFFFF);
   static const Color glassDarkBorder10 = Color(0x1A0F172A);
   static const Color glassDarkBorder20 = Color(0x330F172A);
+
+  // Console Horizon & Ambient Glows (Game Space Console provenance)
+  static const Color horizonTop = Color(0xFF090B12);
+  static const Color horizonBottom = Color(0xFF06070B);
+  static const Color ambientPurple = Color(0xFF8B2BE2);
+  static const Color glassPurpleAmbient18 = Color(0x2E8B2BE2);
+  static const Color ambientBlue = Color(0xFF006EFF);
+  static const Color glassBlueGlow10 = Color(0x1A006EFF);
+
+  // Play Wing Gradient Stops (with baked prototype alpha)
+  static const Color playWingStart = Color(0xCC0062EB);
+  static const Color playWingEnd = Color(0xF50088FF);
+  static const Color playWingBorder = Color(0x4DFFFFFF);
+  static const Color glassWhite14 = Color(0x24FFFFFF);
+  static const Color glassWhite30 = Color(0x4DFFFFFF);
+  static const Color glassWhite45 = Color(0x73FFFFFF);
+  static const Color glassWhite65 = Color(0xA6FFFFFF);
+
+  // GPU Tab Fill
+  static const Color gpuTabFill = Color(0xE0121620);
+
+  // Cinematic Gold Ramp & Treatments
+  static const Color goldPale = Color(0xFFFFE89E);
+  static const Color goldDeep = Color(0xFFFB8500);
+  static const Color goldSolid = Color(0xFFFFD700);
+  static const Color goldBorder45 = Color(0x73FFD700);
+  static const Color goldGlow25 = Color(0x40FFD700);
+  static const Color badgeYellow = Color(0xFFEAB308);
+  static const Color tripleKillScrim = Color(0xBF000000);
+
+  // Console Purple Ramp & Treatments
+  static const Color consolePurpleVivid = Color(0xFF933AEA);
+  static const Color lavenderMist = Color(0xFFD8B4FE);
+  static const Color subpillBorder45 = Color(0x73D8B4FE);
+  static const Color subpillGlow40 = Color(0x669333EA);
+  static const Color heroBloom25 = Color(0x407C3AED);
+
+  // Gamebox Identity
+  static const Color gameboxIndigoStart = Color(0xFF4338CA);
+  static const Color gameboxIndigoEnd = Color(0xFF6366F1);
+  static const Color gameboxGlow40 = Color(0x664F46E5);
+
+  // Settings Surfaces (Settings Prototype provenance)
+  static const Color settingsBase = Color(0xFF080B10);
+  static const Color settingsPanel = Color(0xFF0E131E);
+  static const Color settingsCard = Color(0xB3151C2A);
+  static const Color settingsCardHover = Color(0xD91C263A);
+  static const Color settingsHeader = Color(0xB30B0F17);
+  static const Color settingsSidebar = Color(0xFF090D18);
+
+  // Turbo Cyan Accent (key text, badges, active nav)
+  static const Color turboCyan = Color(0xFF00E5FF);
+  static const Color turboCyanGlow25 = Color(0x4000E5FF);
+
+  // Canonical Reds & Emerald (Prototype provenance — supersede neon alerts in telemetry)
+  static const Color hudCrimson = Color(0xFFFF3B30);
+  static const Color hudCrimsonGlow45 = Color(0x73FF3B30);
+  static const Color alertCrimson = Color(0xFFFF453A);
+  static const Color alertCrimsonGlow40 = Color(0x66FF453A);
+  static const Color alertCrimsonBg30 = Color(0x4DFF453A);
+  static const Color alertCrimsonBg20 = Color(0x33FF453A);
+  static const Color emeraldLive = Color(0xFF30D158);
+  static const Color emeraldGlow35 = Color(0x5930D158);
+  static const Color emeraldBg15 = Color(0x2630D158);
+  static const Color tacticalAmber = Color(0xFFFF9F0A);
+
+  // Console Neutrals
+  static const Color consoleMuted = Color(0xFF8E9BAE);
+  static const Color consoleDim = Color(0xFF546173);
+
+  // Toolbox & Reactor Gauge Treatments
+  static const Color toolboxBg = Color(0xF00E121B);
+  static const Color toolboxHeaderDim = Color(0x800A0D14);
+  static const Color gaugeDialBg = Color(0xFF070A10);
+  static const Color gaugeLaser = Color(0xFFFF5A5F);
+  static const Color gaugeTickWhite30 = Color(0x4DFFFFFF);
+  static const Color gaugeRingCrimson70 = Color(0xB3FF3B30);
+  static const Color gaugeGlowRed60 = Color(0x99E63946);
+  static const Color gaugeGlowRed25 = Color(0x40E63946);
+  static const Color gaugeBgRed18 = Color(0x2EE63946);
+  static const Color gaugeBgBlue15 = Color(0x26007AFF);
+  static const Color meterCpuEnd = Color(0xFFFF6961);
+  static const Color meterGpuStart = Color(0xFF8B5CF6);
+  static const Color meterGpuEnd = Color(0xFFA78BFA);
+  static const Color meterGlowPurple60 = Color(0x998B5CF6);
+  static const Color meterTrack12 = Color(0x1FFFFFFF);
+
+  // Radar & Objective Treatments
+  static const Color radarBorder55 = Color(0x8C007AFF);
+  static const Color radarGlow30 = Color(0x4D007AFF);
+  static const Color objPodBg = Color(0xE00E1118);
+
+  // Shared Translucent Controls
+  static const Color segTrackBlack40 = Color(0x66000000);
+  static const Color segBgWhite05 = Color(0x0DFFFFFF);
+  static const Color switchOffBorder25 = Color(0x40FFFFFF);
+
+  // Cinematic Scrims
+  static const Color scrimBlack15 = Color(0x26000000);
+  static const Color scrimBlack25 = Color(0x40000000);
+  static const Color scrimBlack88 = Color(0xE0000000);
+  static const Color scrimBlack35 = Color(0x59000000);
+  static const Color scrimBlack60 = Color(0x99000000);
+  static const Color scrimWhite50 = Color(0x80FFFFFF);
+  static const Color deepAmbient08 = Color(0x0D140A28);
+  static const Color catActiveBlue08 = Color(0x14007AFF);
+  static const Color catActiveBlue22 = Color(0x38007AFF);
+  static const Color selectBlue12 = Color(0x1F007AFF);
+  static const Color keyInputBg = Color(0x80000000);
+  static const Color scrollTrackBlack25 = Color(0x40000000);
+  static const Color scrollThumbBlue50 = Color(0x80007AFF);
+  static const Color rangeTrackWhite15 = Color(0x26FFFFFF);
+  static const Color toastScrim = Color(0xF2121A28);
+  static const Color perfCardBg02 = Color(0x05FFFFFF);
+  static const Color dialogScrim = Color(0xF2101420);
 }
 
 /// ============================================================================
@@ -114,9 +231,9 @@ abstract final class ColorSemantics {
   static const Color accentCyan = ColorPrimitives.neonCyan;
   static const Color accentPurple = ColorPrimitives.electricPurple;
 
-  static const Color alertWarning = ColorPrimitives.amberWarning;
-  static const Color alertDanger = ColorPrimitives.crimsonRed;
-  static const Color alertSuccess = ColorPrimitives.emeraldGreen;
+  static const Color alertWarning = ColorPrimitives.tacticalAmber;
+  static const Color alertDanger = ColorPrimitives.alertCrimson;
+  static const Color alertSuccess = ColorPrimitives.emeraldLive;
 
   // Game Turbo
   static const Color turboBlue = ColorPrimitives.turboBlue;
@@ -124,6 +241,46 @@ abstract final class ColorSemantics {
   static const Color turboRed = ColorPrimitives.turboRed;
   static const Color turboCrimson = ColorPrimitives.turboCrimson;
   static const Color turboOrange = ColorPrimitives.turboOrange;
+  static const Color turboCyan = ColorPrimitives.turboCyan;
+
+  // Console Surfaces (Game Space Console provenance)
+  static const Color consoleBase = ColorPrimitives.turboObsidian;
+  static const Color horizonTop = ColorPrimitives.horizonTop;
+  static const Color horizonBottom = ColorPrimitives.horizonBottom;
+  static const Color ambientPurple = ColorPrimitives.ambientPurple;
+  static const Color ambientBlue = ColorPrimitives.ambientBlue;
+  static const Color consoleMuted = ColorPrimitives.consoleMuted;
+  static const Color consoleDim = ColorPrimitives.consoleDim;
+
+  // Settings Surfaces (Settings Prototype provenance)
+  static const Color settingsBase = ColorPrimitives.settingsBase;
+  static const Color settingsPanel = ColorPrimitives.settingsPanel;
+  static const Color settingsCard = ColorPrimitives.settingsCard;
+  static const Color settingsCardHover = ColorPrimitives.settingsCardHover;
+  static const Color settingsHeader = ColorPrimitives.settingsHeader;
+  static const Color settingsSidebar = ColorPrimitives.settingsSidebar;
+
+  // Canonical Status (Prototype provenance)
+  static const Color hudCrimson = ColorPrimitives.hudCrimson;
+  static const Color alertCrimson = ColorPrimitives.alertCrimson;
+  static const Color emeraldLive = ColorPrimitives.emeraldLive;
+  static const Color tacticalAmber = ColorPrimitives.tacticalAmber;
+
+  // Cinematic Accents
+  static const Color goldPale = ColorPrimitives.goldPale;
+  static const Color goldDeep = ColorPrimitives.goldDeep;
+  static const Color goldSolid = ColorPrimitives.goldSolid;
+  static const Color badgeYellow = ColorPrimitives.badgeYellow;
+  static const Color consolePurple = ColorPrimitives.accentPurpleLight;
+  static const Color consolePurpleVivid = ColorPrimitives.consolePurpleVivid;
+  static const Color lavenderMist = ColorPrimitives.lavenderMist;
+  static const Color gameboxIndigoStart = ColorPrimitives.gameboxIndigoStart;
+  static const Color gameboxIndigoEnd = ColorPrimitives.gameboxIndigoEnd;
+
+  // Toolbox & Gauge
+  static const Color toolboxBg = ColorPrimitives.toolboxBg;
+  static const Color gaugeDialBg = ColorPrimitives.gaugeDialBg;
+  static const Color gaugeLaser = ColorPrimitives.gaugeLaser;
 }
 
 /// ============================================================================
@@ -161,6 +318,85 @@ abstract final class ColorComponentTokens {
   static const Color timerBadgeNormalFg = ColorSemantics.textPrimary;
   static const Color timerBadgeWarningFg = ColorSemantics.alertWarning;
   static const Color timerBadgeUrgentFg = ColorSemantics.alertDanger;
+
+  // Telemetry States (canonical prototype values)
+  static const Color telemetryCritical = ColorPrimitives.turboCrimson;
+  static const Color telemetryLow = ColorPrimitives.badgeYellow;
+  static const Color telemetryNormal = ColorSemantics.turboBlue;
+  static const Color liveDot = ColorSemantics.emeraldLive;
+  static const Color batteryShell = ColorPrimitives.glassWhite65;
+  static const Color cpuBadgeFg = ColorPrimitives.borderLightStrong;
+  static const Color cpuBadgeBorder = ColorPrimitives.glassWhite45;
+  static const Color statusFg = ColorPrimitives.borderLight;
+
+  // Play Wing
+  static const Color playWingStart = ColorPrimitives.playWingStart;
+  static const Color playWingEnd = ColorPrimitives.playWingEnd;
+  static const Color playWingBorder = ColorPrimitives.playWingBorder;
+  static const Color playWingFg = ColorPrimitives.coolWhite;
+  static const Color playWingSubFg = Color(0xD9FFFFFF);
+
+  // GPU Tab
+  static const Color gpuTabFill = ColorPrimitives.gpuTabFill;
+  static const Color gpuTabAccent = ColorSemantics.turboBlue;
+  static const Color gpuTabLabel = ColorSemantics.textSecondary;
+
+  // Hero Cinematic Card
+  static const Color heroCardBorder = ColorPrimitives.glassWhite14;
+  static const Color heroScrimTop = Color(0x1A000000);
+  static const Color heroScrimMid = Color(0x660A0514);
+  static const Color heroScrimBottom = Color(0xF207080E);
+  static const Color goldBorder = ColorPrimitives.goldBorder45;
+  static const Color tripleKillFg = ColorPrimitives.goldSolid;
+  static const Color tripleKillBg = ColorPrimitives.tripleKillScrim;
+  static const Color subpillBorder = ColorPrimitives.subpillBorder45;
+  static const Color subpillFg = ColorPrimitives.coolWhite;
+  static const Color paginationActive = ColorSemantics.turboBlue;
+  static const Color paginationInactive = ColorSemantics.borderGlassStrong;
+
+  // Gamebox Identity
+  static const Color gameboxStart = ColorSemantics.gameboxIndigoStart;
+  static const Color gameboxEnd = ColorSemantics.gameboxIndigoEnd;
+  static const Color gameboxFg = ColorPrimitives.coolWhite;
+  static const Color gameboxBadgeBg = ColorSemantics.badgeYellow;
+  static const Color gameboxBadgeFg = ColorPrimitives.oledBlack;
+
+  // Toolbox & Reactor Gauge
+  static const Color toolboxHeaderBg = ColorPrimitives.toolboxHeaderDim;
+  static const Color toolboxBorder = ColorSemantics.borderGlassStrong;
+  static const Color gaugeTrack = ColorPrimitives.meterTrack12;
+  static const Color meterCpuStart = ColorSemantics.hudCrimson;
+  static const Color meterCpuEnd = ColorPrimitives.meterCpuEnd;
+  static const Color meterGpuStart = ColorPrimitives.meterGpuStart;
+  static const Color meterGpuEnd = ColorPrimitives.meterGpuEnd;
+  static const Color modePerfBg = ColorSemantics.turboRed;
+
+  // Radar & Objectives
+  static const Color radarBorder = ColorPrimitives.radarBorder55;
+  static const Color radarMissingBg = ColorPrimitives.alertCrimsonBg30;
+  static const Color radarMissingFg = ColorSemantics.alertCrimson;
+  static const Color objPodBg = ColorPrimitives.objPodBg;
+  static const Color objUrgentBg = ColorPrimitives.alertCrimsonBg20;
+  static const Color objUrgentFg = ColorSemantics.alertCrimson;
+
+  // Settings Components
+  static const Color settingsActiveCatIndicator = ColorSemantics.turboBlue;
+  static const Color settingsNavFg = ColorSemantics.consoleMuted;
+  static const Color settingsRowTitle = ColorSemantics.textPrimary;
+  static const Color settingsRowDesc = ColorSemantics.consoleMuted;
+  static const Color keyInputText = ColorSemantics.turboCyan;
+  static const Color keyInputBg = ColorPrimitives.keyInputBg;
+  static const Color providerSelectedBg = ColorPrimitives.selectBlue12;
+  static const Color segSelectedBg = ColorSemantics.turboBlue;
+  static const Color segTrackBg = ColorPrimitives.segTrackBlack40;
+  static const Color switchOffBg = ColorPrimitives.glassWhite14;
+  static const Color switchOffBorder = ColorPrimitives.switchOffBorder25;
+  static const Color switchOnBg = ColorSemantics.turboBlue;
+  static const Color switchOnBorder = ColorSemantics.turboBlueLight;
+  static const Color telemetryGood = ColorSemantics.emeraldLive;
+  static const Color telemetryCyan = ColorSemantics.turboCyan;
+  static const Color telemetryAmber = ColorSemantics.tacticalAmber;
+  static const Color dialogBg = ColorPrimitives.dialogScrim;
 }
 
 /// ============================================================================
@@ -217,6 +453,40 @@ class OwlColors extends ThemeExtension<OwlColors> {
     required this.inputBg,
     required this.inputBorder,
     required this.inputFocusBorder,
+    required this.consoleBase,
+    required this.horizonTop,
+    required this.horizonBottom,
+    required this.settingsBase,
+    required this.settingsPanel,
+    required this.settingsCard,
+    required this.consoleMuted,
+    required this.consoleDim,
+    required this.turboCyan,
+    required this.hudCrimson,
+    required this.alertCrimson,
+    required this.emeraldLive,
+    required this.tacticalAmber,
+    required this.telemetryCritical,
+    required this.telemetryLow,
+    required this.playWingStart,
+    required this.playWingEnd,
+    required this.gpuTabFill,
+    required this.goldDeep,
+    required this.goldSolid,
+    required this.badgeYellow,
+    required this.consolePurple,
+    required this.consolePurpleVivid,
+    required this.gameboxStart,
+    required this.gameboxEnd,
+    required this.toolboxBg,
+    required this.gaugeLaser,
+    required this.radarBorder,
+    required this.dialogBg,
+    required this.keyInputText,
+    required this.telemetryNormal,
+    required this.gaugeDialBg,
+    required this.sectorSky,
+    required this.sectorLavender,
   });
 
   final Brightness brightness;
@@ -266,9 +536,45 @@ class OwlColors extends ThemeExtension<OwlColors> {
   final Color inputBg;
   final Color inputBorder;
   final Color inputFocusBorder;
+  final Color consoleBase;
+  final Color horizonTop;
+  final Color horizonBottom;
+  final Color settingsBase;
+  final Color settingsPanel;
+  final Color settingsCard;
+  final Color consoleMuted;
+  final Color consoleDim;
+  final Color turboCyan;
+  final Color hudCrimson;
+  final Color alertCrimson;
+  final Color emeraldLive;
+  final Color tacticalAmber;
+  final Color telemetryCritical;
+  final Color telemetryLow;
+  final Color playWingStart;
+  final Color playWingEnd;
+  final Color gpuTabFill;
+  final Color goldDeep;
+  final Color goldSolid;
+  final Color badgeYellow;
+  final Color consolePurple;
+  final Color consolePurpleVivid;
+  final Color gameboxStart;
+  final Color gameboxEnd;
+  final Color toolboxBg;
+  final Color gaugeLaser;
+  final Color radarBorder;
+  final Color dialogBg;
+  final Color keyInputText;
+  final Color telemetryNormal;
+  final Color gaugeDialBg;
+  final Color sectorSky;
+  final Color sectorLavender;
 
   bool get isDark => brightness == Brightness.dark;
   bool get isLight => brightness == Brightness.light;
+  Color get turboBlue => ColorPrimitives.turboBlue;
+  Color get turboBlueLight => ColorPrimitives.turboBlueLight;
 
   /// Tactical OLED Dark Theme Palette
   static const OwlColors dark = OwlColors(
@@ -288,9 +594,9 @@ class OwlColors extends ThemeExtension<OwlColors> {
     textMuted: ColorPrimitives.mutedZinc,
     accentCyan: ColorPrimitives.neonCyan,
     accentPurple: ColorPrimitives.electricPurple,
-    alertWarning: ColorPrimitives.amberWarning,
-    alertDanger: ColorPrimitives.crimsonRed,
-    alertSuccess: ColorPrimitives.emeraldGreen,
+    alertWarning: ColorPrimitives.tacticalAmber,
+    alertDanger: ColorPrimitives.alertCrimson,
+    alertSuccess: ColorPrimitives.emeraldLive,
     buttonPrimaryBg: ColorPrimitives.neonCyan,
     buttonPrimaryFg: ColorPrimitives.oledBlack,
     buttonPrimaryHover: Color(0xFF33F7DC),
@@ -319,6 +625,40 @@ class OwlColors extends ThemeExtension<OwlColors> {
     inputBg: ColorPrimitives.glassDeepSlate85,
     inputBorder: ColorPrimitives.glassWhite10,
     inputFocusBorder: ColorPrimitives.neonCyan,
+    consoleBase: ColorPrimitives.turboObsidian,
+    horizonTop: ColorPrimitives.horizonTop,
+    horizonBottom: ColorPrimitives.horizonBottom,
+    settingsBase: ColorPrimitives.settingsBase,
+    settingsPanel: ColorPrimitives.settingsPanel,
+    settingsCard: ColorPrimitives.settingsCard,
+    consoleMuted: ColorPrimitives.consoleMuted,
+    consoleDim: ColorPrimitives.consoleDim,
+    turboCyan: ColorPrimitives.turboCyan,
+    hudCrimson: ColorPrimitives.hudCrimson,
+    alertCrimson: ColorPrimitives.alertCrimson,
+    emeraldLive: ColorPrimitives.emeraldLive,
+    tacticalAmber: ColorPrimitives.tacticalAmber,
+    telemetryCritical: ColorPrimitives.turboCrimson,
+    telemetryLow: ColorPrimitives.badgeYellow,
+    playWingStart: ColorPrimitives.playWingStart,
+    playWingEnd: ColorPrimitives.playWingEnd,
+    gpuTabFill: ColorPrimitives.gpuTabFill,
+    goldDeep: ColorPrimitives.goldDeep,
+    goldSolid: ColorPrimitives.goldSolid,
+    badgeYellow: ColorPrimitives.badgeYellow,
+    consolePurple: ColorPrimitives.accentPurpleLight,
+    consolePurpleVivid: ColorPrimitives.consolePurpleVivid,
+    gameboxStart: ColorPrimitives.gameboxIndigoStart,
+    gameboxEnd: ColorPrimitives.gameboxIndigoEnd,
+    toolboxBg: ColorPrimitives.toolboxBg,
+    gaugeLaser: ColorPrimitives.gaugeLaser,
+    radarBorder: ColorPrimitives.radarBorder55,
+    dialogBg: ColorPrimitives.dialogScrim,
+    keyInputText: ColorPrimitives.turboCyan,
+    telemetryNormal: ColorPrimitives.turboBlue,
+    gaugeDialBg: ColorPrimitives.gaugeDialBg,
+    sectorSky: ColorPrimitives.turboCyan,
+    sectorLavender: ColorPrimitives.electricPurple,
   );
 
   /// Modern Minimalist Light Theme Palette
@@ -370,6 +710,40 @@ class OwlColors extends ThemeExtension<OwlColors> {
     inputBg: ColorPrimitives.surfaceCardLight,
     inputBorder: ColorPrimitives.borderLightStrong,
     inputFocusBorder: ColorPrimitives.accentCyanLightBg,
+    consoleBase: ColorPrimitives.surfaceCardLight,
+    horizonTop: ColorPrimitives.canvasLight,
+    horizonBottom: ColorPrimitives.surfaceElevatedLight,
+    settingsBase: ColorPrimitives.surfaceCardLight,
+    settingsPanel: ColorPrimitives.canvasLight,
+    settingsCard: ColorPrimitives.surfaceCardLight,
+    consoleMuted: ColorPrimitives.textMutedLight,
+    consoleDim: ColorPrimitives.borderLightStrong,
+    turboCyan: Color(0xFF0E7490),
+    hudCrimson: Color(0xFFDC2626),
+    alertCrimson: ColorPrimitives.alertDangerLight,
+    emeraldLive: ColorPrimitives.alertSuccessLight,
+    tacticalAmber: ColorPrimitives.alertWarningLight,
+    telemetryCritical: ColorPrimitives.alertDangerLight,
+    telemetryLow: ColorPrimitives.alertWarningLight,
+    playWingStart: ColorPrimitives.playWingStart,
+    playWingEnd: ColorPrimitives.playWingEnd,
+    gpuTabFill: Color(0xE0FFFFFF),
+    goldDeep: Color(0xFFB45309),
+    goldSolid: ColorPrimitives.alertWarningLight,
+    badgeYellow: Color(0xFFA16207),
+    consolePurple: ColorPrimitives.accentPurpleLight,
+    consolePurpleVivid: Color(0xFF6D28D9),
+    gameboxStart: ColorPrimitives.gameboxIndigoStart,
+    gameboxEnd: ColorPrimitives.gameboxIndigoEnd,
+    toolboxBg: Color(0xF0FFFFFF),
+    gaugeLaser: ColorPrimitives.alertDangerLight,
+    radarBorder: ColorPrimitives.radarBorder55,
+    dialogBg: Color(0xF2FFFFFF),
+    keyInputText: Color(0xFF0E7490),
+    telemetryNormal: ColorPrimitives.turboBlue,
+    gaugeDialBg: ColorPrimitives.surfaceCardLight,
+    sectorSky: ColorPrimitives.sectorSkyLight,
+    sectorLavender: ColorPrimitives.sectorLavenderLight,
   );
 
   @override
@@ -421,6 +795,40 @@ class OwlColors extends ThemeExtension<OwlColors> {
     Color? inputBg,
     Color? inputBorder,
     Color? inputFocusBorder,
+    Color? consoleBase,
+    Color? horizonTop,
+    Color? horizonBottom,
+    Color? settingsBase,
+    Color? settingsPanel,
+    Color? settingsCard,
+    Color? consoleMuted,
+    Color? consoleDim,
+    Color? turboCyan,
+    Color? hudCrimson,
+    Color? alertCrimson,
+    Color? emeraldLive,
+    Color? tacticalAmber,
+    Color? telemetryCritical,
+    Color? telemetryLow,
+    Color? playWingStart,
+    Color? playWingEnd,
+    Color? gpuTabFill,
+    Color? goldDeep,
+    Color? goldSolid,
+    Color? badgeYellow,
+    Color? consolePurple,
+    Color? consolePurpleVivid,
+    Color? gameboxStart,
+    Color? gameboxEnd,
+    Color? toolboxBg,
+    Color? gaugeLaser,
+    Color? radarBorder,
+    Color? dialogBg,
+    Color? keyInputText,
+    Color? telemetryNormal,
+    Color? gaugeDialBg,
+    Color? sectorSky,
+    Color? sectorLavender,
   }) {
     return OwlColors(
       brightness: brightness ?? this.brightness,
@@ -470,6 +878,40 @@ class OwlColors extends ThemeExtension<OwlColors> {
       inputBg: inputBg ?? this.inputBg,
       inputBorder: inputBorder ?? this.inputBorder,
       inputFocusBorder: inputFocusBorder ?? this.inputFocusBorder,
+      consoleBase: consoleBase ?? this.consoleBase,
+      horizonTop: horizonTop ?? this.horizonTop,
+      horizonBottom: horizonBottom ?? this.horizonBottom,
+      settingsBase: settingsBase ?? this.settingsBase,
+      settingsPanel: settingsPanel ?? this.settingsPanel,
+      settingsCard: settingsCard ?? this.settingsCard,
+      consoleMuted: consoleMuted ?? this.consoleMuted,
+      consoleDim: consoleDim ?? this.consoleDim,
+      turboCyan: turboCyan ?? this.turboCyan,
+      hudCrimson: hudCrimson ?? this.hudCrimson,
+      alertCrimson: alertCrimson ?? this.alertCrimson,
+      emeraldLive: emeraldLive ?? this.emeraldLive,
+      tacticalAmber: tacticalAmber ?? this.tacticalAmber,
+      telemetryCritical: telemetryCritical ?? this.telemetryCritical,
+      telemetryLow: telemetryLow ?? this.telemetryLow,
+      playWingStart: playWingStart ?? this.playWingStart,
+      playWingEnd: playWingEnd ?? this.playWingEnd,
+      gpuTabFill: gpuTabFill ?? this.gpuTabFill,
+      goldDeep: goldDeep ?? this.goldDeep,
+      goldSolid: goldSolid ?? this.goldSolid,
+      badgeYellow: badgeYellow ?? this.badgeYellow,
+      consolePurple: consolePurple ?? this.consolePurple,
+      consolePurpleVivid: consolePurpleVivid ?? this.consolePurpleVivid,
+      gameboxStart: gameboxStart ?? this.gameboxStart,
+      gameboxEnd: gameboxEnd ?? this.gameboxEnd,
+      toolboxBg: toolboxBg ?? this.toolboxBg,
+      gaugeLaser: gaugeLaser ?? this.gaugeLaser,
+      radarBorder: radarBorder ?? this.radarBorder,
+      dialogBg: dialogBg ?? this.dialogBg,
+      keyInputText: keyInputText ?? this.keyInputText,
+      telemetryNormal: telemetryNormal ?? this.telemetryNormal,
+      gaugeDialBg: gaugeDialBg ?? this.gaugeDialBg,
+      sectorSky: sectorSky ?? this.sectorSky,
+      sectorLavender: sectorLavender ?? this.sectorLavender,
     );
   }
 
@@ -525,6 +967,43 @@ class OwlColors extends ThemeExtension<OwlColors> {
       inputBg: Color.lerp(inputBg, other.inputBg, t)!,
       inputBorder: Color.lerp(inputBorder, other.inputBorder, t)!,
       inputFocusBorder: Color.lerp(inputFocusBorder, other.inputFocusBorder, t)!,
+      consoleBase: Color.lerp(consoleBase, other.consoleBase, t)!,
+      horizonTop: Color.lerp(horizonTop, other.horizonTop, t)!,
+      horizonBottom: Color.lerp(horizonBottom, other.horizonBottom, t)!,
+      settingsBase: Color.lerp(settingsBase, other.settingsBase, t)!,
+      settingsPanel: Color.lerp(settingsPanel, other.settingsPanel, t)!,
+      settingsCard: Color.lerp(settingsCard, other.settingsCard, t)!,
+      consoleMuted: Color.lerp(consoleMuted, other.consoleMuted, t)!,
+      consoleDim: Color.lerp(consoleDim, other.consoleDim, t)!,
+      turboCyan: Color.lerp(turboCyan, other.turboCyan, t)!,
+      hudCrimson: Color.lerp(hudCrimson, other.hudCrimson, t)!,
+      alertCrimson: Color.lerp(alertCrimson, other.alertCrimson, t)!,
+      emeraldLive: Color.lerp(emeraldLive, other.emeraldLive, t)!,
+      tacticalAmber: Color.lerp(tacticalAmber, other.tacticalAmber, t)!,
+      telemetryCritical:
+          Color.lerp(telemetryCritical, other.telemetryCritical, t)!,
+      telemetryLow: Color.lerp(telemetryLow, other.telemetryLow, t)!,
+      playWingStart: Color.lerp(playWingStart, other.playWingStart, t)!,
+      playWingEnd: Color.lerp(playWingEnd, other.playWingEnd, t)!,
+      gpuTabFill: Color.lerp(gpuTabFill, other.gpuTabFill, t)!,
+      goldDeep: Color.lerp(goldDeep, other.goldDeep, t)!,
+      goldSolid: Color.lerp(goldSolid, other.goldSolid, t)!,
+      badgeYellow: Color.lerp(badgeYellow, other.badgeYellow, t)!,
+      consolePurple: Color.lerp(consolePurple, other.consolePurple, t)!,
+      consolePurpleVivid:
+          Color.lerp(consolePurpleVivid, other.consolePurpleVivid, t)!,
+      gameboxStart: Color.lerp(gameboxStart, other.gameboxStart, t)!,
+      gameboxEnd: Color.lerp(gameboxEnd, other.gameboxEnd, t)!,
+      toolboxBg: Color.lerp(toolboxBg, other.toolboxBg, t)!,
+      gaugeLaser: Color.lerp(gaugeLaser, other.gaugeLaser, t)!,
+      radarBorder: Color.lerp(radarBorder, other.radarBorder, t)!,
+      dialogBg: Color.lerp(dialogBg, other.dialogBg, t)!,
+      keyInputText: Color.lerp(keyInputText, other.keyInputText, t)!,
+      telemetryNormal:
+          Color.lerp(telemetryNormal, other.telemetryNormal, t)!,
+      gaugeDialBg: Color.lerp(gaugeDialBg, other.gaugeDialBg, t)!,
+      sectorSky: Color.lerp(sectorSky, other.sectorSky, t)!,
+      sectorLavender: Color.lerp(sectorLavender, other.sectorLavender, t)!,
     );
   }
 }
@@ -597,4 +1076,44 @@ abstract final class ColorTokens {
   static const Color timerBadgeNormalFg = ColorComponentTokens.timerBadgeNormalFg;
   static const Color timerBadgeWarningFg = ColorComponentTokens.timerBadgeWarningFg;
   static const Color timerBadgeUrgentFg = ColorComponentTokens.timerBadgeUrgentFg;
+
+  static const Color consoleBase = ColorSemantics.consoleBase;
+  static const Color horizonTop = ColorSemantics.horizonTop;
+  static const Color horizonBottom = ColorSemantics.horizonBottom;
+  static const Color settingsBase = ColorSemantics.settingsBase;
+  static const Color settingsPanel = ColorSemantics.settingsPanel;
+  static const Color settingsCard = ColorSemantics.settingsCard;
+  static const Color settingsSidebar = ColorSemantics.settingsSidebar;
+  static const Color consoleMuted = ColorSemantics.consoleMuted;
+  static const Color consoleDim = ColorSemantics.consoleDim;
+  static const Color turboCyan = ColorSemantics.turboCyan;
+  static const Color turboBlue = ColorSemantics.turboBlue;
+  static const Color turboBlueLight = ColorSemantics.turboBlueLight;
+  static const Color turboRed = ColorSemantics.turboRed;
+  static const Color turboCrimson = ColorSemantics.turboCrimson;
+  static const Color turboOrange = ColorSemantics.turboOrange;
+  static const Color hudCrimson = ColorSemantics.hudCrimson;
+  static const Color alertCrimson = ColorSemantics.alertCrimson;
+  static const Color emeraldLive = ColorSemantics.emeraldLive;
+  static const Color tacticalAmber = ColorSemantics.tacticalAmber;
+  static const Color goldDeep = ColorSemantics.goldDeep;
+  static const Color goldSolid = ColorSemantics.goldSolid;
+  static const Color badgeYellow = ColorSemantics.badgeYellow;
+  static const Color consolePurple = ColorSemantics.consolePurple;
+  static const Color consolePurpleVivid = ColorSemantics.consolePurpleVivid;
+  static const Color gameboxStart = ColorSemantics.gameboxIndigoStart;
+  static const Color gameboxEnd = ColorSemantics.gameboxIndigoEnd;
+  static const Color toolboxBg = ColorSemantics.toolboxBg;
+  static const Color gaugeDialBg = ColorSemantics.gaugeDialBg;
+  static const Color gaugeLaser = ColorSemantics.gaugeLaser;
+
+  static const Color telemetryCritical = ColorComponentTokens.telemetryCritical;
+  static const Color telemetryLow = ColorComponentTokens.telemetryLow;
+  static const Color telemetryNormal = ColorComponentTokens.telemetryNormal;
+  static const Color liveDot = ColorComponentTokens.liveDot;
+  static const Color playWingStart = ColorComponentTokens.playWingStart;
+  static const Color playWingEnd = ColorComponentTokens.playWingEnd;
+  static const Color gpuTabFill = ColorComponentTokens.gpuTabFill;
+  static const Color dialogBg = ColorComponentTokens.dialogBg;
+  static const Color keyInputText = ColorComponentTokens.keyInputText;
 }

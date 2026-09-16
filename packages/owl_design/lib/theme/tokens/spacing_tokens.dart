@@ -74,3 +74,17 @@ abstract final class SpacingTokens {
   static const SizedBox gapV24 = SizedBox(height: lg);
   static const SizedBox gapV32 = SizedBox(height: xl);
 }
+
+/// Ergonomic alias for [SpacingTokens] matching standard project conventions.
+typedef AppSpacing = SpacingTokens;
+
+/// Predefined spacing and sizing scalars mapped to the 4dp grid.
+abstract final class AppSizes {
+  static const double p4 = SpacingTokens.xxs;
+  static const double p8 = SpacingTokens.xs;
+  static const double p12 = SpacingTokens.sm;
+  static const double p16 = SpacingTokens.md;
+  static const double p24 = SpacingTokens.lg;
+  static const double p32 = SpacingTokens.xl;
+  static const double p48 = SpacingTokens.xxl;
+}

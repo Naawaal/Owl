@@ -1,13 +1,17 @@
 // language: Dart, file: gpu_settings_two_pane_screen.dart, target: Flutter / Owl Game Turbo
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:owl/features/settings/domain/models/game_turbo_settings.dart';
+import 'package:owl/features/settings/presentation/settings_provider.dart';
 import 'package:owl_design/owl_design.dart';
 
 /// Authentic Xiaomi Game Turbo Two-Pane Selected Game GPU Settings Screen.
 ///
 /// Configures hardware graphics, touch sampling, and per-game tactical AI modules
-/// for the selected game title.
-class GpuSettingsTwoPaneScreen extends StatefulWidget {
+/// for the selected game title. All options persist in the global GPU profile
+/// of [GameTurboSettingsNotifier] and survive app restarts.
+class GpuSettingsTwoPaneScreen extends ConsumerStatefulWidget {
   const GpuSettingsTwoPaneScreen({
     super.key,
     this.gameTitle = 'Mobile Legends: Bang Bang',
@@ -16,7 +20,8 @@ class GpuSettingsTwoPaneScreen extends StatefulWidget {
   final String gameTitle;
 
   @override
-  State<GpuSettingsTwoPaneScreen> createState() => _GpuSettingsTwoPaneScreenState();
+  ConsumerState<GpuSettingsTwoPaneScreen> createState() =>
+      _GpuSettingsTwoPaneScreenState();
 }
 
 enum GpuSettingCategory {
@@ -29,92 +34,81 @@ enum GpuSettingCategory {
   final String label;
 }
 
-class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
+class _GpuSettingsTwoPaneScreenState
+    extends ConsumerState<GpuSettingsTwoPaneScreen> {
   GpuSettingCategory _selectedCategory = GpuSettingCategory.graphics;
-
-  // Graphics state
-  String _fpsTarget = '120';
-  String _resolution = '1080p';
-  String _msaa = '4X';
-  String _aniso = '8X';
-
-  // Display state
-  String _colorStyle = 'Vibrant HDR';
-  bool _dynamicContrast = true;
-  bool _horizonBrightness = true;
-
-  // Touch state
-  String _touchSampling = '720Hz Ultra';
-  String _skillPrecision = 'Extreme';
-  String _mistouchRejection = 'Medium';
-
-  // Tactical AI state
-  bool _threatRadar = true;
-  bool _objectiveRings = true;
-  bool _smiteThreshold = true;
 
   void _resetDefaults() {
     HapticFeedback.mediumImpact();
-    setState(() {
-      _fpsTarget = '120';
-      _resolution = '1080p';
-      _msaa = '4X';
-      _aniso = '8X';
-      _colorStyle = 'Vibrant HDR';
-      _dynamicContrast = true;
-      _horizonBrightness = true;
-      _touchSampling = '720Hz Ultra';
-      _skillPrecision = 'Extreme';
-      _mistouchRejection = 'Medium';
-      _threatRadar = true;
-      _objectiveRings = true;
-      _smiteThreshold = true;
-    });
+    ref.read(gameTurboSettingsProvider.notifier).resetGpuSettings();
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = ColorTokens.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFF090C13),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Top Bar
-            _buildTopBar(context),
+      backgroundColor: colors.consoleBase,
+      extendBodyBehindAppBar: true,
+      extendBody: true,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: OwlAtmosphericBackground()),
+          SafeArea(
+            left: false,
+            right: false,
+            child: Column(
+              children: [
+                // Top Bar
+                _buildTopBar(context),
 
-            // Two-Pane Content
-            Expanded(
-              child: Row(
-                children: [
-                  // Left Category Sidebar
-                  _buildCategorySidebar(),
+                // Two-Pane Content
+                Expanded(
+                child: Row(
+                  children: [
+                    // Left Category Sidebar
+                    _buildCategorySidebar(),
 
-                  // Vertical Separator
-                  Container(width: 1, color: const Color(0x14FFFFFF)),
+                    // Vertical Separator
+                    Container(
+                      width: 1,
+                      color: colors.textPrimary.withValues(alpha: 0.08),
+                    ),
 
-                  // Right Content Pane
-                  Expanded(child: _buildContentPane()),
-                ],
+                    // Right Content Pane
+                    Expanded(child: _buildContentPane()),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+        ],
       ),
     );
   }
 
   Widget _buildTopBar(BuildContext context) {
+    final colors = ColorTokens.of(context);
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0E121A),
-        border: Border(bottom: BorderSide(color: Color(0x14FFFFFF))),
+      decoration: BoxDecoration(
+        color: colors.isLight
+            ? colors.surfaceCard.withValues(alpha: 0.92)
+            : colors.settingsPanel.withValues(alpha: 0.75),
+        border: Border(
+          bottom: BorderSide(
+            color: colors.isLight
+                ? colors.borderGlass.withValues(alpha: 1.0)
+                : colors.textPrimary.withValues(alpha: 0.08),
+          ),
+        ),
       ),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, size: 16, color: Colors.white),
+            icon: Icon(Icons.arrow_back_ios_new,
+                size: 16, color: colors.textPrimary),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
             onPressed: () => Navigator.of(context).maybePop(),
@@ -122,10 +116,8 @@ class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
           const SizedBox(width: 12),
           Text(
             'GPU settings — ${widget.gameTitle}',
-            style: const TextStyle(
-              fontSize: 14,
+            style: TypographyTokens.titleSmallOf(context).copyWith(
               fontWeight: FontWeight.w700,
-              color: Colors.white,
               letterSpacing: -0.2,
             ),
           ),
@@ -137,12 +129,11 @@ class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            child: const Text(
+            child: Text(
               'Reset Default',
-              style: TextStyle(
-                fontSize: 11.5,
+              style: TypographyTokens.statusMicroOf(context).copyWith(
                 fontWeight: FontWeight.w700,
-                color: ColorSemantics.turboBlueLight,
+                color: colors.turboBlueLight,
               ),
             ),
           ),
@@ -152,8 +143,22 @@ class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
   }
 
   Widget _buildCategorySidebar() {
-    return SizedBox(
+    final colors = ColorTokens.of(context);
+    return Container(
       width: 180,
+      decoration: BoxDecoration(
+        color: colors.isLight
+            ? colors.surfaceElevated.withValues(alpha: 0.85)
+            : colors.settingsCard.withValues(alpha: 0.6),
+        border: Border(
+          right: BorderSide(
+            color: colors.isLight
+                ? colors.borderGlass.withValues(alpha: 0.8)
+                : Colors.transparent,
+            width: 0.5,
+          ),
+        ),
+      ),
       child: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: GpuSettingCategory.values.map((cat) {
@@ -169,20 +174,26 @@ class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
               duration: const Duration(milliseconds: 140),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
               decoration: BoxDecoration(
-                color: isSelected ? const Color(0x1A007AFF) : Colors.transparent,
+                color: isSelected
+                    ? (colors.isLight
+                        ? colors.turboBlue.withValues(alpha: 0.12)
+                        : ColorPrimitives.selectBlue12)
+                    : Colors.transparent,
                 border: Border(
                   left: BorderSide(
-                    color: isSelected ? ColorSemantics.turboBlue : Colors.transparent,
+                    color: isSelected ? colors.turboBlue : Colors.transparent,
                     width: 3.5,
                   ),
                 ),
               ),
               child: Text(
                 cat.label,
-                style: TextStyle(
+                style: TypographyTokens.titleSmallOf(context).copyWith(
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? Colors.white : const Color(0x8AFFFFFF),
+                  color: isSelected
+                      ? colors.textPrimary
+                      : colors.textPrimary.withValues(alpha: 0.54),
                   letterSpacing: -0.1,
                 ),
               ),
@@ -194,29 +205,34 @@ class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
   }
 
   Widget _buildContentPane() {
+    final settings = ref.watch(gameTurboSettingsProvider);
+    final notifier = ref.read(gameTurboSettingsProvider.notifier);
     switch (_selectedCategory) {
       case GpuSettingCategory.graphics:
-        return _buildGraphicsSettings();
+        return _buildGraphicsSettings(settings, notifier);
       case GpuSettingCategory.display:
-        return _buildDisplaySettings();
+        return _buildDisplaySettings(settings, notifier);
       case GpuSettingCategory.touch:
-        return _buildTouchSettings();
+        return _buildTouchSettings(settings, notifier);
       case GpuSettingCategory.tacticalAi:
-        return _buildTacticalAiSettings();
+        return _buildTacticalAiSettings(settings, notifier);
     }
   }
 
-  Widget _buildGraphicsSettings() {
+  Widget _buildGraphicsSettings(
+    GameTurboSettings settings,
+    GameTurboSettingsNotifier notifier,
+  ) {
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.paddingOf(context).bottom),
       children: [
         _buildSettingRow(
           title: 'Target Frame Rate Cap',
           subtitle: 'Enforce hardware GPU VSync refresh rate threshold for maximum fluid motion.',
           control: OemSegmentedChips<String>(
             options: const ['60', '90', '120', 'Max'],
-            selected: _fpsTarget,
-            onSelected: (val) => setState(() => _fpsTarget = val),
+            selected: settings.gpuFpsTarget,
+            onSelected: notifier.setGpuFpsTarget,
           ),
         ),
         _buildDivider(),
@@ -225,8 +241,8 @@ class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
           subtitle: 'Render internal 3D scene at native or upscaled OLED panel resolution.',
           control: OemSegmentedChips<String>(
             options: const ['720p', '1080p', '2K'],
-            selected: _resolution,
-            onSelected: (val) => setState(() => _resolution = val),
+            selected: settings.gpuResolution,
+            onSelected: notifier.setGpuResolution,
           ),
         ),
         _buildDivider(),
@@ -235,8 +251,8 @@ class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
           subtitle: 'Smooth out polygon jagged edges on champion models and map terrain.',
           control: OemSegmentedChips<String>(
             options: const ['Off', '2X', '4X'],
-            selected: _msaa,
-            onSelected: (val) => setState(() => _msaa = val),
+            selected: settings.gpuMsaa,
+            onSelected: notifier.setGpuMsaa,
           ),
         ),
         _buildDivider(),
@@ -245,25 +261,28 @@ class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
           subtitle: 'Sharpen distant ground textures, lane markers, and river beds at oblique angles.',
           control: OemSegmentedChips<String>(
             options: const ['Off', '4X', '8X', '16X'],
-            selected: _aniso,
-            onSelected: (val) => setState(() => _aniso = val),
+            selected: settings.gpuAniso,
+            onSelected: notifier.setGpuAniso,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildDisplaySettings() {
+  Widget _buildDisplaySettings(
+    GameTurboSettings settings,
+    GameTurboSettingsNotifier notifier,
+  ) {
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.paddingOf(context).bottom),
       children: [
         _buildSettingRow(
           title: 'Color Grading Profile',
           subtitle: 'Apply hardware post-processing shaders for tactical combat clarity.',
           control: OemSegmentedChips<String>(
             options: const ['Original', 'Vibrant HDR', 'Bush Contrast'],
-            selected: _colorStyle,
-            onSelected: (val) => setState(() => _colorStyle = val),
+            selected: settings.gpuColorStyle,
+            onSelected: notifier.setGpuColorStyle,
           ),
         ),
         _buildDivider(),
@@ -271,8 +290,8 @@ class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
           title: 'Dynamic Shadow & Bush Contrast',
           subtitle: 'Boost luminance in neutral jungle brushes to spot ambushes instantly.',
           control: MiuiSwitch(
-            value: _dynamicContrast,
-            onChanged: (val) => setState(() => _dynamicContrast = val),
+            value: settings.gpuDynamicContrast,
+            onChanged: notifier.toggleGpuDynamicContrast,
           ),
         ),
         _buildDivider(),
@@ -280,25 +299,28 @@ class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
           title: 'Horizon Sunlight Brightness Boost',
           subtitle: 'Keep panel backlight stable during intense outdoor sunlight gaming.',
           control: MiuiSwitch(
-            value: _horizonBrightness,
-            onChanged: (val) => setState(() => _horizonBrightness = val),
+            value: settings.gpuHorizonBrightness,
+            onChanged: notifier.toggleGpuHorizonBrightness,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildTouchSettings() {
+  Widget _buildTouchSettings(
+    GameTurboSettings settings,
+    GameTurboSettingsNotifier notifier,
+  ) {
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.paddingOf(context).bottom),
       children: [
         _buildSettingRow(
           title: 'Touch Response Sampling Rate',
           subtitle: 'Ultra-fast touch polling rate for instantaneous skill shot actuation.',
           control: OemSegmentedChips<String>(
             options: const ['240Hz', '480Hz', '720Hz Ultra'],
-            selected: _touchSampling,
-            onSelected: (val) => setState(() => _touchSampling = val),
+            selected: settings.gpuTouchSampling,
+            onSelected: notifier.setGpuTouchSampling,
           ),
         ),
         _buildDivider(),
@@ -307,8 +329,8 @@ class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
           subtitle: 'Fine-tune micro-drag touch sensitivity for skill indicator reticles.',
           control: OemSegmentedChips<String>(
             options: const ['Default', 'Balanced', 'Extreme'],
-            selected: _skillPrecision,
-            onSelected: (val) => setState(() => _skillPrecision = val),
+            selected: settings.gpuSkillPrecision,
+            onSelected: notifier.setGpuSkillPrecision,
           ),
         ),
         _buildDivider(),
@@ -317,24 +339,27 @@ class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
           subtitle: 'Ignore accidental palm contact along phone bezels during clutch teamfights.',
           control: OemSegmentedChips<String>(
             options: const ['Small', 'Medium', 'Large'],
-            selected: _mistouchRejection,
-            onSelected: (val) => setState(() => _mistouchRejection = val),
+            selected: settings.gpuMistouchRejection,
+            onSelected: notifier.setGpuMistouchRejection,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildTacticalAiSettings() {
+  Widget _buildTacticalAiSettings(
+    GameTurboSettings settings,
+    GameTurboSettingsNotifier notifier,
+  ) {
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.paddingOf(context).bottom),
       children: [
         _buildSettingRow(
           title: 'Minimap Threat Radar',
           subtitle: 'Auto-highlight enemy jungler and mid laner gank trajectories with missing timers.',
           control: MiuiSwitch(
-            value: _threatRadar,
-            onChanged: (val) => setState(() => _threatRadar = val),
+            value: settings.gpuThreatRadar,
+            onChanged: notifier.toggleGpuThreatRadar,
           ),
         ),
         _buildDivider(),
@@ -342,8 +367,8 @@ class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
           title: 'Turtle & Lord Spawn Countdown Rings',
           subtitle: 'Circular countdown rings in top-right showing objective respawn windows.',
           control: MiuiSwitch(
-            value: _objectiveRings,
-            onChanged: (val) => setState(() => _objectiveRings = val),
+            value: settings.gpuObjectiveRings,
+            onChanged: notifier.toggleGpuObjectiveRings,
           ),
         ),
         _buildDivider(),
@@ -351,8 +376,8 @@ class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
           title: 'Retribution / Smite Execution Threshold',
           subtitle: 'Overlay exact true-damage health bar threshold mark on epic monsters.',
           control: MiuiSwitch(
-            value: _smiteThreshold,
-            onChanged: (val) => setState(() => _smiteThreshold = val),
+            value: settings.gpuSmiteThreshold,
+            onChanged: notifier.toggleGpuSmiteThreshold,
           ),
         ),
       ],
@@ -375,20 +400,20 @@ class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TypographyTokens.settingsRowTitleOf(context).copyWith(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
                     letterSpacing: -0.1,
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: const TextStyle(
+                  style: TypographyTokens.settingsRowDescOf(context).copyWith(
                     fontSize: 10,
-                    fontWeight: FontWeight.w400,
-                    color: Color(0x99FFFFFF),
+                    color: ColorTokens.of(context)
+                        .textPrimary
+                        .withValues(alpha: 0.6),
                     height: 1.3,
                   ),
                 ),
@@ -403,10 +428,10 @@ class _GpuSettingsTwoPaneScreenState extends State<GpuSettingsTwoPaneScreen> {
   }
 
   Widget _buildDivider() {
-    return const Divider(
+    return Divider(
       height: 1,
       thickness: 1,
-      color: Color(0x14FFFFFF),
+      color: ColorTokens.of(context).textPrimary.withValues(alpha: 0.08),
     );
   }
 }
