@@ -183,7 +183,7 @@ class _OwlButtonState extends State<OwlButton> {
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.outfit(
                   fontSize: fontSize,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.4,

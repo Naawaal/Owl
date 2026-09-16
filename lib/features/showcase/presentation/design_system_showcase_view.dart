@@ -1228,7 +1228,7 @@ class _DesignSystemShowcaseViewState
               children: [
                 Text(
                   name,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.outfit(
                     fontSize: 10.5,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,

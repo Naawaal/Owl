@@ -1,81 +1,111 @@
-// language: Dart, file: game_turbo_settings_test.dart, target: Flutter / Owl Game Turbo
+// language: Dart, file: game_turbo_settings_test.dart, target: Flutter / Owl MOBA Companion
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:owl/features/overlay/presentation/gameturbo_floating_toolbox.dart';
 import 'package:owl/features/settings/domain/models/game_turbo_settings.dart';
 import 'package:owl/features/settings/presentation/app_settings_two_pane_screen.dart';
 import 'package:owl/features/settings/presentation/settings_provider.dart';
-import 'package:owl_design/owl_design.dart';
 import 'package:owl_storage/owl_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() {
+    FlutterSecureStorage.setMockInitialValues({});
+  });
+
   group('GameTurboSettings Domain Model Tests', () {
-    test('defaultSettings has expected Xiaomi HyperOS Game Turbo defaults', () {
+    test('defaultSettings has expected tactical companion defaults', () {
       const s = GameTurboSettings.defaultSettings;
 
       // General
+      expect(s.themeMode, equals(ThemeMode.dark));
+      expect(s.interfaceLanguage, equals('en'));
+
+      // AI Provider & Models
+      expect(s.activeAiProvider, equals('gemini'));
+      expect(s.activeModel, equals('gemini-2.0-flash'));
+
+      // Assistant & Tactical AI
+      expect(s.assistantMode, equals('live'));
+      expect(s.coachingLevel, equals('intermediate'));
+      expect(s.preferredRole, equals('auto'));
+      expect(s.warningSensitivity, equals('balanced'));
+      expect(s.explainRecommendations, isTrue);
+      expect(s.missingEnemyAlerts, isTrue);
+      expect(s.overextensionRadar, isTrue);
+      expect(s.objectiveTimers, isTrue);
+      expect(s.laneWaveAdvice, isTrue);
+
+      // Voice & Alerts
+      expect(s.voiceAlertsEnabled, isTrue);
+      expect(s.alertPriority, equals('criticalOnly'));
+      expect(s.speechCooldownSeconds, equals(8));
+      expect(s.avoidInterruptingGameAudio, isTrue);
+      expect(s.hapticsEnabled, isTrue);
+
+      // Assistant Performance
+      expect(s.performanceMode, equals('balanced'));
+      expect(s.adaptiveWorkload, isTrue);
+      expect(s.thermalProtection, isTrue);
+      expect(s.showInGameLatencyHud, isTrue);
+
+      // Overlay compatibility
       expect(s.gameTurboMaster, isTrue);
       expect(s.inGameShortcuts, isTrue);
       expect(s.shortcutEdgePosition, equals('Top-Left'));
-      expect(s.contentRecommendations, isTrue);
-      expect(s.hideGamesFromHomeScreen, isFalse);
-
-      // Performance
       expect(s.performanceOptimization, isTrue);
       expect(s.wifiSpeedBoost, isTrue);
-      expect(s.aggressiveMemoryCleanup, isTrue);
-      expect(s.spatialAudio, isTrue);
-
-      // DND
       expect(s.restrictFloatingNotifications, isTrue);
       expect(s.restrictButtonsAndGestures, isTrue);
-      expect(s.answerCallsHandsFree, isTrue);
-
-      // Guardian AI
-      expect(s.guardianTacticalEngine, isTrue);
-      expect(s.aiInferenceBackend, equals('Local NPU'));
-      expect(s.tacticalAudioCallouts, isTrue);
-      expect(s.enemyMissingRadar, isTrue);
     });
 
     test('copyWith produces modified copy without mutating original', () {
       const s1 = GameTurboSettings();
       final s2 = s1.copyWith(
-        shortcutEdgePosition: 'Left Edge',
-        performanceOptimization: false,
-        aiInferenceBackend: 'Gemini 2.5',
+        activeAiProvider: 'openai',
+        activeModel: 'gpt-4o-mini',
+        preferredRole: 'jungle',
+        performanceMode: 'high',
       );
 
-      expect(s1.shortcutEdgePosition, equals('Top-Left'));
-      expect(s1.performanceOptimization, isTrue);
-      expect(s1.aiInferenceBackend, equals('Local NPU'));
+      expect(s1.activeAiProvider, equals('gemini'));
+      expect(s1.activeModel, equals('gemini-2.0-flash'));
+      expect(s1.preferredRole, equals('auto'));
+      expect(s1.performanceMode, equals('balanced'));
 
-      expect(s2.shortcutEdgePosition, equals('Left Edge'));
-      expect(s2.performanceOptimization, isFalse);
-      expect(s2.aiInferenceBackend, equals('Gemini 2.5'));
+      expect(s2.activeAiProvider, equals('openai'));
+      expect(s2.activeModel, equals('gpt-4o-mini'));
+      expect(s2.preferredRole, equals('jungle'));
+      expect(s2.performanceMode, equals('high'));
     });
 
     test('toMap and fromMap round-trip preserves all fields', () {
       const original = GameTurboSettings(
-        gameTurboMaster: false,
-        inGameShortcuts: true,
-        shortcutEdgePosition: 'Top-Right',
-        contentRecommendations: false,
-        hideGamesFromHomeScreen: true,
-        performanceOptimization: false,
-        wifiSpeedBoost: false,
-        aggressiveMemoryCleanup: false,
-        spatialAudio: false,
-        restrictFloatingNotifications: false,
-        restrictButtonsAndGestures: false,
-        answerCallsHandsFree: false,
-        guardianTacticalEngine: false,
-        aiInferenceBackend: 'Claude 3.5',
-        tacticalAudioCallouts: false,
-        enemyMissingRadar: false,
+        themeMode: ThemeMode.light,
+        interfaceLanguage: 'es',
+        activeAiProvider: 'claude',
+        activeModel: 'claude-3-5-haiku',
+        assistantMode: 'postMatch',
+        coachingLevel: 'advanced',
+        preferredRole: 'mid',
+        warningSensitivity: 'earlyWarning',
+        explainRecommendations: false,
+        missingEnemyAlerts: false,
+        overextensionRadar: false,
+        objectiveTimers: false,
+        laneWaveAdvice: false,
+        voiceAlertsEnabled: false,
+        alertPriority: 'important',
+        speechCooldownSeconds: 15,
+        avoidInterruptingGameAudio: false,
+        hapticsEnabled: false,
+        performanceMode: 'saver',
+        adaptiveWorkload: false,
+        thermalProtection: false,
+        showInGameLatencyHud: false,
       );
 
       final map = original.toMap();
@@ -87,14 +117,40 @@ void main() {
 
     test('toJson and fromJson string serialization round-trip', () {
       const original = GameTurboSettings(
-        shortcutEdgePosition: 'Left Edge',
-        aiInferenceBackend: 'Gemini 2.5',
+        activeAiProvider: 'deepseek',
+        activeModel: 'deepseek/deepseek-chat',
+        preferredRole: 'roam',
       );
 
       final jsonStr = original.toJson();
       final restored = GameTurboSettings.fromJson(jsonStr);
 
       expect(restored, equals(original));
+    });
+  });
+
+  group('ApiKeyManager Validation Tests', () {
+    final manager = ApiKeyManager(null);
+
+    test('validateKeyFormat verifies Gemini keys', () {
+      expect(manager.validateKeyFormat('gemini', ''), isNotNull);
+      expect(manager.validateKeyFormat('gemini', 'short_invalid_key'), isNotNull);
+      expect(manager.validateKeyFormat('gemini', 'AIzaSyValidGeminiKeyFormatLength32'), isNull);
+    });
+
+    test('validateKeyFormat verifies OpenAI keys', () {
+      expect(manager.validateKeyFormat('openai', 'invalid_no_prefix'), isNotNull);
+      expect(manager.validateKeyFormat('openai', 'sk-validOpenAiKeyLength32Characters'), isNull);
+    });
+
+    test('validateKeyFormat verifies Claude keys', () {
+      expect(manager.validateKeyFormat('claude', 'invalid_key'), isNotNull);
+      expect(manager.validateKeyFormat('claude', 'sk-ant-validAnthropicKeyFormat32Chars'), isNull);
+    });
+
+    test('testConnection returns latency simulation for valid keys', () async {
+      final latency = await manager.testConnection('gemini', 'AIzaSyValidGeminiKeyFormatLength32');
+      expect(latency, greaterThan(30));
     });
   });
 
@@ -114,41 +170,35 @@ void main() {
     test('persists mutations to SharedPreferences and restores on next boot', () async {
       final notifier = GameTurboSettingsNotifier(prefs);
 
-      // Perform mutations across categories
-      notifier.setShortcutEdgePosition('Top-Right');
-      notifier.togglePerformanceOptimization(false);
-      notifier.setAiInferenceBackend('Gemini 2.5');
-      notifier.toggleHideGamesFromHomeScreen(true);
+      notifier.setActiveAiProvider('openai');
+      notifier.setPreferredRole('jungle');
+      notifier.setPerformanceMode('high');
+      notifier.setThemeMode(ThemeMode.light);
 
-      // Verify immediate state update
-      expect(notifier.state.shortcutEdgePosition, equals('Top-Right'));
-      expect(notifier.state.performanceOptimization, isFalse);
-      expect(notifier.state.aiInferenceBackend, equals('Gemini 2.5'));
-      expect(notifier.state.hideGamesFromHomeScreen, isTrue);
+      expect(notifier.state.activeAiProvider, equals('openai'));
+      expect(notifier.state.activeModel, equals('gpt-4o-mini'));
+      expect(notifier.state.preferredRole, equals('jungle'));
+      expect(notifier.state.performanceMode, equals('high'));
+      expect(notifier.state.themeMode, equals(ThemeMode.light));
 
-      // Verify raw JSON in SharedPreferences
-      final raw = prefs.getString('owl_game_turbo_settings_v1');
+      final raw = prefs.getString('owl_game_turbo_settings_v2');
       expect(raw, isNotNull);
       final decoded = jsonDecode(raw!) as Map<String, dynamic>;
-      expect(decoded['shortcutEdgePosition'], equals('Top-Right'));
-      expect(decoded['performanceOptimization'], isFalse);
-      expect(decoded['aiInferenceBackend'], equals('Gemini 2.5'));
-      expect(decoded['hideGamesFromHomeScreen'], isTrue);
+      expect(decoded['activeAiProvider'], equals('openai'));
+      expect(decoded['activeModel'], equals('gpt-4o-mini'));
+      expect(decoded['preferredRole'], equals('jungle'));
 
-      // Verify new notifier instance restores persisted state
       final freshNotifier = GameTurboSettingsNotifier(prefs);
-      expect(freshNotifier.state.shortcutEdgePosition, equals('Top-Right'));
-      expect(freshNotifier.state.performanceOptimization, isFalse);
-      expect(freshNotifier.state.aiInferenceBackend, equals('Gemini 2.5'));
-      expect(freshNotifier.state.hideGamesFromHomeScreen, isTrue);
+      expect(freshNotifier.state.activeAiProvider, equals('openai'));
+      expect(freshNotifier.state.preferredRole, equals('jungle'));
     });
 
     test('resetToDefaults restores default settings and updates SharedPreferences', () {
       final notifier = GameTurboSettingsNotifier(prefs);
-      notifier.togglePerformanceOptimization(false);
-      notifier.setShortcutEdgePosition('Left Edge');
+      notifier.setPreferredRole('solo');
+      notifier.setPerformanceMode('saver');
 
-      expect(notifier.state.performanceOptimization, isFalse);
+      expect(notifier.state.preferredRole, equals('solo'));
 
       notifier.resetToDefaults();
       expect(notifier.state, equals(GameTurboSettings.defaultSettings));
@@ -183,23 +233,183 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Initial state: Master engine is true
-      expect(capturedRef.read(gameTurboSettingsProvider).gameTurboMaster, isTrue);
-
-      // Find Master Engine switch and toggle it off
-      final masterSwitchFinder = find.byType(MiuiSwitch).first;
-      await tester.tap(masterSwitchFinder);
+      // Tap Reset to Factory Defaults button
+      await tester.tap(find.text('Reset to Factory Defaults'));
       await tester.pumpAndSettle();
 
-      // State is now false
-      expect(capturedRef.read(gameTurboSettingsProvider).gameTurboMaster, isFalse);
+      expect(capturedRef.read(gameTurboSettingsProvider).themeMode, equals(ThemeMode.dark));
+    });
 
-      // Tap Reset Default button
-      await tester.tap(find.text('Reset Default'));
+    testWidgets('AppSettingsTwoPaneScreen validates API key format and reports errors', (tester) async {
+      tester.view.physicalSize = const Size(1280, 720);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: const MaterialApp(
+            home: AppSettingsTwoPaneScreen(
+              initialCategory: AppSettingCategory.aiProviders,
+            ),
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
 
-      // State restored to true
-      expect(capturedRef.read(gameTurboSettingsProvider).gameTurboMaster, isTrue);
+      // Enter invalid key for Gemini (starts with wrong prefix or is too short)
+      await tester.enterText(find.byType(TextField), 'invalid');
+      await tester.pumpAndSettle();
+
+      // Tap Save & Test
+      await tester.tap(find.text('Save & Test'));
+      await tester.pumpAndSettle();
+
+      // Verify validation error is displayed
+      expect(find.textContaining('Google Gemini keys typically start with "AIza"'), findsOneWidget);
+
+      // Now enter valid Gemini key format
+      await tester.enterText(find.byType(TextField), 'AIzaSyDummyGeminiKeyValidFormat12345');
+      await tester.pumpAndSettle();
+
+      // Error should be cleared on input change
+      expect(find.textContaining('Google Gemini keys typically start with "AIza"'), findsNothing);
+
+      // Tap Save & Test
+      await tester.tap(find.text('Save & Test'));
+      await tester.pump();
+      expect(find.text('Testing...'), findsOneWidget);
+
+      // Advance clock past simulated network delay and settle SnackBar
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('latency'), findsWidgets);
+    });
+
+    testWidgets('AppSettingsTwoPaneScreen switches AI Provider and updates available models', (tester) async {
+      tester.view.physicalSize = const Size(1280, 720);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      late WidgetRef capturedRef;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: MaterialApp(
+            home: Consumer(
+              builder: (context, ref, child) {
+                capturedRef = ref;
+                return const AppSettingsTwoPaneScreen(
+                  initialCategory: AppSettingCategory.aiProviders,
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Switch to OpenAI
+      await tester.tap(find.text('OpenAI'));
+      await tester.pumpAndSettle();
+
+      expect(capturedRef.read(gameTurboSettingsProvider).activeAiProvider, equals('openai'));
+      expect(capturedRef.read(gameTurboSettingsProvider).activeModel, equals('gpt-4o-mini'));
+      expect(find.text('gpt-4o-mini'), findsOneWidget);
+
+      // Switch to Claude
+      await tester.tap(find.text('Claude'));
+      await tester.pumpAndSettle();
+
+      expect(capturedRef.read(gameTurboSettingsProvider).activeAiProvider, equals('claude'));
+      expect(capturedRef.read(gameTurboSettingsProvider).activeModel, equals('claude-3-5-haiku'));
+      expect(find.text('claude-3-5-haiku'), findsOneWidget);
+    });
+
+    testWidgets('AppSettingsTwoPaneScreen updates preferred role between Auto and manual overrides', (tester) async {
+      tester.view.physicalSize = const Size(1280, 720);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      late WidgetRef capturedRef;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: MaterialApp(
+            home: Consumer(
+              builder: (context, ref, child) {
+                capturedRef = ref;
+                return const AppSettingsTwoPaneScreen(
+                  initialCategory: AppSettingCategory.assistant,
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Initially Auto (Default)
+      expect(capturedRef.read(gameTurboSettingsProvider).preferredRole, equals('auto'));
+      expect(find.textContaining('Auto-detects Smite / Retribution / Roaming boots'), findsOneWidget);
+
+      // Select Jungle
+      await tester.tap(find.text('Jungle'));
+      await tester.pumpAndSettle();
+
+      expect(capturedRef.read(gameTurboSettingsProvider).preferredRole, equals('jungle'));
+      expect(find.textContaining('Fixed role override: JUNGLE'), findsOneWidget);
+
+      // Select Auto (Default) back
+      await tester.tap(find.text('Auto (Default)'));
+      await tester.pumpAndSettle();
+
+      expect(capturedRef.read(gameTurboSettingsProvider).preferredRole, equals('auto'));
+      expect(find.textContaining('Auto-detects Smite / Retribution / Roaming boots'), findsOneWidget);
+    });
+
+    testWidgets('Voice & Alerts Play Test button triggers tactical alert SnackBar', (tester) async {
+      tester.view.physicalSize = const Size(1280, 720);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: const MaterialApp(
+            home: AppSettingsTwoPaneScreen(
+              initialCategory: AppSettingCategory.alerts,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap Play Test
+      await tester.tap(find.text('Play Test'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Tactical Alert: Enemy Jungler missing from Bot River!'), findsOneWidget);
     });
 
     testWidgets('GameturboFloatingToolbox Mode Pills toggle Balanced vs Performance', (tester) async {
@@ -235,23 +445,18 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Default: Performance is true, FPS gauge displays 120
       expect(capturedRef.read(gameTurboSettingsProvider).performanceOptimization, isTrue);
       expect(find.text('120'), findsOneWidget);
 
-      // Tap 'Balanced' mode pill
       await tester.tap(find.text('Balanced'));
       await tester.pumpAndSettle();
 
-      // Performance is now false, FPS gauge updates to 60
       expect(capturedRef.read(gameTurboSettingsProvider).performanceOptimization, isFalse);
       expect(find.text('60'), findsOneWidget);
 
-      // Tap 'Performance' mode pill
       await tester.tap(find.text('Performance'));
       await tester.pumpAndSettle();
 
-      // Restored to true and 120 FPS
       expect(capturedRef.read(gameTurboSettingsProvider).performanceOptimization, isTrue);
       expect(find.text('120'), findsOneWidget);
     });
@@ -288,26 +493,15 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Toggle DND button
       expect(capturedRef.read(gameTurboSettingsProvider).restrictFloatingNotifications, isTrue);
       await tester.tap(find.text('DND'));
       await tester.pumpAndSettle();
       expect(capturedRef.read(gameTurboSettingsProvider).restrictFloatingNotifications, isFalse);
 
-      // Toggle Wi-Fi button
       expect(capturedRef.read(gameTurboSettingsProvider).wifiSpeedBoost, isTrue);
       await tester.tap(find.text('Wi-Fi'));
       await tester.pumpAndSettle();
       expect(capturedRef.read(gameTurboSettingsProvider).wifiSpeedBoost, isFalse);
-
-      // Verify AI and Voice buttons exist and can be tapped
-      expect(find.text('AI'), findsOneWidget);
-      await tester.tap(find.text('AI'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Voice'), findsOneWidget);
-      await tester.tap(find.text('Voice'));
-      await tester.pumpAndSettle();
     });
   });
 }

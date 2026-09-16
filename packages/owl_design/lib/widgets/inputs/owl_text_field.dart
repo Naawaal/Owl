@@ -221,7 +221,7 @@ class _OwlTextFieldState extends State<OwlTextField> {
             color: widget.enabled ? t.textPrimary : t.textMuted,
             letterSpacing: _isObscured ? 2.0 : 0.4,
           )
-        : GoogleFonts.inter(
+        : GoogleFonts.outfit(
             fontSize: 14.0,
             fontWeight: FontWeight.w400,
             color: widget.enabled ? t.textPrimary : t.textMuted,
@@ -234,7 +234,7 @@ class _OwlTextFieldState extends State<OwlTextField> {
             fontWeight: FontWeight.w400,
             color: t.textMuted,
           )
-        : GoogleFonts.inter(
+        : GoogleFonts.outfit(
             fontSize: 13.0,
             fontWeight: FontWeight.w400,
             color: t.textMuted,
@@ -441,7 +441,7 @@ class _OwlTextFieldState extends State<OwlTextField> {
                 Expanded(
                   child: Text(
                     widget.errorText!,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.outfit(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w500,
                       color: t.alertDanger,
@@ -459,7 +459,7 @@ class _OwlTextFieldState extends State<OwlTextField> {
             ),
             child: Text(
               widget.helperText!,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.outfit(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w400,
                 color: t.textMuted,

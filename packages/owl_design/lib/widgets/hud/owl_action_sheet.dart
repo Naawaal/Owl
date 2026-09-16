@@ -395,7 +395,7 @@ class _TacticalPingCardState extends State<_TacticalPingCard> {
                     const SizedBox(height: 2.0),
                     Text(
                       ping.subtitle,
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.outfit(
                         fontSize: 9.5,
                         fontWeight: FontWeight.w400,
                         color: colors.textMuted,

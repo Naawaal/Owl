@@ -1,7 +1,7 @@
 // language: Dart, file: oem_segmented_chips.dart, target: Flutter / Owl Game Turbo
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:owl_design/theme/tokens/color_tokens.dart';
+import 'package:owl_design/theme/tokens/tokens.dart';
 
 /// Authentic Xiaomi Game Turbo segmented chip selector.
 ///
@@ -63,6 +63,7 @@ class OemSegmentedChips<T> extends StatelessWidget {
               child: Text(
                 label,
                 style: TextStyle(
+                  fontFamily: TypographyTokens.uiFontFamily,
                   fontSize: 11,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
                   color: isSelected ? Colors.white : const Color(0x99FFFFFF),

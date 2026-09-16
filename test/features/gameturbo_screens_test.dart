@@ -77,36 +77,56 @@ void main() {
       await tester.pumpAndSettle();
 
       // Header
-      expect(find.text('Game Turbo Settings'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
 
       // Categories
       expect(find.text('General settings'), findsOneWidget);
-      expect(find.text('Performance mode'), findsOneWidget);
-      expect(find.text('Game DND'), findsOneWidget);
-      expect(find.text('Guardian AI Core'), findsOneWidget);
+      expect(find.text('AI Provider & Models'), findsOneWidget);
+      expect(find.text('Assistant & Tactical AI'), findsOneWidget);
+      expect(find.text('Voice & Alerts'), findsOneWidget);
+      expect(find.text('Assistant Performance'), findsOneWidget);
 
       // Default General Settings content
-      expect(find.text('Game Turbo Master Engine'), findsOneWidget);
-      expect(find.text('In-Game Floating Shortcuts'), findsOneWidget);
-      expect(find.text('Shortcut Edge Position'), findsOneWidget);
+      expect(find.text('App Theme'), findsOneWidget);
+      expect(find.text('Interface Display Language'), findsOneWidget);
+      expect(find.text('Reset All Settings'), findsOneWidget);
 
-      // Switch to Performance mode category
-      await tester.tap(find.text('Performance mode'));
+      // Switch to AI Provider & Models category
+      await tester.tap(find.text('AI Provider & Models'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Performance Optimization'), findsOneWidget);
-      expect(find.text('Wi-Fi Speed Boost'), findsOneWidget);
-      expect(find.text('Aggressive Memory Cleanup'), findsOneWidget);
-      expect(find.text('Spatial Audio Enhancement'), findsOneWidget);
+      expect(find.text('Active AI Provider'), findsOneWidget);
+      expect(find.textContaining('API Key'), findsOneWidget);
+      expect(find.text('Active Model Checkpoint'), findsOneWidget);
+      expect(find.text('Save & Test'), findsOneWidget);
 
-      // Switch to Guardian AI Core category
-      await tester.tap(find.text('Guardian AI Core'));
+      // Switch to Assistant & Tactical AI category
+      await tester.tap(find.text('Assistant & Tactical AI'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Guardian Tactical Engine'), findsOneWidget);
-      expect(find.text('AI Vision Inference Backend'), findsOneWidget);
-      expect(find.text('Audio Tactical Callouts'), findsOneWidget);
-      expect(find.text('Enemy Rotation & Missing Radar'), findsOneWidget);
+      expect(find.text('Assistant Mode'), findsOneWidget);
+      expect(find.text('Coaching Level'), findsOneWidget);
+      expect(find.text('Preferred Role Specialization'), findsOneWidget);
+      expect(find.text('Auto (Default)'), findsOneWidget);
+      expect(find.text('Warning Sensitivity'), findsOneWidget);
+
+      // Switch to Voice & Alerts category
+      await tester.tap(find.text('Voice & Alerts'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Spoken Voice Alerts (TTS)'), findsOneWidget);
+      expect(find.text('Voice Alert Priority'), findsOneWidget);
+      expect(find.text('Speech Cooldown Buffer'), findsOneWidget);
+      expect(find.text('Play Test'), findsOneWidget);
+
+      // Switch to Assistant Performance category
+      await tester.tap(find.text('Assistant Performance'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Companion Workload Profile'), findsOneWidget);
+      expect(find.text('Adaptive Workload Throttling'), findsOneWidget);
+      expect(find.text('Thermal Stress Protection'), findsOneWidget);
+      expect(find.text('Show In-Game Latency HUD'), findsOneWidget);
     });
 
     testWidgets('GpuSettingsTwoPaneScreen renders segmented chips and resets default', (tester) async {

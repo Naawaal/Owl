@@ -12,7 +12,7 @@ import 'color_tokens.dart';
 abstract final class TypographyTokens {
   // Primary Tactical Monospace & UI Fonts
   static String get monoFontFamily => GoogleFonts.jetBrainsMono().fontFamily!;
-  static String get uiFontFamily => GoogleFonts.inter().fontFamily!;
+  static String get uiFontFamily => GoogleFonts.outfit().fontFamily!;
 
   /// Monospaced objective and respawn timer (28sp, bold, tabular figures).
   static TextStyle get displayTimer => GoogleFonts.jetBrainsMono(
@@ -54,7 +54,7 @@ abstract final class TypographyTokens {
       );
 
   /// Screen headline & major section titles (20sp, semi-bold, letter spacing -0.5px).
-  static TextStyle get headline => GoogleFonts.inter(
+  static TextStyle get headline => GoogleFonts.outfit(
         fontSize: 20.0,
         fontWeight: FontWeight.w600,
         letterSpacing: -0.5,
@@ -63,7 +63,7 @@ abstract final class TypographyTokens {
       );
 
   /// Medium card headers & modal titles (16sp, medium).
-  static TextStyle get titleMedium => GoogleFonts.inter(
+  static TextStyle get titleMedium => GoogleFonts.outfit(
         fontSize: 16.0,
         fontWeight: FontWeight.w500,
         letterSpacing: -0.2,
@@ -72,7 +72,7 @@ abstract final class TypographyTokens {
       );
 
   /// Tactical card subheads (14sp, semi-bold).
-  static TextStyle get titleSmall => GoogleFonts.inter(
+  static TextStyle get titleSmall => GoogleFonts.outfit(
         fontSize: 14.0,
         fontWeight: FontWeight.w600,
         letterSpacing: -0.1,
@@ -81,7 +81,7 @@ abstract final class TypographyTokens {
       );
 
   /// Standard body text & telemetry readouts (14sp, regular).
-  static TextStyle get bodyMedium => GoogleFonts.inter(
+  static TextStyle get bodyMedium => GoogleFonts.outfit(
         fontSize: 14.0,
         fontWeight: FontWeight.w400,
         letterSpacing: 0.0,
@@ -90,7 +90,7 @@ abstract final class TypographyTokens {
       );
 
   /// Compact secondary descriptions & footnotes (12sp, regular).
-  static TextStyle get bodySmall => GoogleFonts.inter(
+  static TextStyle get bodySmall => GoogleFonts.outfit(
         fontSize: 12.0,
         fontWeight: FontWeight.w400,
         letterSpacing: 0.1,
@@ -136,7 +136,7 @@ abstract final class TypographyTokens {
       );
 
   /// Action button text (14sp, semi-bold, uppercase tracking +0.5px).
-  static TextStyle get buttonText => GoogleFonts.inter(
+  static TextStyle get buttonText => GoogleFonts.outfit(
         fontSize: 14.0,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.5,

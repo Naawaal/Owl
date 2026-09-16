@@ -6,6 +6,8 @@ import 'package:owl/app/app_observer.dart';
 import 'package:owl_storage/owl_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:owl/app/router/app_routes.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -26,7 +28,7 @@ void main() async {
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
       ],
-      child: const OwlApp(),
+      child: const OwlApp(initialRoute: AppRoutes.console),
     ),
   );
 }

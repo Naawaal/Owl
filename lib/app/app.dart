@@ -113,6 +113,9 @@ class _OwlAppCore extends ConsumerWidget {
         themeMode: themeMode,
         navigatorKey: navigatorKey ?? AppRouter.navigatorKey,
         initialRoute: initialRoute,
+        onGenerateInitialRoutes: (initialRoute) => [
+          AppRouter.onGenerateRoute(RouteSettings(name: initialRoute)),
+        ],
         onGenerateRoute: AppRouter.onGenerateRoute,
         navigatorObservers: [
           OwlRouteObserver(
@@ -131,9 +134,14 @@ class _OwlAppCore extends ConsumerWidget {
           final brightness = Theme.of(context).brightness;
           return AnnotatedRegion<SystemUiOverlayStyle>(
             value: AppTheme.systemUiOverlayStyleFor(brightness),
-            child: ScrollConfiguration(
-              behavior: const OwlScrollBehavior(),
-              child: child ?? const SizedBox.shrink(),
+            child: DefaultTextStyle.merge(
+              style: TextStyle(
+                fontFamily: TypographyTokens.uiFontFamily,
+              ),
+              child: ScrollConfiguration(
+                behavior: const OwlScrollBehavior(),
+                child: child ?? const SizedBox.shrink(),
+              ),
             ),
           );
         },

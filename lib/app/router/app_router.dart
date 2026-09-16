@@ -127,6 +127,12 @@ class AppRouter {
     final name = settings.name ?? AppRoutes.console;
 
     switch (name) {
+      case '/':
+        return OwlPageRoute(
+          settings: settings,
+          builder: (context) => const SizedBox.shrink(),
+        );
+
       case AppRoutes.console:
         return OwlPageRoute(
           settings: settings,
