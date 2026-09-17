@@ -2,6 +2,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:owl_core/owl_core.dart';
 import 'package:owl/features/ai_coach/data/tts_announcer.dart';
 import 'package:owl/features/ai_coach/domain/models/coach_prompt.dart';
 import 'package:owl/features/ai_coach/domain/models/coach_response.dart';
@@ -221,6 +222,7 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
 
     final settings = _ref.read(gameTurboSettingsProvider);
     if (!settings.guardianTacticalEngine) return;
+    if (settings.assistantMode == 'off') return;
     if (!manual) {
       if (!settings.gameTurboMaster) return;
       if (settings.assistantMode != 'live') return;
@@ -231,17 +233,19 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
     if (key == null || key.isEmpty) {
       final game = _ref.read(activeGameProvider);
       final offlineResponse =
-          OfflineTacticalHeuristicsEngine().generateAdvice(
+          const OfflineTacticalHeuristicsEngine().generateAdvice(
         gameName: game?.name ?? 'Unknown Match',
         role: settings.preferredRole,
         matchTimeSeconds: matchTimeSeconds,
         targetFps: game?.targetFps ?? 120,
+        settings: settings,
       );
       _lastKnown = offlineResponse;
       _lastKnownTopic = promptType;
       _lastPromptType = promptType;
       _lastCallAt = DateTime.now();
       state = AsyncValue.data(offlineResponse);
+      unawaited(_maybeAnnounce(offlineResponse, settings));
       return;
     }
 
@@ -277,7 +281,8 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
       final text = await client.generate(
         apiKey: key,
         model: settings.activeModel,
-        prompt: '${prompt.toFormattedPrompt()}${depthBlock(settings.coachingLevel)}',
+        prompt:
+            '${prompt.toFormattedPrompt(explainRecommendations: settings.explainRecommendations)}${depthBlock(settings.coachingLevel)}',
         timeout: requestTimeout,
       );
       final response = CoachResponse.fromRawText(text);
@@ -290,26 +295,30 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
       unawaited(_maybeAnnounce(response, settings));
     } on InferenceException catch (_) {
       final game = _ref.read(activeGameProvider);
-      final fallback = OfflineTacticalHeuristicsEngine().generateAdvice(
+      final fallback = const OfflineTacticalHeuristicsEngine().generateAdvice(
         gameName: game?.name ?? 'Unknown Match',
         role: settings.preferredRole,
         matchTimeSeconds: matchTimeSeconds,
         targetFps: game?.targetFps ?? 120,
+        settings: settings,
       );
       _lastKnown = fallback;
       _lastKnownTopic = promptType;
       state = AsyncValue.data(fallback);
+      unawaited(_maybeAnnounce(fallback, settings));
     } catch (e) {
       final game = _ref.read(activeGameProvider);
-      final fallback = OfflineTacticalHeuristicsEngine().generateAdvice(
+      final fallback = const OfflineTacticalHeuristicsEngine().generateAdvice(
         gameName: game?.name ?? 'Unknown Match',
         role: settings.preferredRole,
         matchTimeSeconds: matchTimeSeconds,
         targetFps: game?.targetFps ?? 120,
+        settings: settings,
       );
       _lastKnown = fallback;
       _lastKnownTopic = promptType;
       state = AsyncValue.data(fallback);
+      unawaited(_maybeAnnounce(fallback, settings));
     } finally {
       _inFlight = false;
     }
@@ -374,7 +383,8 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
 
   /// Speaks [response] when all voice gates pass: master switch on,
   /// engine on, voice alerts enabled, priority filter satisfied, and
-  /// speech cooldown elapsed. Never throws; failures stay silent.
+  /// speech cooldown elapsed. Also triggers tactical haptic alerts when
+  /// haptics are enabled. Never throws; failures stay silent.
   Future<void> _maybeAnnounce(
     CoachResponse response,
     GameTurboSettings settings,
@@ -382,21 +392,56 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
     try {
       if (!settings.gameTurboMaster) return;
       if (!settings.guardianTacticalEngine) return;
+
+      // 1. Tactical Haptic Alert Feedback
+      if (settings.hapticsEnabled) {
+        if (response.warning?.trim().isNotEmpty == true) {
+          HapticHelper.heavyImpact();
+        } else {
+          HapticHelper.lightImpact();
+        }
+      }
+
+      // 2. Master Voice Alerts Gate
       if (!settings.voiceAlertsEnabled) return;
-      if (settings.alertPriority == 'criticalOnly' &&
-          (response.warning == null || response.warning!.trim().isEmpty)) {
+
+      // 3. Priority Filter Gate
+      final hasWarning =
+          response.warning != null && response.warning!.trim().isNotEmpty;
+      if (settings.alertPriority == 'criticalOnly' && !hasWarning) {
         return;
       }
+      if (settings.alertPriority == 'important') {
+        final actionUpper = response.action.toUpperCase();
+        final isImportant = hasWarning ||
+            actionUpper.contains('TURTLE') ||
+            actionUpper.contains('LORD') ||
+            actionUpper.contains('STEAL') ||
+            actionUpper.contains('BASE') ||
+            actionUpper.contains('GANK') ||
+            actionUpper.contains('RETREAT') ||
+            actionUpper.contains('DISENGAGE');
+        if (!isImportant) return;
+      }
+
+      // 4. Speech Cooldown Gate
       final announcer = _ref.read(ttsAnnouncerProvider);
       final lastSpoke = announcer.lastSpokeAt;
       if (lastSpoke != null) {
         final gap = DateTime.now().difference(lastSpoke).inSeconds;
         if (gap < settings.speechCooldownSeconds) return;
       }
+
+      // 5. Script Synthesis
       final script = response.warning?.trim().isNotEmpty == true
           ? '${response.action}. ${response.warning}'
-          : '${response.action}. ${response.reason}';
-      await announcer.speak(script);
+          : (response.reason.trim().isNotEmpty
+              ? '${response.action}. ${response.reason}'
+              : response.action);
+
+      // 6. Audio Ducking / Focus Control
+      final audioFocus = !settings.avoidInterruptingGameAudio;
+      await announcer.speak(script, focus: audioFocus);
     } catch (_) {}
   }
 

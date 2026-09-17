@@ -163,6 +163,9 @@ class _GameturboFloatingToolboxState
   Widget _buildGuardianCallout() {
     final colors = ColorTokens.of(context);
     final settings = ref.watch(gameTurboSettingsProvider);
+    if (settings.assistantMode == 'off') {
+      return const SizedBox.shrink();
+    }
     final adviceAsync = ref.watch(coachServiceProvider);
     final service = ref.read(coachServiceProvider.notifier);
     final shown = adviceAsync.valueOrNull ?? service.lastKnown;

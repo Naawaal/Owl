@@ -233,7 +233,11 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
 
   Widget _buildTopStatusBar(InstalledGame? game) {
     final colors = ColorTokens.of(context);
+    final settings = ref.watch(gameTurboSettingsProvider);
     final statsAsync = ref.watch(systemStatsProvider);
+    ref.watch(coachServiceProvider);
+    final latencyMs =
+        ref.read(coachServiceProvider.notifier).lastLatencyMs;
     final stats = statsAsync.valueOrNull;
     final battery = stats?.battery ?? 78;
     final cpu = stats?.cpu ?? 32;
@@ -373,6 +377,39 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
                           fontSize: 8,
                           fontWeight: FontWeight.w800,
                           color: colors.turboBlueLight,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                AppSpacing.gapH8,
+              ],
+              if (settings.showInGameLatencyHud && latencyMs != null) ...[
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: colors.turboCyan.withValues(alpha: 0.18),
+                    borderRadius: RadiusTokens.borderXs,
+                    border: Border.all(
+                      color: colors.turboCyan.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        LucideIcons.bot,
+                        size: 9,
+                        color: colors.turboCyan,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        '${latencyMs}ms',
+                        style: TypographyTokens.telemetryBadge.copyWith(
+                          fontSize: 8,
+                          fontWeight: FontWeight.w800,
+                          color: colors.turboCyan,
                         ),
                       ),
                     ],

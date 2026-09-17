@@ -43,16 +43,19 @@ class CoachPrompt {
   }
 
   /// Synthesizes a structured, high-signal system/user prompt for the LLM.
-  String toFormattedPrompt() {
+  String toFormattedPrompt({bool explainRecommendations = true}) {
     final heroLine = heroChampion != null ? ' Playing: $heroChampion.' : '';
     final contextLine = tacticalContext != null && tacticalContext!.isNotEmpty
         ? ' Context: $tacticalContext.'
         : '';
+    final explainDirective = explainRecommendations
+        ? 'Action (immediate verb), Reason (1 sentence), Warning (risk if any).'
+        : 'Action (immediate verb), Warning (risk if any). Omit Reason.';
 
     return 'Game: $gameName | Match Time: $formattedMatchTime | Role: $role.$heroLine\n'
         'Intent: $promptType\n'
         'Situation: $currentSituation$contextLine\n'
-        'Respond in short, high-urgency tactical HUD style: Action (immediate verb), Reason (1 sentence), Warning (risk if any).';
+        'Respond in short, high-urgency tactical HUD style: $explainDirective';
   }
 
   /// Creates a copy of this [CoachPrompt] with specified fields replaced.

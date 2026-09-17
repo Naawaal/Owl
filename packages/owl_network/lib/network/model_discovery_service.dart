@@ -1,8 +1,6 @@
 // language: Dart, file: packages/owl_network/lib/network/model_discovery_service.dart, target: Flutter / Owl MOBA HUD
 import 'dart:async';
-import 'dart:convert';
 
-import 'package:dio/dio.dart';
 import 'api_client.dart';
 import 'models/discovered_model.dart';
 

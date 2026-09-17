@@ -3,10 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:owl/features/settings/domain/models/game_turbo_settings.dart';
 import 'package:owl/features/settings/presentation/app_settings_two_pane_screen.dart';
 import 'package:owl/features/settings/presentation/settings_provider.dart';
-import 'package:owl_network/owl_network.dart';
 import 'package:owl_storage/owl_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

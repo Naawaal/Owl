@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:owl/features/ai_coach/data/coach_service.dart';
 import 'package:owl/features/ai_coach/data/tts_announcer.dart';
+import 'package:owl/features/ai_coach/domain/models/coach_prompt.dart';
+import 'package:owl/features/ai_coach/domain/offline_tactical_heuristics_engine.dart';
 import 'package:owl/features/settings/domain/models/game_turbo_settings.dart';
 import 'package:owl/features/settings/presentation/settings_provider.dart';
 import 'package:owl_core/owl_core.dart';
@@ -399,6 +401,145 @@ void main() {
       final notifier = container.read(gameTurboSettingsProvider.notifier);
       await notifier.applyPersistedHardwareState();
       expect(calls, contains('setPerformanceMode'));
+    });
+  });
+
+  group('Offline heuristics settings filtering', () {
+    const engine = OfflineTacticalHeuristicsEngine();
+
+    test('explainRecommendations false strips reason', () {
+      const settings = GameTurboSettings(explainRecommendations: false);
+      final advice = engine.generateAdvice(
+        gameName: 'Mobile Legends',
+        role: 'jungle',
+        matchTimeSeconds: 60,
+        settings: settings,
+      );
+      expect(advice.reason, isEmpty);
+      expect(advice.action, isNotEmpty);
+    });
+
+    test('missingEnemyAlerts false suppresses missing warnings', () {
+      const settings = GameTurboSettings(missingEnemyAlerts: false);
+      final advice = engine.generateAdvice(
+        gameName: 'Mobile Legends',
+        role: 'mid',
+        matchTimeSeconds: 60,
+        settings: settings,
+      );
+      expect(advice.warning, isNull);
+    });
+
+    test('overextensionRadar false suppresses overextension warnings', () {
+      const settings = GameTurboSettings(overextensionRadar: false);
+      final advice = engine.generateAdvice(
+        gameName: 'Mobile Legends',
+        role: 'roam',
+        matchTimeSeconds: 60,
+        settings: settings,
+      );
+      expect(advice.warning, isNull);
+    });
+
+    test('objectiveTimers false falls back from Turtle to farming/pressure', () {
+      const settings = GameTurboSettings(objectiveTimers: false);
+      final advice = engine.generateAdvice(
+        gameName: 'Mobile Legends',
+        role: 'jungle',
+        matchTimeSeconds: 60,
+        settings: settings,
+      );
+      expect(advice.action, isNot(contains('Turtle')));
+      expect(advice.action, contains('Farm jungle quadrant'));
+    });
+
+    test('laneWaveAdvice false falls back from wave freeze to trading', () {
+      const settings = GameTurboSettings(laneWaveAdvice: false);
+      final advice = engine.generateAdvice(
+        gameName: 'Mobile Legends',
+        role: 'mid',
+        matchTimeSeconds: 60,
+        settings: settings,
+      );
+      expect(advice.action, isNot(contains('Freeze wave')));
+      expect(advice.action, contains('Trade carefully'));
+    });
+
+    test('coachingLevel beginner uses simplified phrasing', () {
+      const settings = GameTurboSettings(coachingLevel: 'beginner');
+      final advice = engine.generateAdvice(
+        gameName: 'Mobile Legends',
+        role: 'jungle',
+        matchTimeSeconds: 60,
+        settings: settings,
+      );
+      expect(advice.action, contains('Defeat Red Monster'));
+    });
+
+    test('preferredRole overrides auto role in heuristics', () {
+      const settings = GameTurboSettings(preferredRole: 'jungle');
+      final advice = engine.generateAdvice(
+        gameName: 'Mobile Legends',
+        role: 'roam',
+        matchTimeSeconds: 60,
+        settings: settings,
+      );
+      expect(advice.action, contains('Red Buff'));
+    });
+  });
+
+  group('CoachPrompt formatting with tactical options', () {
+    test('explainRecommendations false tells model to omit reason', () {
+      const prompt = CoachPrompt(
+        gameName: 'Wild Rift',
+        matchTimeSeconds: 180,
+        role: 'mid',
+        currentSituation: 'Enemy missing.',
+        promptType: 'tactical',
+      );
+      final formattedWithExplain = prompt.toFormattedPrompt(explainRecommendations: true);
+      final formattedWithoutExplain = prompt.toFormattedPrompt(explainRecommendations: false);
+      expect(formattedWithExplain, contains('Reason (1 sentence)'));
+      expect(formattedWithoutExplain, contains('Omit Reason'));
+    });
+  });
+
+  group('Assistant mode gating', () {
+    test('assistantMode off suppresses auto and manual advice', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(gameTurboSettingsProvider.notifier).setAssistantMode('off');
+      final service = container.read(coachServiceProvider.notifier);
+
+      await service.requestAdvice(situation: 'Tick.', manual: false);
+      expect(container.read(coachServiceProvider).valueOrNull, isNull);
+
+      await service.requestAdvice(situation: 'Tick.', manual: true);
+      expect(container.read(coachServiceProvider).valueOrNull, isNull);
+    });
+
+    test('assistantMode postMatch suppresses active in-game automatic queries', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(gameTurboSettingsProvider.notifier).setAssistantMode('postMatch');
+      final service = container.read(coachServiceProvider.notifier);
+
+      await service.requestAdvice(situation: 'Tick.', manual: false);
+      expect(container.read(coachServiceProvider).valueOrNull, isNull);
     });
   });
 }

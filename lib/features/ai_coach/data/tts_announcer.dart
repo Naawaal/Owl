@@ -44,8 +44,9 @@ class TtsAnnouncer {
   }
 
   /// Speaks [text]. Returns true when playback started.
-  /// `focus: false` keeps game audio playing underneath on Android.
-  Future<bool> speak(String text) async {
+  /// [focus] controls whether to request exclusive audio focus on Android.
+  /// When false (default), keeps game audio playing underneath.
+  Future<bool> speak(String text, {bool focus = false}) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return false;
     _lastSpokeAt = DateTime.now();
@@ -57,7 +58,7 @@ class TtsAnnouncer {
       await _ensureConfigured();
       final engine = _tts;
       if (engine == null) return false;
-      await engine.speak(trimmed, focus: false);
+      await engine.speak(trimmed, focus: focus);
       return true;
     } catch (_) {
       return false;
