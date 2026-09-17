@@ -48,8 +48,9 @@ class _ToolboxTelemetryReactorState
     final gpuText = gpu > 0 ? '$gpu%' : '--%';
     final gpuProgress = (gpu / 100.0).clamp(0.05, 1.0);
 
-    final wifiState = ref.watch(wifiOptimizerProvider);
-    final wifiMs = wifiState.latencyMs;
+    final (wifiMs, isWifiBoost) = ref.watch(
+      wifiOptimizerProvider.select((w) => (w.latencyMs, w.isBoostActive)),
+    );
     final wifiLabel = wifiMs > 0 ? '${wifiMs}ms' : '--ms';
 
     return TweenAnimationBuilder<Color?>(
@@ -83,7 +84,7 @@ class _ToolboxTelemetryReactorState
                     Icon(
                       LucideIcons.wifi,
                       size: 11,
-                      color: wifiState.isBoostActive
+                      color: isWifiBoost
                           ? colors.turboBlueLight
                           : colors.textPrimary.withValues(alpha: 0.65),
                     ),

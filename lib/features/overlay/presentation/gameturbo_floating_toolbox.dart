@@ -175,24 +175,9 @@ class _GameturboFloatingToolboxState
                 isPerformance: settings.performanceOptimization,
                 targetFps: widget.targetFps,
                 onModeChanged: (val) async {
-                  final messenger = ScaffoldMessenger.maybeOf(context);
-                  final textStyle = TypographyTokens.bodySmallOf(context)
-                      .copyWith(color: colors.textPrimary);
-                  final cardColor = colors.surfaceCard;
-                  final result = await notifier.togglePerformanceOptimization(
+                  await notifier.togglePerformanceOptimization(
                     val,
                     gameTargetFps: widget.targetFps,
-                  );
-                  if (!mounted || result == null) return;
-                  messenger?.showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        result.message,
-                        style: textStyle,
-                      ),
-                      backgroundColor: cardColor,
-                      duration: const Duration(seconds: 2),
-                    ),
                   );
                 },
               ),

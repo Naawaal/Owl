@@ -141,9 +141,31 @@ class RealTimeFpsTracker {
 
 const _statsEventChannel = EventChannel('com.example.owl/stats');
 
+int _quantizePercent(int value, {int step = 2}) {
+  if (value <= 0) return 0;
+  return ((value / step).round() * step).clamp(0, 100);
+}
+
+int _quantizeFps(int value, {int step = 5}) {
+  if (value <= 0) return 0;
+  return (value / step).round() * step;
+}
+
+double? _quantizeTemp(double? value) {
+  if (value == null || value <= 0) return value;
+  return (value * 2).round() / 2.0;
+}
+
+int? _quantizeRamMb(int? value) {
+  if (value == null || value <= 0) return value;
+  return ((value / 16).round() * 16);
+}
+
 /// Stream provider for live system stats pushed from native Android via EventChannel
 /// with Flutter hardware FrameTiming tracker integration.
-final systemStatsProvider = StreamProvider<SystemStats>((ref) {
+final systemStatsProvider = StreamProvider<SystemStats>(
+  name: 'systemStats',
+  (ref) {
   final controller = StreamController<SystemStats>();
   final fpsTracker = RealTimeFpsTracker.instance;
   fpsTracker.start();
@@ -156,6 +178,49 @@ final systemStatsProvider = StreamProvider<SystemStats>((ref) {
   int? currentRam;
   DateTime lastNativeTick = DateTime.now();
 
+  void emitIfChanged({
+    required int battery,
+    required int cpu,
+    required int gpu,
+    required int fps,
+    double? temperature,
+    int? ram,
+    DateTime? at,
+  }) {
+    final nextBattery = battery;
+    final nextCpu = _quantizePercent(cpu);
+    final nextGpu = _quantizePercent(gpu);
+    final nextFps = _quantizeFps(fps);
+    final nextTemp = _quantizeTemp(temperature);
+    final nextRam = _quantizeRamMb(ram);
+
+    final unchanged = nextBattery == currentBattery &&
+        nextCpu == currentCpu &&
+        nextGpu == currentGpu &&
+        nextFps == currentFps &&
+        nextTemp == currentTemperature &&
+        nextRam == currentRam;
+    if (unchanged) return;
+
+    currentBattery = nextBattery;
+    currentCpu = nextCpu;
+    currentGpu = nextGpu;
+    currentFps = nextFps;
+    currentTemperature = nextTemp;
+    currentRam = nextRam;
+
+    controller.add(SystemStats(
+      battery: currentBattery,
+      cpu: currentCpu,
+      gpu: currentGpu,
+      fps: currentFps,
+      temperatureCelsius: currentTemperature,
+      ramUsedMb: currentRam,
+      isCharging: false,
+      timestamp: at ?? DateTime.now(),
+    ));
+  }
+
   StreamSubscription? nativeSub;
 
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
@@ -164,17 +229,14 @@ final systemStatsProvider = StreamProvider<SystemStats>((ref) {
         .invokeMethod<int>('getBatteryLevel')
         .then((val) {
       if (val != null && val > 0) {
-        currentBattery = val;
-        controller.add(SystemStats(
-          battery: currentBattery,
+        emitIfChanged(
+          battery: val,
           cpu: currentCpu,
           gpu: currentGpu,
           fps: currentFps,
-          temperatureCelsius: currentTemperature,
-          ramUsedMb: currentRam,
-          isCharging: false,
-          timestamp: DateTime.now(),
-        ));
+          temperature: currentTemperature,
+          ram: currentRam,
+        );
       }
     }).catchError((_) {});
 
@@ -182,17 +244,14 @@ final systemStatsProvider = StreamProvider<SystemStats>((ref) {
         .invokeMethod<int>('getCpuUsage')
         .then((val) {
       if (val != null && val >= 0) {
-        currentCpu = val;
-        controller.add(SystemStats(
+        emitIfChanged(
           battery: currentBattery,
-          cpu: currentCpu,
+          cpu: val,
           gpu: currentGpu,
           fps: currentFps,
-          temperatureCelsius: currentTemperature,
-          ramUsedMb: currentRam,
-          isCharging: false,
-          timestamp: DateTime.now(),
-        ));
+          temperature: currentTemperature,
+          ram: currentRam,
+        );
       }
     }).catchError((_) {});
 
@@ -200,6 +259,10 @@ final systemStatsProvider = StreamProvider<SystemStats>((ref) {
       nativeSub = _statsEventChannel.receiveBroadcastStream().listen(
         (dynamic raw) {
           if (raw is Map) {
+            lastNativeTick = DateTime.now();
+            // Native skip of unchanged quantized values still pings keepalive.
+            if (raw['keepalive'] == true) return;
+
             final b = (raw['battery'] as num?)?.toInt() ?? currentBattery;
             final c = (raw['cpu'] as num?)?.toInt() ?? currentCpu;
             final g = (raw['gpu'] as num?)?.toInt() ?? currentGpu;
@@ -207,40 +270,27 @@ final systemStatsProvider = StreamProvider<SystemStats>((ref) {
             final temp = (raw['temperature'] as num?)?.toDouble();
             final ram = (raw['ram'] as num?)?.toInt();
 
-            currentBattery = b > 0 ? b : currentBattery;
-            currentCpu = c >= 0 ? c : currentCpu;
-            currentGpu = g >= 0 ? g : currentGpu;
-            if (temp != null && temp > 0) currentTemperature = temp;
-            if (ram != null && ram > 0) currentRam = ram;
-
-            // Native sends live hardware Choreographer / sysfs FPS
-            currentFps = f > 0 ? f : fpsTracker.getLiveMeasuredFps();
-            lastNativeTick = DateTime.now();
-
-            controller.add(SystemStats(
-              battery: currentBattery,
-              cpu: currentCpu,
-              gpu: currentGpu,
-              fps: currentFps,
-              temperatureCelsius: currentTemperature,
-              ramUsedMb: currentRam,
-              isCharging: false,
-              timestamp: lastNativeTick,
-            ));
+            emitIfChanged(
+              battery: b > 0 ? b : currentBattery,
+              cpu: c >= 0 ? c : currentCpu,
+              gpu: g >= 0 ? g : currentGpu,
+              fps: f > 0 ? f : fpsTracker.getLiveMeasuredFps(),
+              temperature:
+                  (temp != null && temp > 0) ? temp : currentTemperature,
+              ram: (ram != null && ram > 0) ? ram : currentRam,
+              at: lastNativeTick,
+            );
           }
         },
         onError: (_) {
-          final liveFps = fpsTracker.getLiveMeasuredFps();
-          controller.add(SystemStats(
+          emitIfChanged(
             battery: currentBattery,
             cpu: currentCpu,
             gpu: currentGpu,
-            fps: liveFps,
-            temperatureCelsius: currentTemperature,
-            ramUsedMb: currentRam,
-            isCharging: false,
-            timestamp: DateTime.now(),
-          ));
+            fps: fpsTracker.getLiveMeasuredFps(),
+            temperature: currentTemperature,
+            ram: currentRam,
+          );
         },
       );
     } catch (_) {}
@@ -250,18 +300,14 @@ final systemStatsProvider = StreamProvider<SystemStats>((ref) {
   final timer = Timer.periodic(const Duration(milliseconds: 1000), (_) {
     final elapsed = DateTime.now().difference(lastNativeTick).inMilliseconds;
     if (elapsed > 1800) {
-      final liveFps = fpsTracker.getLiveMeasuredFps();
-      currentFps = liveFps;
-      controller.add(SystemStats(
+      emitIfChanged(
         battery: currentBattery,
         cpu: currentCpu,
         gpu: currentGpu,
-        fps: currentFps,
-        temperatureCelsius: currentTemperature,
-        ramUsedMb: currentRam,
-        isCharging: false,
-        timestamp: DateTime.now(),
-      ));
+        fps: fpsTracker.getLiveMeasuredFps(),
+        temperature: currentTemperature,
+        ram: currentRam,
+      );
     }
   });
 
@@ -285,4 +331,5 @@ final systemStatsProvider = StreamProvider<SystemStats>((ref) {
   ));
 
   return controller.stream;
-});
+  },
+);

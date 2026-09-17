@@ -23,7 +23,7 @@ class _DesignSystemShowcaseViewState
   double _cooldownProgress = 0.68;
 
   // Countdown & Timer State
-  int _timerSeconds = 42;
+  final ValueNotifier<int> _timerSecondsNotifier = ValueNotifier<int>(42);
   bool _isTimerRunning = true;
   Timer? _ticker;
 
@@ -56,19 +56,15 @@ class _DesignSystemShowcaseViewState
     _ticker?.cancel();
     _ticker = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!_isTimerRunning) return;
-      setState(() {
-        if (_timerSeconds > 0) {
-          _timerSeconds--;
-        } else {
-          _timerSeconds = 60; // loop back
-        }
-      });
+      final current = _timerSecondsNotifier.value;
+      _timerSecondsNotifier.value = current > 0 ? current - 1 : 60;
     });
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
+    _timerSecondsNotifier.dispose();
     _apiKeyController.dispose();
     _championController.dispose();
     super.dispose();
@@ -565,27 +561,32 @@ class _DesignSystemShowcaseViewState
                 Positioned(
                   left: _pillPosition.dx,
                   top: _pillPosition.dy,
-                  child: OwlTacticalPill(
-                    objectiveName: 'DRAGON',
-                    countdownSeconds: _timerSeconds,
-                    objectiveIcon: Icons.local_fire_department_rounded,
-                    aiStatus: _timerSeconds <= 10
-                        ? OwlAiStatus.warning
-                        : OwlAiStatus.online,
-                    isExpanded: _pillExpanded,
-                    onExpandToggle: (val) {
-                      setState(() => _pillExpanded = val);
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: _timerSecondsNotifier,
+                    builder: (context, timerSeconds, _) {
+                      return OwlTacticalPill(
+                        objectiveName: 'DRAGON',
+                        countdownSeconds: timerSeconds,
+                        objectiveIcon: Icons.local_fire_department_rounded,
+                        aiStatus: timerSeconds <= 10
+                            ? OwlAiStatus.warning
+                            : OwlAiStatus.online,
+                        isExpanded: _pillExpanded,
+                        onExpandToggle: (val) {
+                          setState(() => _pillExpanded = val);
+                        },
+                        onPositionChanged: (newPos) {
+                          setState(() => _pillPosition = newPos);
+                        },
+                        onQuickAction: (action) {
+                          setState(() {
+                            _lastPingStatus = 'QUICK ACTION: $action';
+                          });
+                          HapticHelper.heavyImpact();
+                        },
+                        isDraggable: true,
+                      );
                     },
-                    onPositionChanged: (newPos) {
-                      setState(() => _pillPosition = newPos);
-                    },
-                    onQuickAction: (action) {
-                      setState(() {
-                        _lastPingStatus = 'QUICK ACTION: $action';
-                      });
-                      HapticHelper.heavyImpact();
-                    },
-                    isDraggable: true,
                   ),
                 ),
 
@@ -656,7 +657,7 @@ class _DesignSystemShowcaseViewState
                     size: OwlButtonSize.sm,
                     variant: OwlButtonVariant.ghost,
                     onPressed: () {
-                      setState(() => _timerSeconds = 45);
+                      _timerSecondsNotifier.value = 45;
                     },
                   ),
                 ],
@@ -666,29 +667,34 @@ class _DesignSystemShowcaseViewState
           const SizedBox(height: SpacingTokens.md),
 
           // Dynamic Timer Badges Row
-          Wrap(
-            spacing: SpacingTokens.sm,
-            runSpacing: SpacingTokens.sm,
-            children: [
-              OwlTimerBadge(
-                label: 'DRAGON',
-                remainingSeconds: _timerSeconds,
-                size: OwlTimerBadgeSize.md,
-                icon: const Icon(Icons.local_fire_department_rounded, size: 14),
-              ),
-              OwlTimerBadge(
-                label: 'BARON',
-                remainingSeconds: (_timerSeconds - 20).clamp(0, 300),
-                size: OwlTimerBadgeSize.md,
-                icon: const Icon(Icons.shield_rounded, size: 14),
-              ),
-              OwlTimerBadge(
-                label: 'FLASH',
-                remainingSeconds: (_timerSeconds - 35).clamp(0, 300),
-                size: OwlTimerBadgeSize.md,
-                icon: const Icon(Icons.flash_on_rounded, size: 14),
-              ),
-            ],
+          ValueListenableBuilder<int>(
+            valueListenable: _timerSecondsNotifier,
+            builder: (context, timerSeconds, _) {
+              return Wrap(
+                spacing: SpacingTokens.sm,
+                runSpacing: SpacingTokens.sm,
+                children: [
+                  OwlTimerBadge(
+                    label: 'DRAGON',
+                    remainingSeconds: timerSeconds,
+                    size: OwlTimerBadgeSize.md,
+                    icon: const Icon(Icons.local_fire_department_rounded, size: 14),
+                  ),
+                  OwlTimerBadge(
+                    label: 'BARON',
+                    remainingSeconds: (timerSeconds - 20).clamp(0, 300),
+                    size: OwlTimerBadgeSize.md,
+                    icon: const Icon(Icons.shield_rounded, size: 14),
+                  ),
+                  OwlTimerBadge(
+                    label: 'FLASH',
+                    remainingSeconds: (timerSeconds - 35).clamp(0, 300),
+                    size: OwlTimerBadgeSize.md,
+                    icon: const Icon(Icons.flash_on_rounded, size: 14),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: SpacingTokens.lg),
 
@@ -1355,10 +1361,13 @@ class _DesignSystemShowcaseViewState
         children: [
           _buildTypoItem(
             'displayTimer (28sp, Bold Outfit)',
-            Text(
-              '00:${_timerSeconds.toString().padLeft(2, '0')}',
-              style: TypographyTokens.displayTimer.copyWith(
-                color: colors.accentCyan,
+            ValueListenableBuilder<int>(
+              valueListenable: _timerSecondsNotifier,
+              builder: (context, timerSeconds, _) => Text(
+                '00:${timerSeconds.toString().padLeft(2, '0')}',
+                style: TypographyTokens.displayTimer.copyWith(
+                  color: colors.accentCyan,
+                ),
               ),
             ),
             context,

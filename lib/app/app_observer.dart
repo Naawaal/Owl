@@ -35,12 +35,30 @@ class AppObserver extends ProviderObserver {
     }
   }
 
+  /// Live telemetry updates every ~1s; logging them floods logcat.
+  bool _isHighChurnProvider(
+    ProviderBase<Object?> provider, [
+    Object? value,
+  ]) {
+    final name = provider.name;
+    if (name == 'systemStats') return true;
+    final type = provider.runtimeType.toString();
+    if (type.contains('SystemStats')) return true;
+    // Defensive: AsyncValue / Instance of 'SystemStats' when type erasure differs.
+    if (value != null && value.toString().contains('SystemStats')) return true;
+    return false;
+  }
+
   @override
   void didAddProvider(
     ProviderBase<Object?> provider,
     Object? value,
     ProviderContainer container,
   ) {
+    if (_isHighChurnProvider(provider, value)) {
+      _log('[Riverpod:Add] ${provider.name ?? provider.runtimeType}');
+      return;
+    }
     _log(
       '[Riverpod:Add] ${provider.name ?? provider.runtimeType} -> $value',
     );
@@ -53,6 +71,7 @@ class AppObserver extends ProviderObserver {
     Object? newValue,
     ProviderContainer container,
   ) {
+    if (_isHighChurnProvider(provider, newValue)) return;
     _log(
       '[Riverpod:Update] ${provider.name ?? provider.runtimeType}\n'
       '  previous: $previousValue\n'

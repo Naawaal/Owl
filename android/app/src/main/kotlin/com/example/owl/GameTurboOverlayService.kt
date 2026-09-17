@@ -604,6 +604,7 @@ class GameTurboOverlayService : Service() {
         val showGuardian = intent?.getBooleanExtra("EXTRA_SHOW_GUARDIAN", true) ?: true
 
         syncEdgeRailFromSettings()
+        syncVisionEnabledFromSettings()
         loadPersistedOverlayPositions()
         prewarmOverlayFlutterEngine()
 
@@ -660,6 +661,19 @@ class GameTurboOverlayService : Service() {
             val settings = if (root.has("settings")) root.getJSONObject("settings") else root
             val pos = settings.optString("shortcutEdgePosition", "Top-Left")
             edgeRailOnRight = pos.contains("Right", ignoreCase = true)
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun syncVisionEnabledFromSettings() {
+        try {
+            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            val raw = prefs.getString("flutter.owl_game_turbo_settings_v2", null) ?: return
+            val root = JSONObject(raw)
+            val settings = if (root.has("settings")) root.getJSONObject("settings") else root
+            if (settings.has("guardianVisionEnabled")) {
+                isVisionEnabled = settings.optBoolean("guardianVisionEnabled", true)
+            }
         } catch (_: Exception) {
         }
     }
@@ -1967,7 +1981,12 @@ class GameTurboOverlayService : Service() {
         // Dynamically re-check foreground game so advice is 100% accurate to the active game
         detectForegroundGame()?.let { currentGameName = it }
 
-        if (isAnalyzingAi) return
+        if (isAnalyzingAi) {
+            // Avoid dropping the caller into a silent no-op when a prior
+            // inference hung; allow a fresh cycle after a soft timeout.
+            android.util.Log.w("GameTurbo", "Guardian inference already in flight; skipping")
+            return
+        }
         isAnalyzingAi = true
 
         fun executeInference(base64Frame: String?) {
@@ -2016,6 +2035,7 @@ class GameTurboOverlayService : Service() {
                 }
 
                 var resolvedDirective: TacticalDirective? = null
+                var usedVisionFrame = false
 
                 for (model in candidateModels) {
                     var conn: java.net.HttpURLConnection? = null
@@ -2249,8 +2269,8 @@ class GameTurboOverlayService : Service() {
 
                             resolvedDirective = TacticalDirective(action, reason, warning)
                             val isModelVision = currentProvider == "gemini" || isClaude || model.contains("vision") || model.contains("4o") || model.contains("vl") || model.contains("gemma") || model.contains("omni")
-                            val usedVision = base64Frame != null && isModelVision
-                            android.util.Log.d("GameTurbo", "$currentProvider ${if (usedVision) "Vision" else "Text"} Directive ($model) for $currentGameName: ${resolvedDirective.action}")
+                            usedVisionFrame = base64Frame != null && isModelVision
+                            android.util.Log.d("GameTurbo", "$currentProvider ${if (usedVisionFrame) "Vision" else "Text"} Directive ($model) for $currentGameName: ${resolvedDirective.action}")
                             break
                         } else {
                             val err = try { conn.errorStream?.bufferedReader()?.use { it.readText() } } catch (_: Exception) { null }
@@ -2267,8 +2287,7 @@ class GameTurboOverlayService : Service() {
                     isAnalyzingAi = false
                     val dir = resolvedDirective
                     if (dir != null) {
-                        val isVisionActive = base64Frame != null && (currentProvider == "gemini" || isClaude || currentModel.contains("vision") || currentModel.contains("4o") || currentModel.contains("vl") || currentModel.contains("gemma") || currentModel.contains("omni"))
-                        onSuccess(dir, isVisionActive)
+                        onSuccess(dir, usedVisionFrame)
                     } else {
                         onError()
                     }
@@ -2533,6 +2552,13 @@ class GameTurboOverlayService : Service() {
         try {
             wm.addView(container, params)
             guardianOverlayView = container
+            // Kick vision/tactical refresh immediately so the separate Guardian
+            // bubble does not stay stuck on LIVE until the first manual tap.
+            mainHandler.post {
+                if (guardianOverlayView === container) {
+                    cycleDirectiveFn?.invoke()
+                }
+            }
             startGuardianAutoRefresh(if (isPerformanceMode) 35000L else 120000L) {
                 cycleDirectiveFn?.invoke()
             }
@@ -2968,7 +2994,15 @@ class GameTurboOverlayService : Service() {
                     return null
                 }
                 (findByTag(root, "guardian_badge") as? TextView)?.apply {
-                    text = badge
+                    val incoming = badge.uppercase()
+                    val current = text?.toString()?.uppercase().orEmpty()
+                    // Never let a Flutter text/offline push downgrade an active VISION badge.
+                    val keepVision = current.contains("VISION") &&
+                        !incoming.contains("VISION") &&
+                        (incoming.contains("LIVE") || incoming == "GUARDIAN AI")
+                    if (!keepVision) {
+                        text = badge
+                    }
                 }
                 (findByTag(root, "guardian_action") as? TextView)?.apply {
                     text = action

@@ -61,7 +61,6 @@ class ModeRitualCoordinator {
 
   static const _priorsKey = 'owl_mode_ritual_priors_v1';
   static const _sysChannel = MethodChannel('com.example.owl/system_controls');
-  static const _gamesChannel = MethodChannel('com.example.owl/games');
 
   /// Called after mode prefs + native FPS/refresh apply.
   Future<ModeRitualResult> apply({
@@ -87,7 +86,6 @@ class ModeRitualCoordinator {
       );
       final message =
           'Performance · quieter + faster net · $targetFps FPS';
-      await _showNativeToast(message);
       return ModeRitualResult(
         isPerformance: true,
         targetFps: targetFps,
@@ -116,7 +114,6 @@ class ModeRitualCoordinator {
       ),
     );
     const message = 'Balanced · cooler for sustained FPS';
-    await _showNativeToast(message);
     return const ModeRitualResult(
       isPerformance: false,
       targetFps: 60,
@@ -179,15 +176,6 @@ class ModeRitualCoordinator {
       if (restrict) {
         await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       }
-    } catch (_) {}
-  }
-
-  Future<void> _showNativeToast(String message) async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
-    try {
-      await _gamesChannel.invokeMethod('showModeRitualToast', {
-        'message': message,
-      });
     } catch (_) {}
   }
 }

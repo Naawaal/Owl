@@ -237,7 +237,11 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
       _lastKnownTopic = promptType;
       _budgetTracker.recordCall(now);
       state = AsyncValue.data(result.response);
-      unawaited(_maybeAnnounce(result.response, settings));
+      unawaited(_maybeAnnounce(
+        result.response,
+        settings,
+        usedVision: result.usedVision,
+      ));
     } on InferenceException catch (_) {
       final fallback = _generateOfflineFallback(settings, compensatedTime);
       _lastKnown = fallback;
@@ -332,8 +336,9 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
   /// Speaks [response] when voice gates pass and triggers haptic alerts.
   Future<void> _maybeAnnounce(
     CoachResponse response,
-    GameTurboSettings settings,
-  ) async {
+    GameTurboSettings settings, {
+    bool usedVision = false,
+  }) async {
     try {
       if (!settings.gameTurboMaster) return;
       if (!settings.guardianTacticalEngine) return;
@@ -348,7 +353,7 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
 
       unawaited(
         const OverlayChannel().updateTacticalAdvice(
-          badge: 'GUARDIAN AI',
+          badge: usedVision ? 'GUARDIAN AI • VISION' : 'GUARDIAN AI • LIVE',
           action: response.action,
           warning: response.warning,
         ),

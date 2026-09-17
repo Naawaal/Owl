@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:owl/app/app_observer.dart';
 import 'package:owl/features/overlay/overlay.dart';
 import 'package:owl/features/overlay/presentation/gameturbo_floating_toolbox.dart';
 import 'package:owl/features/settings/presentation/settings_provider.dart';
@@ -21,6 +22,7 @@ void overlayMain() async {
   final prefs = await SharedPreferences.getInstance();
   runApp(
     ProviderScope(
+      observers: const [AppObserver()],
       overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
       child: const _OverlayToolboxRoot(),
     ),
@@ -72,9 +74,13 @@ class _OverlayToolboxRootState extends ConsumerState<_OverlayToolboxRoot>
           }
           break;
         case 'shown':
+          // Engine + State are reused across expand/collapse; clear the close
+          // latch so X works on every open, not only the first.
+          _closing = false;
           await _reloadPrefs();
           unawaited(ref.read(voiceChangerProvider.notifier).syncFromNative());
-          if (mounted && !_enterController.isCompleted) {
+          if (mounted) {
+            _enterController.value = 0;
             unawaited(_enterController.forward());
           }
           break;
@@ -120,7 +126,6 @@ class _OverlayToolboxRootState extends ConsumerState<_OverlayToolboxRoot>
         ref.read(gameTurboSettingsProvider.notifier).reloadFromDisk();
       }
     } catch (_) {}
-    if (mounted) setState(() {});
   }
 
   void _onArgs() {

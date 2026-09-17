@@ -107,11 +107,17 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
   @override
   Widget build(BuildContext context) {
     final colors = ColorTokens.of(context);
-    final settings = ref.watch(gameTurboSettingsProvider);
-    final gameState = ref.watch(installedGamesProvider);
-    final deckGames = gameState.games.where((g) => g.isInGameSpace).toList();
-    final activeGame =
-        widget.activeGame ?? gameState.activeGame ?? deckGames.firstOrNull;
+    final (shortcutEdgePosition, inGameShortcuts) = ref.watch(
+      gameTurboSettingsProvider.select(
+        (s) => (s.shortcutEdgePosition, s.inGameShortcuts),
+      ),
+    );
+    final activeGame = widget.activeGame ??
+        ref.watch(
+          installedGamesProvider.select(
+            (s) => s.activeGame ?? s.games.where((g) => g.isInGameSpace).firstOrNull,
+          ),
+        );
 
     double? handleTop = 140;
     double? handleLeft = 0;
@@ -120,12 +126,12 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
     double? toolboxLeft = 8;
     double? toolboxRight;
 
-    if (settings.shortcutEdgePosition == 'Left Edge') {
+    if (shortcutEdgePosition == 'Left Edge') {
       handleTop = 140;
       handleLeft = 0;
       toolboxTop = 60;
       toolboxLeft = 8;
-    } else if (settings.shortcutEdgePosition == 'Top-Right') {
+    } else if (shortcutEdgePosition == 'Top-Right') {
       handleTop = 10;
       handleLeft = null;
       handleRight = 200;
@@ -168,7 +174,7 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
                 child: Container(color: ColorPrimitives.scrimBlack25),
               ),
             ),
-          if (settings.inGameShortcuts)
+          if (inGameShortcuts)
             Positioned(
               top: handleTop,
               left: handleLeft,

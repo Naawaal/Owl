@@ -41,12 +41,20 @@ class ToolboxQuickActionsGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = ColorTokens.of(context);
-    final settings = ref.watch(gameTurboSettingsProvider);
-    final dndState = ref.watch(dndServiceProvider);
+    final isAiActive = ref.watch(
+      gameTurboSettingsProvider.select((s) => s.guardianTacticalEngine),
+    );
+    final isDndEnabled = ref.watch(
+      dndServiceProvider.select((s) => s.isEnabled),
+    );
     final dndNotifier = ref.read(dndServiceProvider.notifier);
-    final wifiState = ref.watch(wifiOptimizerProvider);
+    final isWifiBoost = ref.watch(
+      wifiOptimizerProvider.select((s) => s.isBoostActive),
+    );
     final wifiNotifier = ref.read(wifiOptimizerProvider.notifier);
-    final voiceState = ref.watch(voiceChangerProvider);
+    final (isVoiceActive, voicePresetName) = ref.watch(
+      voiceChangerProvider.select((s) => (s.isActive, s.currentPreset.name)),
+    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -60,7 +68,7 @@ class ToolboxQuickActionsGrid extends ConsumerWidget {
             child: ToolboxActionButton(
               icon: LucideIcons.bellOff,
               label: 'DND',
-              isActive: dndState.isEnabled,
+              isActive: isDndEnabled,
               activeColor: colors.telemetryCritical,
               onTap: () {
                 dndNotifier.toggleDnd().then((success) {
@@ -91,7 +99,7 @@ class ToolboxQuickActionsGrid extends ConsumerWidget {
             child: ToolboxActionButton(
               icon: LucideIcons.wifi,
               label: 'Wi-Fi',
-              isActive: wifiState.isBoostActive,
+              isActive: isWifiBoost,
               activeColor: colors.turboBlueLight,
               onTap: () => wifiNotifier.toggleWifiBoost(),
             ),
@@ -103,10 +111,10 @@ class ToolboxQuickActionsGrid extends ConsumerWidget {
             child: ToolboxActionButton(
               icon: LucideIcons.bot,
               label: 'AI',
-              isActive: settings.guardianTacticalEngine,
+              isActive: isAiActive,
               activeColor: colors.turboBlueLight,
               onTap: () => unawaited(
-                onAiToggled(!settings.guardianTacticalEngine),
+                onAiToggled(!isAiActive),
               ),
             ),
           ),
@@ -117,8 +125,8 @@ class ToolboxQuickActionsGrid extends ConsumerWidget {
             child: ToolboxActionButton(
               icon: LucideIcons.mic,
               label: 'Voice',
-              badge: voiceState.isActive ? voiceState.currentPreset.name : null,
-              isActive: voiceState.isActive,
+              badge: isVoiceActive ? voicePresetName : null,
+              isActive: isVoiceActive,
               activeColor: colors.isLight
                   ? colors.turboBlue
                   : ColorTokens.consolePurpleVivid,

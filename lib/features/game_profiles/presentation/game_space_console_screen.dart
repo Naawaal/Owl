@@ -1,19 +1,17 @@
 // language: Dart, file: game_space_console_screen.dart, target: Flutter / Owl Game Turbo
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:owl_core/owl_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:owl/features/ai_coach/data/screen_capture_channel.dart';
 import 'package:owl/features/game_profiles/domain/models/installed_game.dart';
 import 'package:owl/features/game_profiles/presentation/add_games_modal.dart';
 import 'package:owl/features/game_profiles/presentation/game_discovery_provider.dart';
-import 'package:owl/features/ai_coach/data/screen_capture_channel.dart';
 import 'package:owl/features/game_profiles/presentation/widgets/game_space_main_stage.dart';
 import 'package:owl/features/game_profiles/presentation/widgets/game_space_top_status_bar.dart';
 import 'package:owl/features/settings/presentation/app_settings_two_pane_screen.dart';
 import 'package:owl/features/settings/presentation/gpu_settings_two_pane_screen.dart';
 import 'package:owl/features/settings/presentation/settings_provider.dart';
+import 'package:owl_core/owl_core.dart';
 import 'package:owl_design/owl_design.dart';
 
 /// 1:1 Authentic Xiaomi Game Turbo Game Space Console Screen.
@@ -28,23 +26,17 @@ import 'package:owl_design/owl_design.dart';
 ///
 /// In-game Gaming tools live only in the system overlay over the real game —
 /// not as a Console preview HUD.
-class GameSpaceConsoleScreen extends ConsumerStatefulWidget {
+class GameSpaceConsoleScreen extends ConsumerWidget {
   const GameSpaceConsoleScreen({super.key});
 
-  @override
-  ConsumerState<GameSpaceConsoleScreen> createState() =>
-      _GameSpaceConsoleScreenState();
-}
-
-class _GameSpaceConsoleScreenState extends ConsumerState<GameSpaceConsoleScreen> {
-  void _openAppSettings() {
+  void _openAppSettings(BuildContext context) {
     HapticHelper.selectionClick();
     Navigator.of(context).push(
       MaterialPageRoute(builder: (context) => const AppSettingsTwoPaneScreen()),
     );
   }
 
-  void _openGpuSettings(InstalledGame? activeGame) {
+  void _openGpuSettings(BuildContext context, InstalledGame? activeGame) {
     HapticHelper.selectionClick();
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -55,38 +47,15 @@ class _GameSpaceConsoleScreenState extends ConsumerState<GameSpaceConsoleScreen>
     );
   }
 
-  void _openAddGames() {
+  void _openAddGames(BuildContext context) {
     HapticHelper.lightImpact();
     AddGamesModal.show(context);
   }
 
-  Future<void> _togglePerformanceMode() async {
-    HapticHelper.selectionClick();
-    final settings = ref.read(gameTurboSettingsProvider);
-    final nextPerf = !settings.performanceOptimization;
-    final gameTargetFps = ref.read(activeGameProvider)?.targetFps;
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    final colors = ColorTokens.of(context);
-    final textStyle = TypographyTokens.bodySmallOf(context).copyWith(
-      color: colors.textPrimary,
-    );
-    final cardColor = colors.surfaceCard;
-    final result =
-        await ref.read(gameTurboSettingsProvider.notifier).togglePerformanceOptimization(
-              nextPerf,
-              gameTargetFps: gameTargetFps,
-            );
-    if (!mounted || result == null) return;
-    messenger?.showSnackBar(
-      SnackBar(
-        content: Text(result.message, style: textStyle),
-        backgroundColor: cardColor,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  Future<bool> _showOverlayPermissionDialog() async {
+  Future<bool> _showOverlayPermissionDialog(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
     return await showDialog<bool>(
           context: context,
           barrierDismissible: true,
@@ -159,15 +128,19 @@ class _GameSpaceConsoleScreenState extends ConsumerState<GameSpaceConsoleScreen>
         false;
   }
 
-  void _launchGameMatch(InstalledGame? activeGame) async {
+  void _launchGameMatch(
+    BuildContext context,
+    WidgetRef ref,
+    InstalledGame? activeGame,
+  ) async {
     HapticHelper.heavyImpact();
     if (activeGame == null) return;
 
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       final discoveryService = ref.read(gameDiscoveryServiceProvider);
       final hasPerm = await discoveryService.hasOverlayPermission();
-      if (!hasPerm) {
-        final granted = await _showOverlayPermissionDialog();
+      if (!hasPerm && context.mounted) {
+        final granted = await _showOverlayPermissionDialog(context, ref);
         if (!granted) return;
       }
       final settings = ref.read(gameTurboSettingsProvider);
@@ -184,7 +157,7 @@ class _GameSpaceConsoleScreenState extends ConsumerState<GameSpaceConsoleScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final owlColors = ColorTokens.of(context);
 
     return Scaffold(
@@ -196,18 +169,14 @@ class _GameSpaceConsoleScreenState extends ConsumerState<GameSpaceConsoleScreen>
             child: Column(
               children: [
                 GameSpaceTopStatusBar(
-                  isToolboxOpen: false,
-                  onTurboPillTap: () {
-                    unawaited(_togglePerformanceMode());
-                  },
-                  onLeadingAction: _openAddGames,
-                  onSettingsTap: _openAppSettings,
+                  onLeadingAction: () => _openAddGames(context),
+                  onSettingsTap: () => _openAppSettings(context),
                   leadingIcon: Icons.add,
                 ),
                 GameSpaceMainStage(
-                  onOpenAddGames: _openAddGames,
-                  onPlay: _launchGameMatch,
-                  onOpenGpuSettings: _openGpuSettings,
+                  onOpenAddGames: () => _openAddGames(context),
+                  onPlay: (game) => _launchGameMatch(context, ref, game),
+                  onOpenGpuSettings: (game) => _openGpuSettings(context, game),
                 ),
               ],
             ),

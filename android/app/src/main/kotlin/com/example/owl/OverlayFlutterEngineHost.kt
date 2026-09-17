@@ -12,6 +12,7 @@ import io.flutter.embedding.engine.FlutterEngineCache
 import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugins.GeneratedPluginRegistrant
 import io.flutter.plugins.sharedpreferences.SharedPreferencesPlugin
 
 /**
@@ -29,6 +30,7 @@ object OverlayFlutterEngineHost {
     private const val SYSTEM_CHANNEL = "com.example.owl/system_controls"
     private const val VOICE_CHANNEL = "com.example.owl/voice_changer"
     private const val GAMES_CHANNEL = "com.example.owl/games"
+    private const val CAPTURE_CHANNEL = "com.example.owl/screen_capture"
 
     @Volatile
     private var channel: MethodChannel? = null
@@ -69,8 +71,13 @@ object OverlayFlutterEngineHost {
 
         val engine = FlutterEngine(appContext, null, false)
         try {
-            engine.plugins.add(SharedPreferencesPlugin())
-        } catch (_: Exception) {
+            GeneratedPluginRegistrant.registerWith(engine)
+        } catch (e: Exception) {
+            android.util.Log.w("GameTurbo", "overlay plugin registrant: ${e.message}")
+            try {
+                engine.plugins.add(SharedPreferencesPlugin())
+            } catch (_: Exception) {
+            }
         }
         engine.dartExecutor.executeDartEntrypoint(
             DartExecutor.DartEntrypoint(
@@ -183,17 +190,6 @@ object OverlayFlutterEngineHost {
                     GameTurboOverlayService.setPerformanceMode(isPerf, targetFps)
                     result.success(true)
                 }
-                "showModeRitualToast" -> {
-                    val message = call.argument<String>("message") ?: ""
-                    if (message.isNotEmpty()) {
-                        android.widget.Toast.makeText(
-                            appContext,
-                            message,
-                            android.widget.Toast.LENGTH_SHORT,
-                        ).show()
-                    }
-                    result.success(true)
-                }
                 "setGameContext" -> {
                     val category = call.argument<String>("gameCategory") ?: "5v5 MOBA"
                     val role = call.argument<String>("preferredRole") ?: "auto"
@@ -210,6 +206,82 @@ object OverlayFlutterEngineHost {
                     GameTurboOverlayService.hideGuardianOverlay()
                     result.success(true)
                 }
+                "updateTacticalAdvice" -> {
+                    val badge = call.argument<String>("badge") ?: "GUARDIAN AI"
+                    val action = call.argument<String>("action") ?: "Hold Position"
+                    val warning = call.argument<String>("warning")
+                    GameTurboOverlayService.updateTacticalAdvice(badge, action, warning)
+                    result.success(true)
+                }
+                "setAiCredentials" -> {
+                    val apiKey = call.argument<String>("apiKey")
+                    val provider = call.argument<String>("provider") ?: "gemini"
+                    val model = call.argument<String>("model") ?: "gemini-2.5-flash"
+                    GameTurboOverlayService.setAiCredentials(appContext, apiKey, provider, model)
+                    result.success(true)
+                }
+                "setGuardianVisionEnabled" -> {
+                    val enabled = call.argument<Boolean>("enabled") ?: true
+                    GameTurboOverlayService.isVisionEnabled = enabled
+                    result.success(true)
+                }
+                "hasScreenCapturePermission" -> {
+                    result.success(GameTurboOverlayService.hasMediaProjectionPermission())
+                }
+                "requestScreenCapturePermission" -> {
+                    // Overlay isolate cannot start an Activity consent flow.
+                    result.success(GameTurboOverlayService.hasMediaProjectionPermission())
+                }
+                "setThemeMode" -> {
+                    val modeStr = call.argument<String>("themeMode") ?: "system"
+                    val isLight = when (modeStr) {
+                        "light" -> true
+                        "dark" -> false
+                        else -> {
+                            val nightMode = appContext.resources.configuration.uiMode and
+                                android.content.res.Configuration.UI_MODE_NIGHT_MASK
+                            nightMode != android.content.res.Configuration.UI_MODE_NIGHT_YES
+                        }
+                    }
+                    GameTurboOverlayService.setThemeMode(isLight)
+                    result.success(true)
+                }
+                "hasOverlayPermission" -> result.success(true)
+                "showFloatingOverlay", "hideFloatingOverlay", "launchGame" -> {
+                    // Main Activity owns lifecycle of the overlay service itself.
+                    result.success(false)
+                }
+                // Overlay engine should not re-scan packages; main activity owns discovery.
+                "getInstalledGames", "getAllApplications" -> {
+                    result.success(emptyList<Map<String, Any?>>())
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Same MediaProjection bridge as MainActivity so overlay coach/vision works
+        // while Owl is backgrounded and only the HUD engine is alive.
+        MethodChannel(messenger, CAPTURE_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "hasCapturePermission" -> {
+                    result.success(GameTurboOverlayService.hasMediaProjectionPermission())
+                }
+                "requestCapturePermission" -> {
+                    // Cannot start Activity from overlay engine; permission is granted in-app.
+                    result.success(GameTurboOverlayService.hasMediaProjectionPermission())
+                }
+                "getLatestFrame" -> {
+                    GameTurboOverlayService.captureFrameBytes(appContext) { bytes, width, height ->
+                        if (bytes != null && width > 0 && height > 0) {
+                            result.success(
+                                mapOf("bytes" to bytes, "width" to width, "height" to height),
+                            )
+                        } else {
+                            result.success(null)
+                        }
+                    }
+                }
+                "stopCapture" -> result.success(true)
                 else -> result.notImplemented()
             }
         }

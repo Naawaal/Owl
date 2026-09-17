@@ -7,7 +7,7 @@ import 'package:owl_core/owl_core.dart';
 import 'package:owl_design/owl_design.dart';
 
 /// Center hero carousel displaying cover art, triple-kill preview, and title shaders.
-class GameCardCarousel extends ConsumerStatefulWidget {
+class GameCardCarousel extends ConsumerWidget {
   const GameCardCarousel({
     super.key,
     required this.activeGame,
@@ -17,27 +17,21 @@ class GameCardCarousel extends ConsumerStatefulWidget {
   final InstalledGame? activeGame;
   final List<InstalledGame> deckGames;
 
-  @override
-  ConsumerState<GameCardCarousel> createState() => _GameCardCarouselState();
-}
-
-class _GameCardCarouselState extends ConsumerState<GameCardCarousel> {
-  int _activeHeroIndex = 0;
-
-  void _switchGameDelta(int delta) {
-    if (widget.deckGames.isEmpty) return;
+  void _switchGameDelta(WidgetRef ref, int delta, int activeIndex) {
+    if (deckGames.isEmpty) return;
     HapticHelper.selectionClick();
-    final newIndex = (_activeHeroIndex + delta).clamp(0, 4);
-    setState(() => _activeHeroIndex = newIndex);
-    final target = widget.deckGames[newIndex % widget.deckGames.length];
+    final newIndex = (activeIndex + delta).clamp(0, deckGames.length - 1);
+    final target = deckGames[newIndex];
     ref.read(installedGamesProvider.notifier).selectGame(target);
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final owlColors = ColorTokens.of(context);
-    final activeGame = widget.activeGame;
-    final deckGames = widget.deckGames;
+    final activeHeroIndex =
+        (activeGame != null && deckGames.contains(activeGame))
+            ? deckGames.indexOf(activeGame!)
+            : 0;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -48,9 +42,9 @@ class _GameCardCarouselState extends ConsumerState<GameCardCarousel> {
             final vel = details.primaryVelocity;
             if (vel != null) {
               if (vel < -200) {
-                _switchGameDelta(1);
+                _switchGameDelta(ref, 1, activeHeroIndex);
               } else if (vel > 200) {
-                _switchGameDelta(-1);
+                _switchGameDelta(ref, -1, activeHeroIndex);
               }
             }
           },
@@ -246,15 +240,14 @@ class _GameCardCarouselState extends ConsumerState<GameCardCarousel> {
             ),
           ),
         ),
-        const SizedBox(height: 14),
+        AppSpacing.gapV12,
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(5, (index) {
-            final isActive = index == _activeHeroIndex;
+            final isActive = index == activeHeroIndex;
             return GestureDetector(
               onTap: () {
                 HapticHelper.selectionClick();
-                setState(() => _activeHeroIndex = index);
                 if (deckGames.isNotEmpty) {
                   final target = deckGames[index % deckGames.length];
                   ref.read(installedGamesProvider.notifier).selectGame(target);

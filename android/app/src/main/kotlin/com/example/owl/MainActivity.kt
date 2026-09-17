@@ -270,17 +270,6 @@ class MainActivity : FlutterActivity() {
                         applyPerformanceMode(isPerf, targetFps)
                         result.success(true)
                     }
-                    "showModeRitualToast" -> {
-                        val message = call.argument<String>("message") ?: ""
-                        if (message.isNotEmpty()) {
-                            android.widget.Toast.makeText(
-                                applicationContext,
-                                message,
-                                android.widget.Toast.LENGTH_SHORT,
-                            ).show()
-                        }
-                        result.success(true)
-                    }
                     else -> result.notImplemented()
                 }
             }
@@ -389,23 +378,47 @@ class MainActivity : FlutterActivity() {
     private var lastSampleTime = 0L
     private var lastValidCpuUsage = 0
 
+    // SELinux blocks most untrusted_app sysfs freq/display nodes on OEM ROMs.
+    // Probe once; never re-open denied paths every stats tick (AVC spam).
+    @Volatile private var gpuSysfsProbed = false
+    @Volatile private var cachedGpuCurPath: String? = null
+    @Volatile private var cachedGpuMaxPath: String? = null
+    @Volatile private var hwFpsSysfsProbed = false
+    @Volatile private var cachedHwFpsPath: String? = null
+
     private fun readHardwareDisplayFps(): Int? {
-        val paths = listOf(
-            "/sys/class/drm/card0/device/fps",
-            "/sys/class/graphics/fb0/measured_fps",
-            "/sys/devices/platform/soc/soc:qcom,dsi-display-primary/measured_fps",
-            "/sys/devices/virtual/graphics/fb0/fps",
-            "/sys/class/drm/card0-DSI-1/measured_fps",
-            "/sys/devices/platform/soc/soc:qcom,dsi-display-0/measured_fps"
-        )
-        for (p in paths) {
-            try {
-                val content = File(p).readText().trim()
-                val v = content.split(".").first().toIntOrNull()
-                if (v != null && v in 24..240) return v
-            } catch (_: Exception) {}
+        if (!hwFpsSysfsProbed) {
+            val paths = listOf(
+                "/sys/class/drm/card0/device/fps",
+                "/sys/class/graphics/fb0/measured_fps",
+                "/sys/devices/platform/soc/soc:qcom,dsi-display-primary/measured_fps",
+                "/sys/devices/virtual/graphics/fb0/fps",
+                "/sys/class/drm/card0-DSI-1/measured_fps",
+                "/sys/devices/platform/soc/soc:qcom,dsi-display-0/measured_fps"
+            )
+            for (p in paths) {
+                try {
+                    val content = File(p).readText().trim()
+                    val v = content.split(".").first().toIntOrNull()
+                    if (v != null && v in 24..240) {
+                        cachedHwFpsPath = p
+                        hwFpsSysfsProbed = true
+                        return v
+                    }
+                } catch (_: Exception) {}
+            }
+            hwFpsSysfsProbed = true
+            return null
         }
-        return null
+        val path = cachedHwFpsPath ?: return null
+        return try {
+            val content = File(path).readText().trim()
+            val v = content.split(".").first().toIntOrNull()
+            if (v != null && v in 24..240) v else null
+        } catch (_: Exception) {
+            cachedHwFpsPath = null
+            null
+        }
     }
 
     private var activePerformanceMode = true
@@ -514,25 +527,41 @@ class MainActivity : FlutterActivity() {
         return Pair(tempC, ramMb)
     }
 
+    private var lastPushedStatsKey: String? = null
+
     private fun scheduleStatsPush() {
         val r = object : Runnable {
             override fun run() {
                 executor.execute {
                     val battery = readBatteryLevel()
-                    val cpu     = readCpuDelta()
-                    val gpu     = readGpuFreqPercent()
-                    val fps     = getLiveFps()
+                    // Quantize noisy counters so Flutter can skip no-op emits.
+                    val cpu     = ((readCpuDelta() + 1) / 2) * 2
+                    val gpu     = ((readGpuFreqPercent() + 1) / 2) * 2
+                    val fps     = ((getLiveFps() + 1) / 2) * 2
                     val (tempC, ramMb) = readDeviceTelemetryExtras()
+                    val ramQuantized = ((ramMb + 8) / 16) * 16
+                    val tempQuantized =
+                        if (tempC > 0.0) (Math.round(tempC * 2.0) / 2.0) else 0.0
+
+                    val key = "$battery|$cpu|$gpu|$fps|$ramQuantized|$tempQuantized"
+                    if (key == lastPushedStatsKey) {
+                        // Keep Dart's EventChannel "alive" without a value change emit.
+                        runOnUiThread {
+                            statsEventSink?.success(mapOf("keepalive" to true))
+                        }
+                        return@execute
+                    }
+                    lastPushedStatsKey = key
 
                     val map = mutableMapOf<String, Any>(
                         "battery" to battery,
                         "cpu"     to cpu,
                         "gpu"     to gpu,
                         "fps"     to fps,
-                        "ram"     to ramMb
+                        "ram"     to ramQuantized
                     )
-                    if (tempC > 0.0) {
-                        map["temperature"] = tempC
+                    if (tempQuantized > 0.0) {
+                        map["temperature"] = tempQuantized
                     }
 
                     runOnUiThread {
@@ -551,6 +580,7 @@ class MainActivity : FlutterActivity() {
     private fun stopStatsPush() {
         statsRunnable?.let { statsHandler.removeCallbacks(it) }
         statsRunnable = null
+        lastPushedStatsKey = null
     }
 
     private fun startChoreographer() {
@@ -585,8 +615,8 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
-     * Non-blocking CPU reader based on Linux /proc/stat stream delta
-     * with secondary process CPU and core frequency verification.
+     * CPU usage from /proc/stat delta, with Process.getElapsedCpuTime fallback.
+     * Does not touch cpufreq sysfs (SELinux-denied for untrusted_app on OEM ROMs).
      */
     private fun readCpuDelta(): Int {
         // 1. /proc/stat line 1 delta
@@ -609,26 +639,10 @@ class MainActivity : FlutterActivity() {
             }
         } catch (_: Exception) {}
 
-        // 2. Sysfs core scaling frequency check
-        try {
-            var curSum = 0L
-            var maxSum = 0L
-            for (i in 0 until 8) {
-                val cur = File("/sys/devices/system/cpu/cpu$i/cpufreq/scaling_cur_freq").readText().trim().toLongOrNull()
-                val max = File("/sys/devices/system/cpu/cpu$i/cpufreq/scaling_max_freq").readText().trim().toLongOrNull()
-                if (cur != null && max != null && max > 0) {
-                    curSum += cur
-                    maxSum += max
-                }
-            }
-            if (maxSum > 0) {
-                val usage = ((curSum.toDouble() / maxSum.toDouble()) * 100).toInt().coerceIn(0, 100)
-                lastValidCpuUsage = usage
-                return usage
-            }
-        } catch (_: Exception) {}
+        // Sysfs cpufreq is SELinux-denied for untrusted_app on many OEM ROMs
+        // (AVC on scaling_*_freq). Prefer /proc/stat + process delta only.
 
-        // 3. Process CPU delta vs clock
+        // 2. Process CPU delta vs clock
         try {
             val nowTime = android.os.SystemClock.elapsedRealtime()
             val cpuTime = android.os.Process.getElapsedCpuTime()
@@ -658,43 +672,65 @@ class MainActivity : FlutterActivity() {
      * from live frame delivery load and real CPU pressure.
      */
     private fun readGpuFreqPercent(): Int {
-        val freqPaths = listOf(
-            "/sys/class/kgsl/kgsl-3d0/gpuclk",
-            "/sys/class/kgsl/kgsl-3d0/gpu_clock_stats",
-            "/sys/class/devfreq/kgsl-3d0/cur_freq",
-            "/sys/class/devfreq/13000000.mali/cur_freq",
-            "/sys/class/devfreq/mtk-dvfsrc-devfreq/cur_freq",
-            "/sys/kernel/gpu/gpu_freq",
-            "/sys/devices/platform/kgsl-3d0.0/kgsl/kgsl-3d0/gpuclk",
-        )
-        val maxPaths = listOf(
-            "/sys/class/kgsl/kgsl-3d0/max_gpuclk",
-            "/sys/class/devfreq/kgsl-3d0/max_freq",
-            "/sys/class/devfreq/13000000.mali/max_freq",
-            "/sys/class/devfreq/mtk-dvfsrc-devfreq/max_freq",
-        )
-
-        try {
-            val cur = freqPaths.firstNotNullOfOrNull { path ->
-                try { File(path).readText().trim().toLongOrNull() } catch (_: Exception) { null }
+        if (!gpuSysfsProbed) {
+            val freqPaths = listOf(
+                "/sys/class/kgsl/kgsl-3d0/gpuclk",
+                "/sys/class/kgsl/kgsl-3d0/gpu_clock_stats",
+                "/sys/class/devfreq/kgsl-3d0/cur_freq",
+                "/sys/class/devfreq/13000000.mali/cur_freq",
+                "/sys/class/devfreq/mtk-dvfsrc-devfreq/cur_freq",
+                "/sys/kernel/gpu/gpu_freq",
+                "/sys/devices/platform/kgsl-3d0.0/kgsl/kgsl-3d0/gpuclk",
+            )
+            val maxPaths = listOf(
+                "/sys/class/kgsl/kgsl-3d0/max_gpuclk",
+                "/sys/class/devfreq/kgsl-3d0/max_freq",
+                "/sys/class/devfreq/13000000.mali/max_freq",
+                "/sys/class/devfreq/mtk-dvfsrc-devfreq/max_freq",
+            )
+            for (path in freqPaths) {
+                try {
+                    val v = File(path).readText().trim().toLongOrNull()
+                    if (v != null && v > 0) {
+                        cachedGpuCurPath = path
+                        break
+                    }
+                } catch (_: Exception) {}
             }
-            if (cur != null) {
-                val max = maxPaths.firstNotNullOfOrNull { path ->
-                    try { File(path).readText().trim().toLongOrNull() } catch (_: Exception) { null }
-                }
-                if (max != null && max > 0) {
-                    val pct = ((cur.toFloat() / max.toFloat()) * 100).toInt().coerceIn(0, 100)
-                    return pct
+            if (cachedGpuCurPath != null) {
+                for (path in maxPaths) {
+                    try {
+                        val v = File(path).readText().trim().toLongOrNull()
+                        if (v != null && v > 0) {
+                            cachedGpuMaxPath = path
+                            break
+                        }
+                    } catch (_: Exception) {}
                 }
             }
-        } catch (_: Exception) {}
+            gpuSysfsProbed = true
+        }
 
-        // Deterministic derivation from current frame delivery rate and CPU workload
+        val curPath = cachedGpuCurPath
+        val maxPath = cachedGpuMaxPath
+        if (curPath != null && maxPath != null) {
+            try {
+                val cur = File(curPath).readText().trim().toLongOrNull()
+                val max = File(maxPath).readText().trim().toLongOrNull()
+                if (cur != null && max != null && max > 0) {
+                    return ((cur.toFloat() / max.toFloat()) * 100).toInt().coerceIn(0, 100)
+                }
+            } catch (_: Exception) {
+                cachedGpuCurPath = null
+                cachedGpuMaxPath = null
+            }
+        }
+
+        // Deterministic derivation when sysfs is SELinux-blocked (typical on MIUI/MTK)
         val liveFps = getLiveFps()
         val targetRate = if (activePerformanceMode) activeTargetFps else 60
         val fpsLoadRatio = (liveFps.toFloat() / targetRate.toFloat()).coerceIn(0f, 1f)
-        val derivedGpuLoad = ((fpsLoadRatio * 60f) + (lastValidCpuUsage * 0.35f)).toInt().coerceIn(5, 95)
-        return derivedGpuLoad
+        return ((fpsLoadRatio * 60f) + (lastValidCpuUsage * 0.35f)).toInt().coerceIn(5, 95)
     }
 
     private fun readIsLightMode(): Boolean {

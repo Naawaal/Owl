@@ -13,10 +13,12 @@ class AiInferenceResult {
   const AiInferenceResult({
     required this.response,
     required this.latencyMs,
+    this.usedVision = false,
   });
 
   final CoachResponse response;
   final int latencyMs;
+  final bool usedVision;
 }
 
 /// Dispatches multi-provider inference calls, measures latency, and handles vision frames.
@@ -108,6 +110,10 @@ class AiInferenceDispatcher {
       response = CoachResponse.fromRawText(text);
     }
 
-    return AiInferenceResult(response: response, latencyMs: elapsed);
+    return AiInferenceResult(
+      response: response,
+      latencyMs: elapsed,
+      usedVision: activeFrame != null,
+    );
   }
 }
