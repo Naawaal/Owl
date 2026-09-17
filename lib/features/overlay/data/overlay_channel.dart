@@ -29,9 +29,14 @@ class OverlayChannel {
   }
 
   /// Displays the floating GameTurbo edge handle.
-  Future<bool> showFloatingOverlay() async {
+  Future<bool> showFloatingOverlay({String? gameName}) async {
     try {
-      final result = await _channel.invokeMethod<bool>('showFloatingOverlay');
+      final result = await _channel.invokeMethod<bool>(
+        'showFloatingOverlay',
+        <String, dynamic>{
+          if (gameName != null && gameName.isNotEmpty) 'gameName': gameName,
+        },
+      );
       return result ?? false;
     } catch (_) {
       return false;
@@ -89,6 +94,26 @@ class OverlayChannel {
       });
     } catch (_) {
       // Overlay not bound or platform call failed — non-fatal, continue silently.
+    }
+  }
+
+  /// Shows the native Guardian AI coaching bubble over the game.
+  Future<bool> showGuardianOverlay() async {
+    try {
+      final result = await _channel.invokeMethod<bool>('showGuardianOverlay');
+      return result ?? true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Hides the native Guardian AI coaching bubble.
+  Future<bool> hideGuardianOverlay() async {
+    try {
+      final result = await _channel.invokeMethod<bool>('hideGuardianOverlay');
+      return result ?? true;
+    } catch (_) {
+      return false;
     }
   }
 }

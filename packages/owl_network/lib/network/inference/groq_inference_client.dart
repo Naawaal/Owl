@@ -39,9 +39,13 @@ final class GroqInferenceClient extends BaseInferenceClient {
     required String apiKey,
     required String model,
     required String prompt,
+    String? base64Image,
     Duration? timeout,
   }) async {
     final tail = maskApiKey(apiKey);
+    final isReasoning = model.contains('gpt-oss') ||
+        model.contains('deepseek-r1') ||
+        model.contains('reason');
     try {
       final response = await withTimeout(
         api.post(
@@ -56,8 +60,9 @@ final class GroqInferenceClient extends BaseInferenceClient {
               },
               {'role': 'user', 'content': prompt},
             ],
-            'max_tokens': 256,
+            'max_tokens': 1024,
             'temperature': 0.7,
+            if (isReasoning) 'reasoning_format': 'hidden',
             'stream': false,
           },
         ),
@@ -77,10 +82,14 @@ final class GroqInferenceClient extends BaseInferenceClient {
     required String apiKey,
     required String model,
     required String prompt,
+    String? base64Image,
     Duration? timeout,
   }) async* {
     final tail = maskApiKey(apiKey);
     final budget = timeout ?? defaultTimeout;
+    final isReasoning = model.contains('gpt-oss') ||
+        model.contains('deepseek-r1') ||
+        model.contains('reason');
     try {
       final body = await withTimeout(
         api.postStream(
@@ -95,8 +104,9 @@ final class GroqInferenceClient extends BaseInferenceClient {
               },
               {'role': 'user', 'content': prompt},
             ],
-            'max_tokens': 256,
+            'max_tokens': 1024,
             'temperature': 0.7,
+            if (isReasoning) 'reasoning_format': 'hidden',
             'stream': true,
           },
         ),

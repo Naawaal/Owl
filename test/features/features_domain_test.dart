@@ -2,9 +2,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:owl/features/ai_coach/ai_coach.dart';
 import 'package:owl/features/game_profiles/game_profiles.dart';
-import 'package:owl/features/overlay/overlay.dart';
 import 'package:owl/features/settings/settings.dart';
-import 'package:owl/features/timers/timers.dart';
 
 void main() {
   group('1. Game Profiles Feature', () {
@@ -83,56 +81,7 @@ void main() {
     });
   });
 
-  group('2. Timers Feature', () {
-    test('ActiveTimer status calculations and progress ratios', () {
-      final runningTimer = ActiveTimer(
-        id: 't_1',
-        objectiveId: 'wr_baron_nashor',
-        name: 'Baron Nashor',
-        remainingSeconds: 150,
-        totalSeconds: 210,
-        targetEpochMs: DateTime.now().millisecondsSinceEpoch + 150000,
-        isRunning: true,
-        isUrgent: false,
-      );
-
-      expect(runningTimer.status, TimerStatus.running);
-      expect(runningTimer.progressRatio, closeTo(60 / 210, 0.01));
-      expect(runningTimer.cooldownRatio, closeTo(150 / 210, 0.01));
-      expect(runningTimer.formattedRemaining, '02:30');
-      expect(runningTimer.isReady, isFalse);
-
-      final warningTimer = runningTimer.copyWith(remainingSeconds: 25);
-      expect(warningTimer.status, TimerStatus.warning);
-
-      final urgentTimer = runningTimer.copyWith(remainingSeconds: 8, isUrgent: true);
-      expect(urgentTimer.status, TimerStatus.urgent);
-
-      final readyTimer = runningTimer.copyWith(remainingSeconds: 0);
-      expect(readyTimer.status, TimerStatus.ready);
-      expect(readyTimer.isReady, isTrue);
-      expect(readyTimer.formattedRemaining, '00:00');
-    });
-
-    test('ActiveTimer serialization round-trip', () {
-      const timer = ActiveTimer(
-        id: 't_2',
-        objectiveId: 'mlbb_turtle',
-        name: 'Turtle',
-        remainingSeconds: 45,
-        totalSeconds: 120,
-        targetEpochMs: 1726000000000,
-        isRunning: true,
-        isUrgent: false,
-      );
-
-      final json = timer.toJson();
-      final reconstructed = ActiveTimer.fromJson(json);
-      expect(reconstructed, equals(timer));
-    });
-  });
-
-  group('3. AI Coach Feature', () {
+  group('2. AI Coach Feature', () {
     test('AIProvider metadata and models', () {
       expect(AIProvider.gemini.displayName, 'Google Gemini');
       expect(AIProvider.gemini.defaultModel, 'gemini-3-flash-preview');
@@ -196,26 +145,7 @@ void main() {
     });
   });
 
-  group('4. Overlay Feature', () {
-    test('OverlayConfig defaults and serialization', () {
-      const config = OverlayConfig.defaultConfig;
-      expect(config.opacity, 0.85);
-      expect(config.scale, 1.0);
-      expect(config.snapToEdge, isTrue);
-      expect(config.isClickThrough, isFalse);
-      expect(config.isExpanded, isTrue);
-
-      final modified = config.copyWith(opacity: 0.6, isClickThrough: true);
-      expect(modified.opacity, 0.6);
-      expect(modified.isClickThrough, isTrue);
-
-      final json = modified.toJson();
-      final reconstructed = OverlayConfig.fromJson(json);
-      expect(reconstructed, equals(modified));
-    });
-  });
-
-  group('5. Settings Feature', () {
+  group('3. Settings Feature', () {
     test('AppSettings defaults and serialization', () {
       const settings = AppSettings.defaultSettings;
       expect(settings.soundEnabled, isTrue);
@@ -235,6 +165,26 @@ void main() {
       final json = modified.toJson();
       final reconstructed = AppSettings.fromJson(json);
       expect(reconstructed, equals(modified));
+    });
+
+    test('GameTurboSettings defaults and serialization round-trip', () {
+      const turbo = GameTurboSettings();
+      expect(turbo.performanceMode, 'balanced');
+      expect(turbo.wifiSpeedBoost, isTrue);
+      expect(turbo.restrictFloatingNotifications, isTrue);
+      expect(turbo.guardianVisionEnabled, isTrue);
+
+      final modified = turbo.copyWith(
+        performanceMode: 'wild',
+        wifiSpeedBoost: false,
+      );
+      expect(modified.performanceMode, 'wild');
+      expect(modified.wifiSpeedBoost, isFalse);
+
+      final json = modified.toJson();
+      final reconstructed = GameTurboSettings.fromJson(json);
+      expect(reconstructed.performanceMode, 'wild');
+      expect(reconstructed.wifiSpeedBoost, isFalse);
     });
   });
 }

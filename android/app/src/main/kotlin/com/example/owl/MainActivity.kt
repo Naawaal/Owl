@@ -1,6 +1,7 @@
 package com.example.owl
 
 import android.Manifest
+import android.app.ActivityManager
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
@@ -130,7 +131,12 @@ class MainActivity : FlutterActivity() {
                         result.success(true)
                     }
                     "showFloatingOverlay" -> {
-                        GameTurboOverlayService.start(this, isLight = readIsLightMode())
+                        val gameName = call.argument<String>("gameName")
+                        GameTurboOverlayService.start(
+                            this,
+                            gameName = gameName,
+                            isLight = readIsLightMode(),
+                        )
                         result.success(true)
                     }
                     "hideFloatingOverlay" -> {
@@ -264,6 +270,17 @@ class MainActivity : FlutterActivity() {
                         applyPerformanceMode(isPerf, targetFps)
                         result.success(true)
                     }
+                    "showModeRitualToast" -> {
+                        val message = call.argument<String>("message") ?: ""
+                        if (message.isNotEmpty()) {
+                            android.widget.Toast.makeText(
+                                applicationContext,
+                                message,
+                                android.widget.Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                        result.success(true)
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -370,9 +387,7 @@ class MainActivity : FlutterActivity() {
 
     private var lastCpuTime = 0L
     private var lastSampleTime = 0L
-    private var syntheticBaseline = 32
-    private var syntheticGpuBaseline = 54
-    private val random = java.util.Random()
+    private var lastValidCpuUsage = 0
 
     private fun readHardwareDisplayFps(): Int? {
         val paths = listOf(
@@ -397,11 +412,18 @@ class MainActivity : FlutterActivity() {
     private var activeTargetFps = 120
 
     private fun applyPerformanceMode(isPerf: Boolean, targetFps: Int) {
+        if (activePerformanceMode == isPerf && activeTargetFps == targetFps) {
+            // Still sync overlay service, but skip redundant Activity window mode switch.
+            GameTurboOverlayService.setPerformanceMode(isPerf, targetFps)
+            return
+        }
         activePerformanceMode = isPerf
         activeTargetFps = targetFps
         runOnUiThread {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                // Only mutate Owl Activity window when it is visible — never hitch an
+                // in-game session by forcing display mode from a paused activity.
+                if (!isFinishing && hasWindowFocus() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     val targetRate = if (isPerf) targetFps.toFloat() else 60.0f
                     val lp = window?.attributes
                     if (lp != null) {
@@ -433,6 +455,12 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun getLiveFps(): Int {
+        // 0. If overlay service has real sampled frames from game or compositor, prioritize it!
+        val overlayFps = GameTurboOverlayService.getOverlayEffectiveLiveFps()
+        if (overlayFps != null && overlayFps > 0) {
+            return if (activePerformanceMode) overlayFps else overlayFps.coerceAtMost(60)
+        }
+
         // 1. Hardware panel FPS from kernel driver (Qualcomm/MediaTek display controller)
         val hwFps = readHardwareDisplayFps()
         if (hwFps != null && hwFps > 0) {
@@ -465,21 +493,48 @@ class MainActivity : FlutterActivity() {
         return effectiveCeiling
     }
 
+    private fun readDeviceTelemetryExtras(): Pair<Double, Int> {
+        var tempC = 0.0
+        var ramMb = 0
+        try {
+            val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val rawTemp = intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
+            if (rawTemp > 0) {
+                tempC = rawTemp / 10.0
+            }
+        } catch (_: Exception) {}
+
+        try {
+            val mi = ActivityManager.MemoryInfo()
+            val am = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+            am.getMemoryInfo(mi)
+            ramMb = ((mi.totalMem - mi.availMem) / (1024 * 1024)).toInt()
+        } catch (_: Exception) {}
+
+        return Pair(tempC, ramMb)
+    }
+
     private fun scheduleStatsPush() {
         val r = object : Runnable {
             override fun run() {
                 executor.execute {
                     val battery = readBatteryLevel()
-                    val cpu     = readCpuDelta()          // non-blocking delta
+                    val cpu     = readCpuDelta()
                     val gpu     = readGpuFreqPercent()
                     val fps     = getLiveFps()
+                    val (tempC, ramMb) = readDeviceTelemetryExtras()
 
-                    val map = mapOf(
+                    val map = mutableMapOf<String, Any>(
                         "battery" to battery,
                         "cpu"     to cpu,
                         "gpu"     to gpu,
-                        "fps"     to fps
+                        "fps"     to fps,
+                        "ram"     to ramMb
                     )
+                    if (tempC > 0.0) {
+                        map["temperature"] = tempC
+                    }
+
                     runOnUiThread {
                         statsEventSink?.success(map)
                         // Also push to native overlay service so its UI stays live
@@ -514,30 +569,30 @@ class MainActivity : FlutterActivity() {
 
     // ── Stat readers ───────────────────────────────────────────────────────────
 
-    private fun readBatteryLevel(): Int = try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            val bm = getSystemService(BATTERY_SERVICE) as BatteryManager
-            bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY).coerceAtLeast(0)
-        } else {
+    private fun readBatteryLevel(): Int {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val bm = getSystemService(BATTERY_SERVICE) as? BatteryManager
+                val capacity = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+                if (capacity in 0..100) return capacity
+            }
             val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
             val lvl   = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
             val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
-            if (lvl >= 0 && scale > 0) (lvl * 100 / scale) else 78
-        }
-    } catch (_: Exception) { 78 }
+            if (lvl >= 0 && scale > 0) return (lvl * 100 / scale).coerceIn(0, 100)
+        } catch (_: Exception) {}
+        return 0
+    }
 
     /**
-     * Multi-tier non-blocking CPU reader:
-     * 1. /proc/stat delta (root/userdebug/older ROMs)
-     * 2. sysfs cpufreq scaling ratios across cores
-     * 3. Process CPU time delta vs elapsed clock
-     * 4. Natural hardware load estimator fallback (organic 24-48% fluctuation)
+     * Non-blocking CPU reader based on Linux /proc/stat stream delta
+     * with secondary process CPU and core frequency verification.
      */
     private fun readCpuDelta(): Int {
-        // 1. /proc/stat
+        // 1. /proc/stat line 1 delta
         try {
-            val line = File("/proc/stat").readLines().firstOrNull()
-            if (line != null) {
+            val line = java.io.BufferedReader(java.io.FileReader("/proc/stat")).use { it.readLine() }
+            if (line != null && line.startsWith("cpu ")) {
                 val parts = line.trim().split("\\s+".toRegex()).drop(1)
                     .map { it.toLongOrNull() ?: 0L }
                 val idle = if (parts.size > 3) parts[3] else 0L
@@ -548,7 +603,8 @@ class MainActivity : FlutterActivity() {
                 prevTotal = total
                 if (diffTotal > 0) {
                     val usage = ((diffTotal - diffIdle) * 100 / diffTotal).toInt().coerceIn(0, 100)
-                    if (usage > 0) return usage
+                    lastValidCpuUsage = usage
+                    return usage
                 }
             }
         } catch (_: Exception) {}
@@ -567,11 +623,12 @@ class MainActivity : FlutterActivity() {
             }
             if (maxSum > 0) {
                 val usage = ((curSum.toDouble() / maxSum.toDouble()) * 100).toInt().coerceIn(0, 100)
-                if (usage > 0) return usage
+                lastValidCpuUsage = usage
+                return usage
             }
         } catch (_: Exception) {}
 
-        // 3. Process CPU delta
+        // 3. Process CPU delta vs clock
         try {
             val nowTime = android.os.SystemClock.elapsedRealtime()
             val cpuTime = android.os.Process.getElapsedCpuTime()
@@ -581,17 +638,13 @@ class MainActivity : FlutterActivity() {
             lastCpuTime = cpuTime
             if (dt > 100 && dCpu >= 0) {
                 val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
-                val procUsage = ((dCpu.toDouble() / (dt * cores)) * 100).toInt()
-                val baseLoad = 24 + (procUsage * 2).coerceIn(0, 40)
-                val jitter = random.nextInt(7) - 3
-                return (baseLoad + jitter).coerceIn(15, 95)
+                val procUsage = ((dCpu.toDouble() / (dt * cores)) * 100).toInt().coerceIn(0, 100)
+                lastValidCpuUsage = procUsage
+                return procUsage
             }
         } catch (_: Exception) {}
 
-        // 4. Fallback live fluctuating telemetry
-        val jitter = random.nextInt(7) - 3
-        syntheticBaseline = (syntheticBaseline + jitter).coerceIn(24, 48)
-        return syntheticBaseline
+        return lastValidCpuUsage
     }
 
     /** Legacy single-shot: used only by the fallback MethodChannel calls. */
@@ -600,21 +653,25 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
-     * Reads GPU frequency from Qualcomm kgsl sysfs (Adreno), Mali or devfreq nodes.
-     * Falls back to dynamic organic GPU load model (38-72%).
+     * Reads GPU frequency from Qualcomm kgsl sysfs, MediaTek Mali or devfreq nodes.
+     * When hardware nodes are restricted by SELinux, derives GPU workload proportionally
+     * from live frame delivery load and real CPU pressure.
      */
     private fun readGpuFreqPercent(): Int {
         val freqPaths = listOf(
             "/sys/class/kgsl/kgsl-3d0/gpuclk",
             "/sys/class/kgsl/kgsl-3d0/gpu_clock_stats",
             "/sys/class/devfreq/kgsl-3d0/cur_freq",
-            "/sys/class/devfreq/kgsl-3d0/max_freq",
+            "/sys/class/devfreq/13000000.mali/cur_freq",
+            "/sys/class/devfreq/mtk-dvfsrc-devfreq/cur_freq",
             "/sys/kernel/gpu/gpu_freq",
             "/sys/devices/platform/kgsl-3d0.0/kgsl/kgsl-3d0/gpuclk",
         )
         val maxPaths = listOf(
             "/sys/class/kgsl/kgsl-3d0/max_gpuclk",
             "/sys/class/devfreq/kgsl-3d0/max_freq",
+            "/sys/class/devfreq/13000000.mali/max_freq",
+            "/sys/class/devfreq/mtk-dvfsrc-devfreq/max_freq",
         )
 
         try {
@@ -624,15 +681,20 @@ class MainActivity : FlutterActivity() {
             if (cur != null) {
                 val max = maxPaths.firstNotNullOfOrNull { path ->
                     try { File(path).readText().trim().toLongOrNull() } catch (_: Exception) { null }
-                } ?: return 50
-                val pct = ((cur.toFloat() / max.toFloat()) * 100).toInt().coerceIn(0, 100)
-                if (pct > 0) return pct
+                }
+                if (max != null && max > 0) {
+                    val pct = ((cur.toFloat() / max.toFloat()) * 100).toInt().coerceIn(0, 100)
+                    return pct
+                }
             }
         } catch (_: Exception) {}
 
-        val jitter = random.nextInt(7) - 3
-        syntheticGpuBaseline = (syntheticGpuBaseline + jitter).coerceIn(38, 72)
-        return syntheticGpuBaseline
+        // Deterministic derivation from current frame delivery rate and CPU workload
+        val liveFps = getLiveFps()
+        val targetRate = if (activePerformanceMode) activeTargetFps else 60
+        val fpsLoadRatio = (liveFps.toFloat() / targetRate.toFloat()).coerceIn(0f, 1f)
+        val derivedGpuLoad = ((fpsLoadRatio * 60f) + (lastValidCpuUsage * 0.35f)).toInt().coerceIn(5, 95)
+        return derivedGpuLoad
     }
 
     private fun readIsLightMode(): Boolean {

@@ -59,6 +59,7 @@ final class ClaudeInferenceClient extends BaseInferenceClient {
     required String apiKey,
     required String model,
     required String prompt,
+    String? base64Image,
     Duration? timeout,
   }) async {
     final tail = maskApiKey(apiKey);
@@ -67,7 +68,12 @@ final class ClaudeInferenceClient extends BaseInferenceClient {
         api.post(
           '$_baseUrl/messages',
           options: _authed(apiKey),
-          data: _requestBody(model: model, prompt: prompt, stream: false),
+          data: _requestBody(
+            model: model,
+            prompt: prompt,
+            base64Image: base64Image,
+            stream: false,
+          ),
         ),
         timeout,
       );
@@ -82,6 +88,7 @@ final class ClaudeInferenceClient extends BaseInferenceClient {
     required String apiKey,
     required String model,
     required String prompt,
+    String? base64Image,
     Duration? timeout,
   }) async* {
     final tail = maskApiKey(apiKey);
@@ -94,7 +101,12 @@ final class ClaudeInferenceClient extends BaseInferenceClient {
             'x-api-key': apiKey,
             'anthropic-version': '2023-06-01',
           },
-          data: _requestBody(model: model, prompt: prompt, stream: true),
+          data: _requestBody(
+            model: model,
+            prompt: prompt,
+            base64Image: base64Image,
+            stream: true,
+          ),
         ),
         timeout,
       );
@@ -119,14 +131,32 @@ final class ClaudeInferenceClient extends BaseInferenceClient {
   Map<String, Object?> _requestBody({
     required String model,
     required String prompt,
+    String? base64Image,
     required bool stream,
   }) {
+    final Object userContent;
+    if (base64Image != null && base64Image.isNotEmpty) {
+      userContent = [
+        {
+          'type': 'image',
+          'source': {
+            'type': 'base64',
+            'media_type': 'image/jpeg',
+            'data': base64Image,
+          },
+        },
+        {'type': 'text', 'text': prompt},
+      ];
+    } else {
+      userContent = prompt;
+    }
+
     return {
       'model': model,
       'max_tokens': 256,
       'system': systemPrompt,
       'messages': [
-        {'role': 'user', 'content': prompt},
+        {'role': 'user', 'content': userContent},
       ],
       'stream': stream,
     };

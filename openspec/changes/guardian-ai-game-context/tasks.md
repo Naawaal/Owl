@@ -3,13 +3,13 @@
 - [x] 1.1 Add optional fields to `CoachPrompt`: `gameCategory: String?`, `cpuPercent: int?`, `batteryPercent: int?`, `liveFps: int?`
 - [x] 1.2 Extend `CoachPrompt.toFormattedPrompt()` to include a device-state block when any of the new fields are non-null (e.g., `Device: CPU 65% | Battery 48% | FPS 114 | Category: 5v5 MOBA`)
 - [x] 1.3 Update `CoachPrompt.copyWith()`, `toMap()`, `fromMap()`, `operator==`, and `hashCode` for all four new fields
-- [ ] 1.4 Verify existing `CoachPrompt` tests pass without modification (new fields are optional, defaults null)
+- [x] 1.4 Verify existing `CoachPrompt` tests pass without modification (new fields are optional, defaults null)
 
 ## 2. CoachService — Wire Live Stats Into Prompt
 
 - [x] 2.1 In `CoachService.requestAdvice()`, read `systemStatsProvider` (cpu, battery, fps) and `activeGameProvider` (category) at call time; pass them into `CoachPrompt` constructor
 - [x] 2.2 Replace the bare `'Scheduled $topic check-in…'` string in `requestTopicRefresh()` with a rich situation string that includes `settings.preferredRole`, live FPS, and CPU%
-- [ ] 2.3 Run `flutter test` and confirm all coach-service tests pass
+- [x] 2.3 Run `flutter test` and confirm all coach-service tests pass
 
 ## 3. Match Session Clock — TacticalBattlefieldHud
 
@@ -69,8 +69,8 @@
 
 ## 13. Verification
 
-- [ ] 13.1 `flutter analyze --no-fatal-warnings` — zero new errors
-- [ ] 13.2 `flutter test` — all tests pass (142/142 or updated count)
+- [x] 13.1 `flutter analyze --no-fatal-warnings` — zero new errors
+- [x] 13.2 `flutter test` — all tests pass (142/142)
 - [ ] 13.3 Manual: open toolbox in-app → verify advice callout shows role and device stats in the AI response reasoning
 - [ ] 13.4 Manual: trigger a response with a warning field → verify red warning pill appears above the action text
 - [ ] 13.5 Manual: switch provider to Groq → logcat confirms the enriched prompt is sent to Groq's endpoint with role, category, and device stats

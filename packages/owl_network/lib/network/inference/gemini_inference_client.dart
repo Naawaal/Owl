@@ -36,6 +36,7 @@ final class GeminiInferenceClient extends BaseInferenceClient {
     required String apiKey,
     required String model,
     required String prompt,
+    String? base64Image,
     Duration? timeout,
   }) async {
     final tail = maskApiKey(apiKey);
@@ -44,7 +45,7 @@ final class GeminiInferenceClient extends BaseInferenceClient {
         api.post(
           '$_baseUrl/models/$model:generateContent',
           queryParameters: {'key': apiKey},
-          data: _requestBody(prompt),
+          data: _requestBody(prompt, base64Image),
         ),
         timeout,
       );
@@ -59,6 +60,7 @@ final class GeminiInferenceClient extends BaseInferenceClient {
     required String apiKey,
     required String model,
     required String prompt,
+    String? base64Image,
     Duration? timeout,
   }) async* {
     final tail = maskApiKey(apiKey);
@@ -68,7 +70,7 @@ final class GeminiInferenceClient extends BaseInferenceClient {
         api.postStream(
           '$_baseUrl/models/$model:streamGenerateContent',
           queryParameters: {'alt': 'sse', 'key': apiKey},
-          data: _requestBody(prompt),
+          data: _requestBody(prompt, base64Image),
         ),
         timeout,
       );
@@ -90,18 +92,30 @@ final class GeminiInferenceClient extends BaseInferenceClient {
     }
   }
 
-  Map<String, Object?> _requestBody(String prompt) {
+  Map<String, Object?> _requestBody(String prompt, [String? base64Image]) {
+    final parts = <Map<String, Object?>>[];
+    if (base64Image != null && base64Image.isNotEmpty) {
+      parts.add({
+        'inlineData': {
+          'mimeType': 'image/jpeg',
+          'data': base64Image,
+        },
+      });
+    }
+    parts.add({'text': prompt});
+
     return {
       'contents': [
         {
-          'parts': [
-            {'text': prompt},
-          ],
+          'parts': parts,
         },
       ],
       'generationConfig': {
-        'maxOutputTokens': 256,
+        'maxOutputTokens': 1024,
         'temperature': 0.7,
+        'thinkingConfig': {
+          'thinkingBudget': 0,
+        },
       },
     };
   }

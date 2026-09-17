@@ -1,13 +1,17 @@
 // language: Dart, file: autonomous_tactical_loop.dart, target: Flutter / Owl MOBA Companion
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:owl/features/ai_coach/data/coach_service.dart';
 import 'package:owl/features/ai_coach/data/screen_capture_channel.dart';
 import 'package:owl/features/ai_coach/domain/vision/frame_differ.dart';
+import 'package:owl/features/ai_coach/domain/vision/tactical_loop_config.dart';
 import 'package:owl/features/settings/domain/models/game_turbo_settings.dart';
 import 'package:owl/features/settings/presentation/settings_provider.dart';
+
+export 'tactical_loop_config.dart';
 
 /// Central Riverpod provider managing the background autonomous vision and tactical game-tick loop.
 final autonomousTacticalLoopProvider =
@@ -19,7 +23,12 @@ final autonomousTacticalLoopProvider =
       if (currentSettings.guardianVisionEnabled &&
           currentSettings.guardianTacticalEngine &&
           currentSettings.assistantMode == 'live') {
-        await ref.read(coachServiceProvider.notifier).requestTopicRefresh();
+        final base64 = base64Encode(bytes);
+        await ref.read(coachServiceProvider.notifier).requestAdvice(
+              situation: 'Autonomous vision dynamic frame ($width x $height)',
+              matchTimeSeconds: matchTime,
+              base64Frame: base64,
+            );
       }
     },
   );
@@ -30,9 +39,12 @@ final autonomousTacticalLoopProvider =
   // Dynamically adapt cadence and lifecycle to settings changes without recreating loop
   ref.listen<GameTurboSettings>(gameTurboSettingsProvider, (_, next) {
     loop.setPerformanceMode(next.performanceMode);
-    if (!next.guardianTacticalEngine ||
-        next.assistantMode == 'off' ||
-        !next.gameTurboMaster) {
+    final coachingAllowed = next.guardianTacticalEngine &&
+        next.assistantMode != 'off' &&
+        next.gameTurboMaster &&
+        next.performanceOptimization;
+    if (!coachingAllowed) {
+      // Balanced or AI-off: pause autonomous vision to free thermal headroom.
       if (loop.isRunning && !loop.isPaused) loop.pause();
     } else if (loop.isRunning && loop.isPaused) {
       loop.resume();
@@ -58,7 +70,8 @@ class AutonomousTacticalLoop extends ChangeNotifier {
   });
 
   /// Function invoked to retrieve the current screen frame (RGBA buffer, width, height).
-  final Future<({Uint8List bytes, int width, int height})?> Function()? onCaptureFrame;
+  final Future<({Uint8List bytes, int width, int height})?> Function()?
+      onCaptureFrame;
 
   /// Callback executed when dynamic gameplay is detected on the active frame.
   final Future<void> Function(
@@ -97,23 +110,12 @@ class AutonomousTacticalLoop extends ChangeNotifier {
   double get lastDiffPercent => _lastDiffPercent;
 
   /// Returns the configured sampling frequency in Hertz (frames per second).
-  int get targetCadenceFps {
-    switch (_performanceMode) {
-      case 'saver':
-        return 1;
-      case 'high':
-        return 12;
-      case 'balanced':
-      default:
-        return 5;
-    }
-  }
+  int get targetCadenceFps =>
+      TacticalLoopConfig.targetCadenceFpsFor(_performanceMode);
 
   /// The tick interval corresponding to [targetCadenceFps].
-  Duration get cadenceInterval {
-    final fps = targetCadenceFps;
-    return Duration(milliseconds: (1000 / fps).round());
-  }
+  Duration get cadenceInterval =>
+      TacticalLoopConfig.cadenceIntervalFor(_performanceMode);
 
   /// Starts the autonomous tactical loop.
   void start({String performanceMode = 'balanced', int initialMatchTimeSeconds = 0}) {

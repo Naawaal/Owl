@@ -137,11 +137,10 @@ class WifiOptimizerNotifier extends StateNotifier<WifiOptimizerState> {
         );
       }
     } catch (_) {
-      // Offline / blocked DNS socket: use synthetic low-latency baseline
+      // Offline / blocked DNS socket: report actual offline status
       if (mounted) {
         state = state.copyWith(
-          latencyMs: 18,
-          statusText: 'Low-Latency Lock Active',
+          statusText: 'Network Offline',
         );
       }
     }

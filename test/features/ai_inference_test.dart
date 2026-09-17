@@ -497,6 +497,7 @@ final class _ProbeClient extends BaseInferenceClient {
     required String apiKey,
     required String model,
     required String prompt,
+    String? base64Image,
     Duration? timeout,
   }) =>
       throw UnimplementedError();
@@ -506,6 +507,7 @@ final class _ProbeClient extends BaseInferenceClient {
     required String apiKey,
     required String model,
     required String prompt,
+    String? base64Image,
     Duration? timeout,
   }) =>
       throw UnimplementedError();

@@ -39,6 +39,7 @@ final class SambaNovaInferenceClient extends BaseInferenceClient {
     required String apiKey,
     required String model,
     required String prompt,
+    String? base64Image,
     Duration? timeout,
   }) async {
     final tail = maskApiKey(apiKey);
@@ -77,6 +78,7 @@ final class SambaNovaInferenceClient extends BaseInferenceClient {
     required String apiKey,
     required String model,
     required String prompt,
+    String? base64Image,
     Duration? timeout,
   }) async* {
     final tail = maskApiKey(apiKey);

@@ -68,6 +68,7 @@ abstract class InferenceClient {
     required String apiKey,
     required String model,
     required String prompt,
+    String? base64Image,
     Duration? timeout,
   });
 
@@ -77,6 +78,7 @@ abstract class InferenceClient {
     required String apiKey,
     required String model,
     required String prompt,
+    String? base64Image,
     Duration? timeout,
   });
 }

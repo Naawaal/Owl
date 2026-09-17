@@ -1,71 +1,46 @@
 // language: Dart, file: add_games_modal.dart, target: Flutter / Owl Game Turbo
 import 'package:flutter/material.dart';
-import 'package:owl_core/owl_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:owl/features/game_profiles/domain/models/installed_game.dart';
 import 'package:owl/features/game_profiles/presentation/game_discovery_provider.dart';
+import 'package:owl/features/game_profiles/presentation/widgets/add_game_tile.dart';
 import 'package:owl_design/owl_design.dart';
+
+/// Autodisposed provider querying all installed device apps.
+final deviceInstalledAppsProvider =
+    FutureProvider.autoDispose<List<InstalledGame>>((ref) async {
+  final service = ref.watch(gameDiscoveryServiceProvider);
+  return service.getAllInstalledApps();
+});
+
+/// Autodisposed search filter for the Add Games modal.
+final addGamesSearchQueryProvider =
+    StateProvider.autoDispose<String>((ref) => '');
 
 /// Modal dialog allowing users to scan and add any installed device application
 /// to the Game Space deck.
-class AddGamesModal extends ConsumerStatefulWidget {
+class AddGamesModal extends ConsumerWidget {
   const AddGamesModal({super.key});
 
   static Future<void> show(BuildContext context) {
     return showDialog(
       context: context,
-      barrierColor: Colors.black87,
+      barrierColor: ColorPrimitives.scrimBlack88,
       builder: (context) => const AddGamesModal(),
     );
   }
 
   @override
-  ConsumerState<AddGamesModal> createState() => _AddGamesModalState();
-}
-
-class _AddGamesModalState extends ConsumerState<AddGamesModal> {
-  final TextEditingController _searchCtrl = TextEditingController();
-  List<InstalledGame> _allApps = [];
-  bool _isLoading = true;
-  String _searchQuery = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadDeviceApplications();
-  }
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadDeviceApplications() async {
-    final service = ref.read(gameDiscoveryServiceProvider);
-    final apps = await service.getAllInstalledApps();
-    if (mounted) {
-      setState(() {
-        _allApps = apps;
-        _isLoading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = ColorTokens.of(context);
     final gameState = ref.watch(installedGamesProvider);
+    final appsAsync = ref.watch(deviceInstalledAppsProvider);
+    final searchQuery = ref.watch(addGamesSearchQueryProvider);
+
     final inDeckPackages = gameState.games
         .where((g) => g.isInGameSpace)
         .map((g) => g.packageName)
         .toSet();
-
-    final filtered = _allApps.where((app) {
-      if (_searchQuery.isEmpty) return true;
-      final q = _searchQuery.toLowerCase();
-      return app.name.toLowerCase().contains(q) ||
-          app.packageName.toLowerCase().contains(q);
-    }).toList();
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -74,11 +49,14 @@ class _AddGamesModalState extends ConsumerState<AddGamesModal> {
         width: 680,
         height: 420,
         decoration: BoxDecoration(
-          color: const Color(0xFF0D111A),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0x33FFFFFF), width: 1.2),
-          boxShadow: const [
-            BoxShadow(color: Colors.black, blurRadius: 40, spreadRadius: 10),
+          color: colors.isLight ? colors.surfaceCard : colors.consoleBase,
+          borderRadius: RadiusTokens.borderXl,
+          border: Border.all(
+            color: colors.borderGlassStrong,
+            width: 1.2,
+          ),
+          boxShadow: [
+            ElevationTokens.toolboxShadow(colors.isLight),
           ],
         ),
         child: Column(
@@ -92,41 +70,45 @@ class _AddGamesModalState extends ConsumerState<AddGamesModal> {
                     width: 34,
                     height: 34,
                     decoration: BoxDecoration(
-                      color: ColorSemantics.turboBlue.withValues(alpha: 0.2),
+                      color: colors.turboBlue
+                          .withValues(alpha: colors.isLight ? 0.12 : 0.20),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.add_to_photos_outlined,
                       size: 18,
-                      color: ColorSemantics.turboBlueLight,
+                      color: colors.turboBlueLight,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         Text(
                           'Add Games to Game Space',
-                          style: TextStyle(
-                            fontSize: 16,
+                          style: TypographyTokens.dialogTitleOf(context).copyWith(
                             fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                            color: colors.textPrimary,
                           ),
                         ),
-                        SizedBox(height: 2),
+                        const SizedBox(height: 2),
                         Text(
                           'Boost FPS, optimize touch sampling & enable Guardian overlay',
-                          style: TextStyle(
+                          style: TypographyTokens.bodySmallOf(context).copyWith(
                             fontSize: 10.5,
-                            color: Color(0x8AFFFFFF),
+                            color: colors.textSecondary,
                           ),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, size: 20, color: Colors.white70),
+                    icon: Icon(
+                      Icons.close,
+                      size: 20,
+                      color: colors.textPrimary.withValues(alpha: 0.7),
+                    ),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
@@ -139,125 +121,105 @@ class _AddGamesModalState extends ConsumerState<AddGamesModal> {
               child: Container(
                 height: 38,
                 decoration: BoxDecoration(
-                  color: const Color(0x1AFFFFFF),
+                  color: colors.isLight
+                      ? colors.surfaceElevated
+                      : colors.textPrimary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0x22FFFFFF)),
+                  border: Border.all(color: colors.borderGlass),
                 ),
                 child: TextField(
-                  controller: _searchCtrl,
-                  onChanged: (val) => setState(() => _searchQuery = val),
-                  style: const TextStyle(fontSize: 12.5, color: Colors.white),
-                  decoration: const InputDecoration(
+                  onChanged: (val) =>
+                      ref.read(addGamesSearchQueryProvider.notifier).state =
+                          val,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontSize: 12.5,
+                    color: colors.textPrimary,
+                  ),
+                  decoration: InputDecoration(
                     hintText: 'Search installed games or apps...',
-                    hintStyle: TextStyle(fontSize: 12, color: Color(0x66FFFFFF)),
-                    prefixIcon: Icon(Icons.search, size: 16, color: Color(0x8AFFFFFF)),
+                    hintStyle: TypographyTokens.bodySmallOf(context).copyWith(
+                      fontSize: 12,
+                      color: colors.textMuted,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      size: 16,
+                      color: colors.textSecondary,
+                    ),
                     border: InputBorder.none,
                     isDense: true,
-                    contentPadding: EdgeInsets.symmetric(vertical: 10),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
                   ),
                 ),
               ),
             ),
 
-            const Divider(color: Color(0x1AFFFFFF), height: 16),
+            Divider(color: colors.borderGlass, height: 16),
 
             // App List
             Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: ColorSemantics.turboBlue,
-                      ),
-                    )
-                  : filtered.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No matching applications found',
-                            style: TextStyle(color: Color(0x66FFFFFF), fontSize: 12),
-                          ),
-                        )
-                      : ListView.separated(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                          itemCount: filtered.length,
-                          separatorBuilder: (context, _) =>
-                              const Divider(color: Color(0x0FFFFFFF), height: 8),
-                          itemBuilder: (context, index) {
-                            final app = filtered[index];
-                            final isEnabled = inDeckPackages.contains(app.packageName);
+              child: appsAsync.when(
+                loading: () => Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: colors.turboBlue,
+                  ),
+                ),
+                error: (err, _) => Center(
+                  child: Text(
+                    'Failed to scan installed apps: $err',
+                    style: TypographyTokens.bodySmallOf(context).copyWith(
+                      color: colors.telemetryCritical,
+                    ),
+                  ),
+                ),
+                data: (allApps) {
+                  final filtered = allApps.where((app) {
+                    if (searchQuery.isEmpty) return true;
+                    final q = searchQuery.toLowerCase();
+                    return app.name.toLowerCase().contains(q) ||
+                        app.packageName.toLowerCase().contains(q);
+                  }).toList();
 
-                            return Row(
-                              children: [
-                                // Icon
-                                Container(
-                                  width: 38,
-                                  height: 38,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(9),
-                                    gradient: const LinearGradient(
-                                      colors: [Color(0xFF1E2638), Color(0xFF2C3E55)],
-                                    ),
-                                  ),
-                                  clipBehavior: Clip.antiAlias,
-                                  child: app.iconBytes != null
-                                      ? Image.memory(
-                                          app.iconBytes!,
-                                          fit: BoxFit.cover,
-                                        )
-                                      : const Icon(
-                                          Icons.sports_esports_outlined,
-                                          size: 20,
-                                          color: Colors.white70,
-                                        ),
-                                ),
-                                const SizedBox(width: 12),
-
-                                // Title & Package
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        app.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        app.packageName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: Color(0x66FFFFFF),
-                                          fontFamily: TypographyTokens.uiFontFamily,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                const SizedBox(width: 12),
-
-                                // MIUI Switch Toggle
-                                MiuiSwitch(
-                                  value: isEnabled,
-                                  onChanged: (val) {
-                                    HapticHelper.selectionClick();
-                                    ref
-                                        .read(installedGamesProvider.notifier)
-                                        .toggleGameInSpace(app, val);
-                                  },
-                                ),
-                              ],
-                            );
-                          },
+                  if (filtered.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'No matching applications found',
+                        style:
+                            TypographyTokens.bodySmallOf(context).copyWith(
+                          color: colors.textMuted,
+                          fontSize: 12,
                         ),
+                      ),
+                    );
+                  }
+
+                  return ListView.separated(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
+                    itemCount: filtered.length,
+                    separatorBuilder: (context, _) =>
+                        Divider(color: colors.borderGlass, height: 8),
+                    itemBuilder: (context, index) {
+                      final app = filtered[index];
+                      final isEnabled =
+                          inDeckPackages.contains(app.packageName);
+
+                      return AddGameTile(
+                        app: app,
+                        isEnabled: isEnabled,
+                        onChanged: (val) {
+                          ref
+                              .read(installedGamesProvider.notifier)
+                              .toggleGameInSpace(app, val);
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),

@@ -1,43 +1,82 @@
 # Owl Flutter UI Developer Rules & Constraints
 
-**Role:** Expert Flutter UI Developer.  
-**Objective:** Generate highly maintainable, responsive Flutter UI code that strictly adheres to the established design system.
+**Role:** Expert Flutter UI Developer & Architecture Specialist.  
+**Objective:** Generate highly maintainable, responsive Flutter UI code that strictly adheres to the established design system, Riverpod state patterns, and modular architecture.
 
 ---
 
 ## ABSOLUTE CONSTRAINTS (DO NOT VIOLATE)
 
-1. **No Hardcoded Values:**
-   - **NEVER** use raw hex codes (e.g., `Color(0xFF...)`).
-   - **NEVER** use raw double values for padding/margins (e.g., `padding: EdgeInsets.all(16)`).
-   - **NEVER** declare raw text styles (e.g., `TextStyle(...)`).
+### 1. No Hardcoded Values:
+- **NEVER** use raw hex codes (e.g., `Color(0xFF...)`, `Color(0x...)`).
+- **NEVER** use raw numeric double values for padding, margins, or spacers (e.g., `padding: EdgeInsets.all(16)`, `SizedBox(height: 12)`).
+- **NEVER** declare raw text styles (e.g., `TextStyle(fontSize: 14)`).
 
-2. **Strict Theme Usage:**
-   - **ALL** colors and typography must be accessed via `Theme.of(context)` or explicit context extensions:
-     - `context.colorScheme` / `Theme.of(context).colorScheme`
-     - `context.textTheme` / `Theme.of(context).textTheme`
-     - `context.owlColors` / `Theme.of(context).extension<OwlColors>()!`
-     - `context.owlTheme` / `Theme.of(context).extension<OwlThemeExtension>()!`
+### 2. Strict Theme Usage & ColorTokens Facade:
+- **ALL** colors must be accessed dynamically via `ColorTokens.of(context)` or explicit context extensions:
+  - `final colors = ColorTokens.of(context);` (Preferred — resolves active `OwlColors` reacting to Light/Dark mode)
+  - `Theme.of(context).colorScheme` / `context.colorScheme`
+  - `Theme.of(context).extension<OwlColors>()!` / `context.owlColors`
 
-3. **Typography:**
-   - Map all text to Material 3 text styles (e.g., `displayLarge`, `headlineMedium`, `titleMedium`, `bodyLarge`, `bodyMedium`, `labelLarge`, `labelSmall`).
-   - **NEVER** define `TextStyle()` from scratch.
-   - Only use `copyWith()` on theme styles to alter font weight or tint if absolutely necessary.
+### 3. Typography & Context Resolvers:
+- Map all text to Material 3 text styles or context-aware `TypographyTokens`:
+  - Material 3 scale: `displayLarge`, `headlineMedium`, `titleMedium`, `titleSmall`, `bodyLarge`, `bodyMedium`, `bodySmall`, `labelLarge`, `labelSmall`
+  - Theme-aware token helpers:
+    - `TypographyTokens.headlineOf(context)`
+    - `TypographyTokens.titleSmallOf(context)`
+    - `TypographyTokens.bodySmallOf(context)`
+    - `TypographyTokens.tacticalBadgeOf(context)`
+    - `TypographyTokens.buttonTextOf(context)`
+    - `TypographyTokens.statusMicroOf(context)`
+    - `TypographyTokens.settingsRowTitleOf(context)`
+    - `TypographyTokens.settingsRowDescOf(context)`
+    - `TypographyTokens.dialogTitleOf(context)`
+    - `TypographyTokens.keyInputOf(context)`
+- **NEVER** define `TextStyle()` from scratch. Use `.copyWith()` strictly to adjust font weight or tint when context requires.
 
-4. **Spacing & Tokens:**
-   - Use the project's predefined spacing tokens and constants for all `Padding`, `Margin`, `SizedBox`, and border radii:
-     - `SpacingTokens` / `AppSpacing` (e.g., `AppSpacing.sm`, `SpacingTokens.md`, `SpacingTokens.cardInsets`)
-     - `AppSizes` (e.g., `AppSizes.p8`, `AppSizes.p16`, `AppSizes.p24`)
-     - `RadiusTokens` (e.g., `RadiusTokens.card`, `RadiusTokens.button`, `RadiusTokens.pillBadge`)
+### 4. Spacing, Insets & Geometry Tokens:
+- Use predefined design system tokens for all `Padding`, `Margin`, `SizedBox`, and border radii:
+  - Spacing scalars: `AppSpacing.md`, `SpacingTokens.md`, `AppSizes.p16` (4, 8, 12, 16, 24, 32, 48)
+  - Spacers: `SpacingTokens.gapMd`, `SpacingTokens.gapH16`, `SpacingTokens.gapV12`, `AppSpacing.gapH8`, `AppSpacing.gapV12`
+  - Predefined insets: `SpacingTokens.cardInsets`, `SpacingTokens.screenInsets`, `SpacingTokens.buttonInsets`, `SpacingTokens.pillInsets`
+  - Border radii: `RadiusTokens.card`, `RadiusTokens.button`, `RadiusTokens.borderMd`, `RadiusTokens.borderPill`, `RadiusTokens.borderXl`
 
-5. **Responsiveness:**
-   - Do not assume a mobile screen width.
-   - Use `LayoutBuilder`, `MediaQuery`, or project responsive wrappers to handle layout shifts between mobile portrait/landscape, tablet, and desktop HUD windows.
-   - Ensure components expand or shrink gracefully without pixel overflows.
+### 5. Adaptive Viewport Responsiveness:
+- Do not assume fixed phone dimensions (e.g., 360px portrait).
+- Support responsive viewport shifts between phone portrait/landscape, foldable screens, tablet consoles, and split-screen HUD windows:
+  - Use `LayoutBuilder` for container-adaptive layout branching.
+  - Use `MediaQuery.sizeOf(context)` for multi-column grids and orientation breakpoints.
+  - Wrap flexing elements in `Expanded`, `Flexible`, `ConstrainedBox`, or `FittedBox` to prevent pixel overflows.
 
-6. **Component Reuse:**
-   - Default to standard Material 3 widgets (`FilledButton`, `ElevatedButton`, `Card`) or design system components (`OwlButton`, `OwlGlassCard`, `OwlTacticalPill`) which already inherit theme data.
-   - Avoid building custom `Container` setups with `GestureDetector` unless highly specific low-level HUD graphics are requested.
+### 6. Component Reuse & Canonical Widget Catalog:
+- Default to existing `owl_design` widgets or theme-inheriting standard Material 3 widgets (`FilledButton`, `ElevatedButton`, `Card`):
+  - **Cards**: `OwlGlassCard`, `OwlAtmosphericBackground`
+  - **Buttons**: `OwlButton`, `OwlIconButton`
+  - **Badges**: `OwlBadge`, `OwlTimerBadge`, `OwlTacticalPill`
+  - **Indicators**: `OwlCooldownRing`, `OwlStatusDot`
+  - **Inputs & Switches**: `OwlTextField`, `MiuiSwitch`, `OemSegmentedChips`
+  - **Overlays**: `OwlActionSheet`
+- Avoid building ad-hoc `Container` + `GestureDetector` constructs unless implementing bespoke low-level HUD telemetry graphics.
+
+### 7. File Modularization (<200 LOC Soft Cap & SRP):
+- Keep all files focused and adhere strictly to the Single Responsibility Principle.
+- Target a soft cap of **< 200 lines per file**.
+- When screens grow beyond 200 lines:
+  - Extract subcomponents into `lib/features/<feature>/presentation/widgets/`.
+  - Extract distinct functional panels into `lib/features/<feature>/presentation/widgets/sections/`.
+  - Separate data/security management into `data/` services and state into dedicated providers.
+
+### 8. Riverpod State Management & Ephemerality Rule:
+- All business logic, asynchronous data loading, shared settings, and application state must reside in Riverpod providers (`StateNotifierProvider`, `AsyncNotifierProvider`, `Provider`).
+- Screens and components should extend `ConsumerWidget` or `ConsumerStatefulWidget`.
+- **`setState` is strictly forbidden for business logic**. Limit `setState` exclusively to local ephemeral presentation states (e.g., animation controllers, local ticker loops, local text input focus).
+
+### 9. Code Hygiene & Zero Dead Code:
+- Zero unused imports, zero unused fields, and zero orphaned models.
+- Always verify changes with `flutter analyze --no-pub` to ensure 0 errors, 0 warnings, and 0 lints.
+
+### 10. Build Configuration Protection:
+- **NEVER** edit build configs (`pubspec.yaml`, `build.gradle.kts`, `AndroidManifest.xml`) or asset manifests unless explicitly requested.
 
 ---
 
@@ -46,35 +85,80 @@
 ### DO NOT DO THIS (BANNED):
 
 ```dart
-Container(
-  padding: const EdgeInsets.all(16.0),
-  color: const Color(0xFF1E1E1E),
-  child: Text(
-    'Hello',
-    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-  ),
-)
+// ❌ REJECTED: Hardcoded color, hardcoded padding, raw TextStyle, custom button, setState for business logic
+class _BadState extends State<BadWidget> {
+  bool _turboActive = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      color: const Color(0xFF1E1E1E),
+      child: GestureDetector(
+        onTap: () => setState(() => _turboActive = !_turboActive),
+        child: const Text(
+          'Turbo Mode',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+      ),
+    );
+  }
+}
 ```
 
 ### DO THIS (REQUIRED):
 
 ```dart
-Container(
-  padding: const EdgeInsets.all(AppSpacing.md),
-  color: Theme.of(context).colorScheme.surface, // Or context.colorScheme.surface
-  child: Text(
-    'Hello',
-    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-      color: Theme.of(context).colorScheme.onSurface,
-    ),
-  ),
-)
+// ✅ APPROVED: ColorTokens facade, token spacing, theme typography, native component, Riverpod state
+class GoodWidget extends ConsumerWidget {
+  const GoodWidget({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = ColorTokens.of(context);
+    final isTurbo = ref.watch(gameTurboSettingsProvider).inGameShortcuts;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: colors.surfaceCard,
+        borderRadius: RadiusTokens.card,
+        border: Border.all(color: colors.borderGlass),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Turbo Mode',
+            style: TypographyTokens.titleSmallOf(context).copyWith(
+              color: colors.textPrimary,
+            ),
+          ),
+          MiuiSwitch(
+            value: isTurbo,
+            onChanged: (val) {
+              ref.read(gameTurboSettingsProvider.notifier).toggleShortcuts();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
 ```
 
 ---
 
 ## WORKFLOW GUIDELINES
 
-- Before writing UI code, confirm you understand the target layout.
-- Verify `packages/owl_design/lib/theme/app_theme.dart`, `packages/owl_design/lib/theme/tokens/spacing_tokens.dart`, and `DESIGN.md` in root if they are not already in your context window.
-- When creating buttons, cards, or dialogs, verify whether an existing widget in `packages/owl_design/lib/widgets/` already provides the needed capability.
+1. **Pre-Flight**:
+   - Confirm target layout requirements and check existing widgets in `packages/owl_design/lib/widgets/`.
+   - Verify token references in `packages/owl_design/lib/theme/tokens/` (`color_tokens.dart`, `spacing_tokens.dart`, `typography_tokens.dart`, `radius_tokens.dart`).
+
+2. **Modular Decomposition**:
+   - Plan component breakdown before writing code. Aim for <200 lines per file.
+   - Place child widgets in `widgets/` and section panes in `widgets/sections/`.
+
+3. **Post-Implementation Quality Gate**:
+   - Run `flutter analyze --no-pub` to confirm 0 errors, 0 warnings, and 0 lints.
+   - Run `flutter test` on affected test suites to ensure 100% green pass rate.

@@ -9,6 +9,7 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ApplicationInfo
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
@@ -36,26 +37,83 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
+import android.view.Choreographer
 import android.view.ContextThemeWrapper
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import io.flutter.embedding.android.FlutterTextureView
+import io.flutter.embedding.android.FlutterView
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import org.json.JSONObject
+
+/**
+ * Sliding-window frame rate arrival sampler tracking genuine inter-frame timestamps.
+ * Provides microsecond precision without per-frame GC allocations or CPU overhead.
+ */
+class FrameRateSampler(val maxSamples: Int = 128) {
+    private val timestamps = LongArray(maxSamples)
+    private var head = 0
+    private var count = 0
+    @Volatile var currentFps: Int = 0
+        private set
+
+    @Synchronized
+    fun recordFrame(now: Long = SystemClock.elapsedRealtime()) {
+        timestamps[head] = now
+        head = (head + 1) % timestamps.size
+        if (count < timestamps.size) count++
+        computeFps(now)
+    }
+
+    @Synchronized
+    fun computeFps(now: Long = SystemClock.elapsedRealtime()): Int {
+        if (count < 2) return currentFps
+        var framesInWindow = 0
+        var oldestTimestamp = now
+        for (i in 0 until count) {
+            val idx = (head - 1 - i + timestamps.size) % timestamps.size
+            val t = timestamps[idx]
+            if (now - t <= 1000L) {
+                framesInWindow++
+                oldestTimestamp = t
+            } else {
+                break
+            }
+        }
+        val windowSpan = now - oldestTimestamp
+        if (framesInWindow >= 2 && windowSpan > 80L) {
+            val calculated = Math.round((framesInWindow - 1) * 1000.0 / windowSpan).toInt()
+            currentFps = calculated.coerceIn(15, 240)
+        }
+        return currentFps
+    }
+
+    @Synchronized
+    fun getLastFrameAge(now: Long = SystemClock.elapsedRealtime()): Long {
+        if (count == 0) return Long.MAX_VALUE
+        val lastIdx = (head - 1 + timestamps.size) % timestamps.size
+        return now - timestamps[lastIdx]
+    }
+}
 
 /**
  * Android System Overlay Service for Xiaomi HyperOS Game Turbo 2026.
  *
  * Implements a dual-state System Alert Window (TYPE_APPLICATION_OVERLAY) over running games:
- * 1. Collapsed State: Persistent draggable edge handle ("TURBO 120 FPS") with emerald dot.
+ * 1. Collapsed State: Thin Xiaomi-style vertical edge rail — slide inward or tap to open.
  * 2. Expanded State: Streamlined floating panel (~288dp width) featuring:
  *    - Signature Circular Reactor Tachometer FPS Gauge with laser beam flares & 36 radial tick marks
  *    - Integrated Horizontal Live Telemetry Strip with CPU & GPU progress meters, clock & battery
@@ -66,6 +124,7 @@ class GameTurboOverlayService : Service() {
     private var windowManager: WindowManager? = null
     private var collapsedHandleView: View? = null
     private var expandedToolboxView: View? = null
+    private var overlayFlutterView: FlutterView? = null
     private var guardianOverlayView: View? = null
     private var guardianX: Int = 80
     private var guardianY: Int = 160
@@ -92,8 +151,9 @@ class GameTurboOverlayService : Service() {
         }
     }
 
-    private var currentGameName: String = "Pokémon UNITE"
+    private var currentGameName: String = "Game"
     private var currentTargetFps: Int = 120
+    private var performanceCeilingFps: Int = 120
     private var isPerformanceMode: Boolean = true
     private var isDndActive: Boolean = false
     private var isWifiBoostActive: Boolean = false
@@ -180,20 +240,56 @@ class GameTurboOverlayService : Service() {
             else -> try {
                 val pm = packageManager
                 val info = pm.getApplicationInfo(pkg, 0)
-                val isGameCategory = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    info.category == ApplicationInfo.CATEGORY_GAME
-                } else false
-                val isLegacyGame = (info.flags and ApplicationInfo.FLAG_IS_GAME) != 0
-                if (isGameCategory || isLegacyGame) {
-                    pm.getApplicationLabel(info).toString()
-                } else null
+                // Any foreground app label — never invent a demo game title.
+                pm.getApplicationLabel(info).toString().takeIf { it.isNotBlank() }
             } catch (_: Exception) { null }
         }
     }
 
-    private var handleX: Int = 40
-    private var handleY: Int = 80
+    private var handleX: Int = 0
+    private var handleY: Int = 120
+    private var edgeRailOnRight: Boolean = false
+    private val edgeOpenThresholdPx: Int
+        get() = dp(48f)
+
+    private fun loadPersistedOverlayPositions() {
+        try {
+            val prefs = getSharedPreferences("owl_overlay_prefs", Context.MODE_PRIVATE)
+            handleY = prefs.getInt("edge_rail_y", handleY)
+            guardianX = prefs.getInt("guardian_x", guardianX)
+            guardianY = prefs.getInt("guardian_y", guardianY)
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun persistEdgeRailPosition() {
+        try {
+            getSharedPreferences("owl_overlay_prefs", Context.MODE_PRIVATE)
+                .edit()
+                .putInt("edge_rail_y", handleY)
+                .apply()
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun persistGuardianPosition() {
+        try {
+            getSharedPreferences("owl_overlay_prefs", Context.MODE_PRIVATE)
+                .edit()
+                .putInt("guardian_x", guardianX)
+                .putInt("guardian_y", guardianY)
+                .apply()
+        } catch (_: Exception) {
+        }
+    }
     private val mainHandler = Handler(Looper.getMainLooper())
+    /** Off-main sampling so /proc reads never hitch the game while the rail is up. */
+    private val statsThread = HandlerThread("OwlOverlayStats").apply { start() }
+    private val statsHandler = Handler(statsThread.looper)
+    /** Last refresh rate applied to overlay windows — skip redundant display-mode switches. */
+    private var lastAppliedRefreshRate: Float = -1f
+    private var lastFlutterStatsEmitAtMs: Long = 0L
+    private val flutterStatsMinIntervalMs = 500L
     private var guardianAutoRefreshRunnable: Runnable? = null
 
     fun getEffectiveAiApiKey(): String? {
@@ -247,30 +343,156 @@ class GameTurboOverlayService : Service() {
         guardianAutoRefreshRunnable = null
     }
 
-    // Live stat refs — updated by MainActivity.pushStats()
-    @Volatile var liveCpu: Int = 30
-    @Volatile var liveGpu: Int = 56
-    @Volatile var liveBattery: Int = 71
+    // Live stat refs — updated by MainActivity.pushStats() and autonomous sampler
+    @Volatile var liveCpu: Int = 0
+    @Volatile var liveGpu: Int = 0
+    @Volatile var liveBattery: Int = 0
     @Volatile var liveFps: Int = 0
+    @Volatile private var lastGoodFps: Int = 0
+    @Volatile private var lastGoodFpsAtMs: Long = 0
     var onModeUiUpdate: (() -> Unit)? = null
 
-    fun updateWindowPreferredRefreshRate(rate: Float) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+    val gameFrameSampler = FrameRateSampler(128)
+    val overlayChoreographerSampler = FrameRateSampler(128)
+    private var isChoreographerActive = false
+
+    private val overlayFrameCallback = object : Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            overlayChoreographerSampler.recordFrame()
+            if (isChoreographerActive) {
+                Choreographer.getInstance().postFrameCallback(this)
+            }
+        }
+    }
+
+    fun startOverlayChoreographer() {
+        if (isChoreographerActive) return
+        isChoreographerActive = true
+        mainHandler.post {
+            Choreographer.getInstance().postFrameCallback(overlayFrameCallback)
+        }
+    }
+
+    fun stopOverlayChoreographer() {
+        isChoreographerActive = false
+        mainHandler.post {
+            Choreographer.getInstance().removeFrameCallback(overlayFrameCallback)
+        }
+    }
+
+    fun getEffectiveLiveFps(): Int {
+        val now = SystemClock.elapsedRealtime()
+        val displayRate = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                display?.refreshRate?.toInt() ?: (if (isPerformanceMode) 120 else 60)
+            } else {
+                @Suppress("DEPRECATION")
+                windowManager?.defaultDisplay?.refreshRate?.toInt()
+                    ?: (if (isPerformanceMode) 120 else 60)
+            }
+        } catch (_: Exception) {
+            if (isPerformanceMode) 120 else 60
+        }
+
+        val modeCeiling = if (isPerformanceMode) displayRate else 60
+
+        fun accept(sample: Int): Int {
+            val v = sample.coerceIn(15, modeCeiling)
+            lastGoodFps = v
+            lastGoodFpsAtMs = now
+            return v
+        }
+
+        // 1. Genuine game/vision frames (MediaProjection ImageReader ticks).
+        val gameAge = gameFrameSampler.getLastFrameAge(now)
+        if (gameAge < 650) {
+            val gFps = gameFrameSampler.computeFps(now)
+            if (gFps in 15..240) return accept(gFps)
+        }
+
+        // 2. Kernel/sysfs measured FPS (no display-ceiling invent).
+        val sysfs = readSysfsMeasuredFpsOrZero()
+        if (sysfs in 15..240) return accept(sysfs)
+
+        // 3. Overlay Choreographer — last resort (UI refresh, not game).
+        val overlayFps = overlayChoreographerSampler.computeFps(now)
+        if (overlayFps in 15..240) return accept(overlayFps)
+
+        // 4. Hold last-good briefly, then 0 so UI shows "--" instead of a fake ceiling.
+        if (lastGoodFps > 0 && now - lastGoodFpsAtMs < 1500L) {
+            return lastGoodFps.coerceIn(15, modeCeiling)
+        }
+        return 0
+    }
+
+    /** Sysfs measured FPS only — never falls back to display refresh target. */
+    private fun readSysfsMeasuredFpsOrZero(): Int {
+        val paths = listOf(
+            "/sys/class/drm/card0/device/fps",
+            "/sys/class/graphics/fb0/measured_fps",
+            "/sys/devices/platform/soc/soc:qcom,dsi-display-primary/measured_fps",
+            "/sys/devices/virtual/graphics/fb0/fps",
+            "/sys/class/drm/card0-DSI-1/measured_fps",
+            "/sys/devices/platform/soc/soc:qcom,dsi-display-0/measured_fps",
+        )
+        for (p in paths) {
             try {
-                val wm = windowManager ?: return
-                collapsedHandleView?.let { v ->
-                    (v.layoutParams as? WindowManager.LayoutParams)?.let { lp ->
-                        lp.preferredRefreshRate = rate
-                        wm.updateViewLayout(v, lp)
-                    }
+                val v = java.io.File(p).readText().trim().split(".").first().toIntOrNull()
+                if (v != null && v in 15..240) return v
+            } catch (_: Exception) {
+            }
+        }
+        return 0
+    }
+
+    fun updateWindowPreferredRefreshRate(rate: Float) {
+        try {
+            // Avoid repeated display-mode switches — they hitch the foreground game.
+            if (kotlin.math.abs(rate - lastAppliedRefreshRate) < 0.5f) return
+            lastAppliedRefreshRate = rate
+
+            val wm = windowManager ?: return
+            val d = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else @Suppress("DEPRECATION") wm.defaultDisplay
+            val modes = d?.supportedModes ?: emptyArray()
+            val chosenMode = if (rate <= 60f) {
+                modes.firstOrNull { it.refreshRate in 59f..61f }
+            } else {
+                modes.filter { it.refreshRate >= 89f }.maxByOrNull { it.refreshRate }
+            }
+
+            fun applyToLp(lp: WindowManager.LayoutParams, forceModeId: Boolean) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    lp.preferredRefreshRate = rate
                 }
-                expandedToolboxView?.let { v ->
-                    (v.layoutParams as? WindowManager.LayoutParams)?.let { lp ->
-                        lp.preferredRefreshRate = rate
-                        wm.updateViewLayout(v, lp)
-                    }
+                // preferredDisplayModeId can force a global mode change — only when HUD/guardian is up.
+                if (forceModeId && chosenMode != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    lp.preferredDisplayModeId = chosenMode.modeId
                 }
-            } catch (_: Exception) {}
+            }
+
+            val hudOpen = expandedToolboxView != null || guardianOverlayView != null
+
+            // Collapsed rail: soft hint only — never force display mode (prevents mid-match freezes).
+            collapsedHandleView?.let { v ->
+                (v.layoutParams as? WindowManager.LayoutParams)?.let { lp ->
+                    applyToLp(lp, forceModeId = false)
+                    wm.updateViewLayout(v, lp)
+                }
+            }
+            expandedToolboxView?.let { v ->
+                (v.layoutParams as? WindowManager.LayoutParams)?.let { lp ->
+                    applyToLp(lp, forceModeId = hudOpen)
+                    wm.updateViewLayout(v, lp)
+                }
+            }
+            guardianOverlayView?.let { v ->
+                (v.layoutParams as? WindowManager.LayoutParams)?.let { lp ->
+                    applyToLp(lp, forceModeId = hudOpen)
+                    wm.updateViewLayout(v, lp)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("GameTurbo", "updateWindowPreferredRefreshRate error: ${e.message}")
         }
     }
 
@@ -310,10 +532,16 @@ class GameTurboOverlayService : Service() {
             }.build()
 
             if (Build.VERSION.SDK_INT >= 34) {
+                val serviceTypes = if (hasMediaProjectionPermission() && isVisionEnabled) {
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                } else {
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                }
                 startForeground(
                     NOTIFICATION_ID,
                     notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                    serviceTypes
                 )
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(NOTIFICATION_ID, notification)
@@ -339,14 +567,16 @@ class GameTurboOverlayService : Service() {
             isLightMode = isLightModeActive()
         }
 
-        intent?.getStringExtra("EXTRA_GAME_NAME")?.let {
-            if (it.isNotEmpty() && it != "Game" && it != "Mobile Legends: Bang Bang") currentGameName = it
+        intent?.getStringExtra("EXTRA_GAME_NAME")?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            currentGameName = it
         }
         detectForegroundGame()?.let { currentGameName = it }
         val fpsExtra = intent?.getIntExtra("EXTRA_TARGET_FPS", -1) ?: -1
         if (fpsExtra > 0) {
             currentTargetFps = fpsExtra
+            performanceCeilingFps = fpsExtra
         }
+        syncPerformanceModeFromSettings(hasIntentFps = fpsExtra > 0)
 
         val keyExtra = intent?.getStringExtra("EXTRA_AI_API_KEY")
         aiApiKey = if (!keyExtra.isNullOrEmpty()) {
@@ -373,6 +603,10 @@ class GameTurboOverlayService : Service() {
         val shouldExpand = intent?.getBooleanExtra("EXTRA_EXPAND", false) ?: false
         val showGuardian = intent?.getBooleanExtra("EXTRA_SHOW_GUARDIAN", true) ?: true
 
+        syncEdgeRailFromSettings()
+        loadPersistedOverlayPositions()
+        prewarmOverlayFlutterEngine()
+
         if (shouldExpand) {
             expandToolbox()
         } else if (collapsedHandleView == null && expandedToolboxView == null) {
@@ -387,12 +621,104 @@ class GameTurboOverlayService : Service() {
         return START_STICKY
     }
 
+    /** Pre-warm the overlay Flutter engine off the expand tap path. */
+    private fun prewarmOverlayFlutterEngine() {
+        mainHandler.post {
+            try {
+                OverlayFlutterEngineHost.ensureEngine(applicationContext)
+                OverlayFlutterEngineHost.bindHandlers(
+                    onCollapse = { mainHandler.post { collapseToHandle() } },
+                    onOpenGpuSettings = { mainHandler.post { openGpuSettingsFromOverlay() } },
+                    provideConfig = { overlaySessionConfig() },
+                )
+            } catch (e: Exception) {
+                android.util.Log.w("GameTurbo", "overlay engine prewarm failed: ${e.message}")
+            }
+        }
+    }
+
+    private fun overlaySessionConfig(): Map<String, Any?> {
+        val screenH = resources.displayMetrics.heightPixels
+        // Rail window is ~88dp tall; center of bar ≈ handleY + half height.
+        val railCenterY = handleY + dp(44f)
+        return mapOf(
+            "gameTitle" to currentGameName,
+            "targetFps" to if (isPerformanceMode) currentTargetFps else 60,
+            "matchElapsedSeconds" to matchElapsedSeconds,
+            "edgeOnRight" to edgeRailOnRight,
+            "isPerformance" to isPerformanceMode,
+            "anchorY" to railCenterY,
+            "screenHeight" to screenH,
+        )
+    }
+
+    private fun syncEdgeRailFromSettings() {
+        try {
+            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            val raw = prefs.getString("flutter.owl_game_turbo_settings_v2", null) ?: return
+            val root = JSONObject(raw)
+            val settings = if (root.has("settings")) root.getJSONObject("settings") else root
+            val pos = settings.optString("shortcutEdgePosition", "Top-Left")
+            edgeRailOnRight = pos.contains("Right", ignoreCase = true)
+        } catch (_: Exception) {
+        }
+    }
+
+    /** Restore Balanced/Performance + FPS ceiling from Flutter prefs. */
+    private fun syncPerformanceModeFromSettings(hasIntentFps: Boolean) {
+        try {
+            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            val raw = prefs.getString("flutter.owl_game_turbo_settings_v2", null) ?: return
+            val root = JSONObject(raw)
+            val settings = if (root.has("settings")) root.getJSONObject("settings") else root
+            if (settings.has("performanceOptimization")) {
+                isPerformanceMode = settings.optBoolean("performanceOptimization", true)
+            }
+            if (!isPerformanceMode) {
+                currentTargetFps = 60
+                // Cold-start Balanced budget: no warm capture session.
+                releaseMediaProjectionSession()
+            } else if (!hasIntentFps) {
+                val fromGpu = settings.optString("gpuFpsTarget", "").toIntOrNull()
+                if (fromGpu != null && fromGpu > 0) {
+                    performanceCeilingFps = fromGpu
+                    currentTargetFps = fromGpu
+                } else {
+                    currentTargetFps = performanceCeilingFps
+                }
+            } else {
+                currentTargetFps = performanceCeilingFps
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun openGpuSettingsFromOverlay() {
+        try {
+            val launch = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                putExtra("EXTRA_OPEN_GPU_SETTINGS", true)
+            }
+            if (launch != null) startActivity(launch)
+        } catch (e: Exception) {
+            android.util.Log.w("GameTurbo", "openGpuSettings failed: ${e.message}")
+        }
+    }
+
+    private fun requireWindowManager(): WindowManager? {
+        windowManager?.let { return it }
+        val wm = getSystemService(WINDOW_SERVICE) as? WindowManager ?: return null
+        windowManager = wm
+        return wm
+    }
+
     private fun dp(value: Float): Int {
         return (value * resources.displayMetrics.density).toInt()
     }
 
     /**
-     * Renders the slim, draggable floating trigger handle at the edge of the screen.
+     * Xiaomi Game Turbo-style thin vertical edge rail.
+     * Flush to the absolute left/right screen edge. Slide inward or tap to expand.
      */
     private fun showCollapsedHandle() {
         if (collapsedHandleView != null || expandedToolboxView != null) return
@@ -407,148 +733,189 @@ class GameTurboOverlayService : Service() {
             WindowManager.LayoutParams.TYPE_PHONE
         }
 
+        val screenW = resources.displayMetrics.widthPixels
+        val screenH = resources.displayMetrics.heightPixels
+        // Prefer last known side; default left edge mid-upper.
+        if (handleY < dp(48f) || handleY > screenH - dp(96f)) {
+            handleY = (screenH * 0.28f).toInt()
+        }
+
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            dp(28f),
+            dp(88f),
             layoutFlag,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            x = handleX
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+            // Absolute edge docking — x always 0 against START or END gravity.
+            gravity = Gravity.TOP or (if (edgeRailOnRight) Gravity.END else Gravity.START)
+            x = 0
             y = handleY
         }
 
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+        val hitTarget = FrameLayout(this).apply {
+            tag = "edge_rail_root"
+            // Transparent hit strip flush to edge
+            setBackgroundColor(Color.TRANSPARENT)
+        }
 
-            val bg = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(999f).toFloat()
-                if (isLightMode) {
-                    setColor(Color.parseColor("#F2FFFFFF"))
-                    setStroke(dp(1.5f), Color.parseColor("#CBD5E1"))
-                } else {
-                    setColor(Color.parseColor("#E60D121B"))
-                    setStroke(dp(1.5f), Color.parseColor("#4D3B82F6"))
-                }
+        val rail = View(this).apply {
+            tag = "edge_rail_bar"
+            background = buildEdgeRailDrawable(0f)
+            layoutParams = FrameLayout.LayoutParams(dp(5f), dp(64f)).apply {
+                gravity = Gravity.CENTER_VERTICAL or
+                    (if (edgeRailOnRight) Gravity.END else Gravity.START)
+                // 1dp inset so it sits visibly on the glass edge, not under bezels
+                marginStart = if (edgeRailOnRight) 0 else dp(1f)
+                marginEnd = if (edgeRailOnRight) dp(1f) else 0
             }
-            background = bg
-            setPadding(dp(12f), dp(6f), dp(12f), dp(6f))
+        }
+        hitTarget.addView(rail)
 
-            // Glowing Emerald pulse dot
-            val dot = View(context).apply {
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(Color.parseColor("#30D158"))
+        var initialY = 0
+        var initialTouchX = 0f
+        var initialTouchY = 0f
+        var inwardDrag = 0f
+        var isRepositioning = false
+
+        hitTarget.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialY = params.y
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    inwardDrag = 0f
+                    isRepositioning = false
+                    true
                 }
-                layoutParams = LinearLayout.LayoutParams(dp(7f), dp(7f)).apply {
-                    marginEnd = dp(7f)
-                }
-            }
-            addView(dot)
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - initialTouchX
+                    val dy = event.rawY - initialTouchY
+                    val inward = if (edgeRailOnRight) -dx else dx
 
-            val zapIcon = LucideIconView(context, LucideIconView.TYPE_ZAP, Color.parseColor("#FF5A5F"), 1.8f).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(11f), dp(11f)).apply {
-                    marginEnd = dp(5f)
-                }
-            }
-            addView(zapIcon)
-
-            val text = TextView(context).apply {
-                text = "TURBO ${currentTargetFps} FPS"
-                setTextColor(if (isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
-                textSize = 10.5f
-                typeface = Typeface.DEFAULT_BOLD
-                letterSpacing = 0.03f
-                tag = "handle_fps_text"
-            }
-            addView(text)
-
-            var initialX = 0
-            var initialY = 0
-            var initialTouchX = 0f
-            var initialTouchY = 0f
-            var isDrag = false
-
-            setOnTouchListener { v, event ->
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        initialX = params.x
-                        initialY = params.y
-                        initialTouchX = event.rawX
-                        initialTouchY = event.rawY
-                        isDrag = false
-                        true
+                    if (!isRepositioning && Math.abs(dy) > dp(12f) && Math.abs(dy) > Math.abs(dx) * 1.2f) {
+                        isRepositioning = true
                     }
-                    MotionEvent.ACTION_MOVE -> {
-                        val dx = (event.rawX - initialTouchX).toInt()
-                        val dy = (event.rawY - initialTouchY).toInt()
-                        if (Math.abs(dx) > dp(6f) || Math.abs(dy) > dp(6f)) {
-                            isDrag = true
-                        }
-                        params.x = initialX + dx
-                        params.y = initialY + dy
-                        handleX = params.x
+
+                    if (isRepositioning) {
+                        params.y = (initialY + dy.toInt()).coerceIn(dp(24f), screenH - dp(110f))
                         handleY = params.y
                         wm.updateViewLayout(v, params)
-                        true
-                    }
-                    MotionEvent.ACTION_UP -> {
-                        if (!isDrag) {
-                            expandToolbox()
+                    } else if (inward > 0) {
+                        inwardDrag = inward
+                        val pull = inward.coerceIn(0f, dp(80f).toFloat())
+                        val g = pull / dp(80f).toFloat()
+                        rail.background = buildEdgeRailDrawable(g)
+                        (rail.layoutParams as FrameLayout.LayoutParams).apply {
+                            width = dp(5f) + (pull * 0.05f).toInt()
+                            val pullPx = (pull * 0.2f).toInt()
+                            marginStart = if (edgeRailOnRight) 0 else dp(1f) + pullPx
+                            marginEnd = if (edgeRailOnRight) dp(1f) + pullPx else 0
                         }
-                        true
+                        rail.requestLayout()
                     }
-                    else -> false
+                    true
                 }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    rail.background = buildEdgeRailDrawable(0f)
+                    (rail.layoutParams as FrameLayout.LayoutParams).apply {
+                        width = dp(5f)
+                        marginStart = if (edgeRailOnRight) 0 else dp(1f)
+                        marginEnd = if (edgeRailOnRight) dp(1f) else 0
+                    }
+                    rail.requestLayout()
+
+                    // Stay locked to the same edge — Xiaomi rails don't free-float.
+                    params.x = 0
+                    params.gravity = Gravity.TOP or
+                        (if (edgeRailOnRight) Gravity.END else Gravity.START)
+                    wm.updateViewLayout(v, params)
+                    if (isRepositioning) {
+                        persistEdgeRailPosition()
+                    }
+
+                    val tapped = Math.abs(event.rawX - initialTouchX) < dp(8f) &&
+                        Math.abs(event.rawY - initialTouchY) < dp(8f)
+                    if (!isRepositioning && (inwardDrag >= edgeOpenThresholdPx || tapped)) {
+                        expandToolbox()
+                    }
+                    inwardDrag = 0f
+                    true
+                }
+                else -> false
             }
         }
 
         try {
-            wm.addView(container, params)
-            collapsedHandleView = container
+            wm.addView(hitTarget, params)
+            collapsedHandleView = hitTarget
+            // Do NOT start Choreographer while collapsed — per-frame callbacks hitch gameplay.
+            stopOverlayChoreographer()
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    fun refreshCollapsedHandleTheme() {
-        val handleRoot = collapsedHandleView as? LinearLayout ?: return
-        val bg = GradientDrawable().apply {
+    private fun buildEdgeRailDrawable(glowFraction: Float): GradientDrawable {
+        val g = glowFraction.coerceIn(0f, 1f)
+        val fillAlpha = (0xB3 + (0x4C * g)).toInt().coerceIn(0, 255)
+        val strokeAlpha = (0x99 + (0x66 * g)).toInt().coerceIn(0, 255)
+        val core = if (isLightMode) Color.parseColor("#0284C7") else Color.parseColor("#389BFF")
+        return GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dp(999f).toFloat()
-            if (isLightMode) {
-                setColor(Color.parseColor("#F2FFFFFF"))
-                setStroke(dp(1.5f), Color.parseColor("#CBD5E1"))
-            } else {
-                setColor(Color.parseColor("#E60D121B"))
-                setStroke(dp(1.5f), Color.parseColor("#4D3B82F6"))
-            }
-        }
-        handleRoot.background = bg
-        for (i in 0 until handleRoot.childCount) {
-            val child = handleRoot.getChildAt(i)
-            if (child is TextView && (child.tag == "handle_fps_text" || child.text.toString().startsWith("TURBO"))) {
-                child.setTextColor(if (isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
-            }
+            setColor(Color.argb(fillAlpha, Color.red(core), Color.green(core), Color.blue(core)))
+            setStroke(
+                dp(1.2f),
+                Color.argb(strokeAlpha, Color.red(core), Color.green(core), Color.blue(core))
+            )
         }
     }
 
+    fun refreshCollapsedHandleTheme() {
+        val rail = collapsedHandleView?.findViewWithTag<View>("edge_rail_bar") ?: return
+        rail.background = buildEdgeRailDrawable(0f)
+    }
+
     /**
-     * Expands the sleek Xiaomi Game Turbo toolbox with Reactor Gauge and Live Telemetry.
+     * Expands the in-game toolbox using the same Flutter [GameturboFloatingToolbox]
+     * as Console — hosted in a MATCH_PARENT FlutterTextureView overlay.
+     * Engine is pre-warmed; attach happens only after non-zero layout.
      */
     private fun expandToolbox() {
-        val wm = windowManager ?: return
+        if (expandedToolboxView != null) return
+        val wm = requireWindowManager() ?: return
+
+        // Prefer the real foreground / launched title over any stale default.
+        detectForegroundGame()?.let { currentGameName = it }
 
         collapsedHandleView?.let {
             try {
                 wm.removeView(it)
-            } catch (e: Exception) {}
+            } catch (_: Exception) {
+            }
             collapsedHandleView = null
+        }
+
+        val engine = try {
+            OverlayFlutterEngineHost.ensureEngine(applicationContext).also {
+                OverlayFlutterEngineHost.bindHandlers(
+                    onCollapse = { mainHandler.post { collapseToHandle() } },
+                    onOpenGpuSettings = { mainHandler.post { openGpuSettingsFromOverlay() } },
+                    provideConfig = { overlaySessionConfig() },
+                )
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("GameTurbo", "overlay engine unavailable: ${e.message}", e)
+            showCollapsedHandle()
+            return
         }
 
         val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -558,97 +925,101 @@ class GameTurboOverlayService : Service() {
             WindowManager.LayoutParams.TYPE_PHONE
         }
 
+        // Expanded window is focusable so BACK collapses; no FLAG_NOT_FOCUSABLE.
         val rootParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
             layoutFlag,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
-        )
-
-        val root = FrameLayout(this).apply {
-            setBackgroundColor(if (isLightMode) Color.parseColor("#26000000") else Color.parseColor("#33000000"))
-            setOnClickListener {
-                collapseToHandle()
+        ).apply {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
         }
 
-        val cardWidth = dp(288f)
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = if (isLightMode) {
-                GradientDrawable(
-                    GradientDrawable.Orientation.TOP_BOTTOM,
-                    intArrayOf(Color.parseColor("#FAFFFFFF"), Color.parseColor("#F5F8FAFC"))
-                ).apply {
-                    shape = GradientDrawable.RECTANGLE
-                    cornerRadius = dp(18f).toFloat()
-                    setStroke(dp(1.2f), Color.parseColor("#CBD5E1"))
-                }
-            } else {
-                GradientDrawable(
-                    GradientDrawable.Orientation.TOP_BOTTOM,
-                    intArrayOf(Color.parseColor("#F5090B12"), Color.parseColor("#FA06070B"))
-                ).apply {
-                    shape = GradientDrawable.RECTANGLE
-                    cornerRadius = dp(18f).toFloat()
-                    setStroke(dp(1f), Color.parseColor("#26389BFF"))
-                }
-            }
-            setPadding(dp(12f), dp(9f), dp(12f), dp(9f))
-            tag = "toolbox_card"
+        val flutterView = FlutterView(this, FlutterTextureView(this)).apply {
+            setBackgroundColor(Color.TRANSPARENT)
             layoutParams = FrameLayout.LayoutParams(
-                cardWidth,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = Gravity.TOP or Gravity.START
-                val screenW = resources.displayMetrics.widthPixels
-                val screenH = resources.displayMetrics.heightPixels
-                leftMargin = dp(14f).coerceAtLeast(handleX - dp(20f)).coerceAtMost(screenW - cardWidth - dp(14f))
-                topMargin = dp(10f).coerceAtLeast(handleY - dp(10f)).coerceAtMost((screenH - dp(320f)).coerceAtLeast(dp(10f)))
-            }
-            setOnClickListener {
-                // Consume click inside card
-            }
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
         }
 
-        buildToolboxContent(card)
-        root.addView(card)
+        val root = object : FrameLayout(this) {
+            override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+                if (event.keyCode == KeyEvent.KEYCODE_BACK &&
+                    event.action == KeyEvent.ACTION_UP
+                ) {
+                    collapseToHandle()
+                    return true
+                }
+                return super.dispatchKeyEvent(event)
+            }
+        }.apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            isFocusableInTouchMode = true
+            addView(flutterView)
+        }
 
         try {
             wm.addView(root, rootParams)
             expandedToolboxView = root
+            overlayFlutterView = flutterView
+            root.requestFocus()
+
+            val attachListener = object : ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    if (flutterView.width <= 0 || flutterView.height <= 0) return
+                    flutterView.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                    try {
+                        flutterView.attachToFlutterEngine(engine)
+                        OverlayFlutterEngineHost.resumeLifecycle()
+                        OverlayFlutterEngineHost.configure(
+                            gameTitle = currentGameName,
+                            targetFps = if (isPerformanceMode) currentTargetFps else 60,
+                            matchElapsedSeconds = matchElapsedSeconds,
+                            edgeOnRight = edgeRailOnRight,
+                            isPerformance = isPerformanceMode,
+                            anchorY = handleY + dp(44f),
+                            screenHeight = resources.displayMetrics.heightPixels,
+                        )
+                        OverlayFlutterEngineHost.notifyShown()
+                        startOverlayChoreographer()
+                        android.util.Log.i(
+                            "GameTurbo",
+                            "overlay FlutterView attached ${flutterView.width}x${flutterView.height}",
+                        )
+                    } catch (e: Exception) {
+                        android.util.Log.e("GameTurbo", "FlutterView attach failed: ${e.message}", e)
+                        collapseToHandle()
+                    }
+                }
+            }
+            flutterView.viewTreeObserver.addOnGlobalLayoutListener(attachListener)
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("GameTurbo", "expandToolbox failed: ${e.message}", e)
+            overlayFlutterView = null
+            expandedToolboxView = null
+            showCollapsedHandle()
         }
     }
 
     fun refreshExpandedToolboxTheme() {
-        val root = expandedToolboxView as? FrameLayout ?: return
-        root.setBackgroundColor(if (isLightMode) Color.parseColor("#26000000") else Color.parseColor("#33000000"))
-        val card = root.findViewWithTag<LinearLayout>("toolbox_card") ?: return
-        card.background = if (isLightMode) {
-            GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.parseColor("#FAFFFFFF"), Color.parseColor("#F5F8FAFC"))
-            ).apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(18f).toFloat()
-                setStroke(dp(1.2f), Color.parseColor("#CBD5E1"))
-            }
-        } else {
-            GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.parseColor("#F5090B12"), Color.parseColor("#FA06070B"))
-            ).apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(18f).toFloat()
-                setStroke(dp(1f), Color.parseColor("#26389BFF"))
-            }
-        }
-        card.removeAllViews()
-        buildToolboxContent(card)
+        if (expandedToolboxView == null || overlayFlutterView == null) return
+        OverlayFlutterEngineHost.configure(
+            gameTitle = currentGameName,
+            targetFps = if (isPerformanceMode) currentTargetFps else 60,
+            matchElapsedSeconds = matchElapsedSeconds,
+            edgeOnRight = edgeRailOnRight,
+            isPerformance = isPerformanceMode,
+            anchorY = handleY + dp(44f),
+            screenHeight = resources.displayMetrics.heightPixels,
+        )
+        OverlayFlutterEngineHost.notifyShown()
     }
 
     private fun collapseToHandle() {
@@ -659,10 +1030,21 @@ class GameTurboOverlayService : Service() {
             pingListener = null
         }
 
-        expandedToolboxView?.let {
+        stopOverlayChoreographer()
+        OverlayFlutterEngineHost.pauseLifecycle()
+        overlayFlutterView?.let { fv ->
             try {
-                wm.removeView(it)
-            } catch (e: Exception) {}
+                fv.detachFromFlutterEngine()
+            } catch (_: Exception) {
+            }
+        }
+        overlayFlutterView = null
+
+        expandedToolboxView?.let { view ->
+            try {
+                wm.removeView(view)
+            } catch (_: Exception) {
+            }
             expandedToolboxView = null
         }
 
@@ -802,7 +1184,11 @@ class GameTurboOverlayService : Service() {
                     dp(66f)
                 )
                 this.isLightMode = this@GameTurboOverlayService.isLightMode
-                setMode(isPerformanceMode, if (isPerformanceMode) currentTargetFps else 60)
+                setMode(
+                    isPerformanceMode,
+                    if (isPerformanceMode) currentTargetFps else 60,
+                    if (isPerformanceMode) currentTargetFps else 60,
+                )
             }
             addView(reactorGaugeView)
 
@@ -975,7 +1361,11 @@ class GameTurboOverlayService : Service() {
                 val gauge = triple?.first as? ReactorGaugeView
                 val displayFps = if (liveFps > 0) liveFps else (if (isPerformanceMode) currentTargetFps else 60)
                 gauge?.isLightMode = isLightMode
-                gauge?.setMode(isPerformanceMode, displayFps)
+                gauge?.setMode(
+                    isPerformanceMode,
+                    displayFps,
+                    if (isPerformanceMode) currentTargetFps else 60,
+                )
 
                 val cpuPair = (triple?.second as? View)?.tag as? Pair<*, *>
                 (cpuPair?.first as? TextView)?.apply {
@@ -1018,7 +1408,8 @@ class GameTurboOverlayService : Service() {
                     currentTargetFps = 60
                     updateModeUi()
                     updateWindowPreferredRefreshRate(60f)
-                    pushStats(liveCpu, liveGpu, liveBattery, 60)
+                    val effective = getEffectiveLiveFps().coerceAtMost(60)
+                    pushStats(liveCpu, liveGpu, liveBattery, effective)
                     try {
                         getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
                             .edit()
@@ -1038,10 +1429,11 @@ class GameTurboOverlayService : Service() {
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 setOnClickListener {
                     isPerformanceMode = true
-                    currentTargetFps = 120
+                    currentTargetFps = performanceCeilingFps.coerceAtLeast(60)
                     updateModeUi()
-                    updateWindowPreferredRefreshRate(120f)
-                    pushStats(liveCpu, liveGpu, liveBattery, 120)
+                    updateWindowPreferredRefreshRate(currentTargetFps.toFloat())
+                    val effective = getEffectiveLiveFps()
+                    pushStats(liveCpu, liveGpu, liveBattery, effective)
                     try {
                         getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
                             .edit()
@@ -1358,213 +1750,206 @@ class GameTurboOverlayService : Service() {
     private val visionThread = HandlerThread("OwlVisionCapture").apply { start() }
     private val visionHandler = Handler(visionThread.looper)
 
-    fun captureScreenFrame(onCaptured: (String?) -> Unit) {
-        val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
-        val data = projectionData
+    // Persistent MediaProjection session state across frames (prevents Android 14 token death)
+    @Volatile private var activeMediaProjection: MediaProjection? = null
+    @Volatile private var activeVirtualDisplay: VirtualDisplay? = null
+    @Volatile private var activeImageReader: ImageReader? = null
+    @Volatile private var latestCapturedBase64: String? = null
+    @Volatile private var latestCapturedRawBytes: ByteArray? = null
+    @Volatile private var latestFrameWidth: Int = 640
+    @Volatile private var latestFrameHeight: Int = 360
+    @Volatile private var pendingBase64CaptureCallback: ((String?) -> Unit)? = null
+    @Volatile private var pendingRawCaptureCallback: ((ByteArray?, Int, Int) -> Unit)? = null
+
+    private fun ensureMediaProjectionSession(): Boolean {
+        if (activeMediaProjection != null && activeImageReader != null && activeVirtualDisplay != null) {
+            return true
+        }
+        val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager ?: return false
+        val data = projectionData ?: return false
         val resCode = projectionResultCode
-        if (mpm == null || data == null || resCode == 0 || !isVisionEnabled) {
+        if (resCode == 0 || !isVisionEnabled) return false
+
+        return try {
+            if (Build.VERSION.SDK_INT >= 34) {
+                try {
+                    val notification = Notification.Builder(this, CHANNEL_ID)
+                        .setContentTitle("Owl Game Turbo")
+                        .setContentText("Tactical Overlay & Guardian Vision Active")
+                        .setSmallIcon(android.R.drawable.ic_menu_compass)
+                        .build()
+                    val serviceTypes = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                    startForeground(NOTIFICATION_ID, notification, serviceTypes)
+                } catch (e: Exception) {
+                    android.util.Log.w("GameTurbo", "startForeground mediaProjection warning: ${e.message}")
+                }
+            }
+
+            val proj = mpm.getMediaProjection(resCode, data.clone() as Intent) ?: return false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                proj.registerCallback(object : MediaProjection.Callback() {
+                    override fun onStop() {
+                        super.onStop()
+                        releaseMediaProjectionSession()
+                    }
+                }, visionHandler)
+            }
+            activeMediaProjection = proj
+
+            val width = 640
+            val height = 360
+            val metrics = resources.displayMetrics
+            val dpi = metrics.densityDpi
+
+            val reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+            val display = proj.createVirtualDisplay(
+                "OwlVisionVirtualDisplay",
+                width,
+                height,
+                dpi,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                reader.surface,
+                null,
+                visionHandler
+            )
+
+            reader.setOnImageAvailableListener({ r ->
+                try {
+                    val image = r.acquireLatestImage() ?: return@setOnImageAvailableListener
+                    val reqBase64 = pendingBase64CaptureCallback
+                    val reqRaw = pendingRawCaptureCallback
+
+                    // Cheap FPS tick only — avoid extra work when nobody requested a capture.
+                    if (reqBase64 == null && reqRaw == null) {
+                        gameFrameSampler.recordFrame()
+                        image.close()
+                        return@setOnImageAvailableListener
+                    }
+
+                    gameFrameSampler.recordFrame()
+                    pendingBase64CaptureCallback = null
+                    pendingRawCaptureCallback = null
+
+                    val planes = image.planes
+                    val buffer = planes[0].buffer
+                    val pixelStride = planes[0].pixelStride
+                    val rowStride = planes[0].rowStride
+                    val rowPadding = rowStride - pixelStride * width
+
+                    val bmp = Bitmap.createBitmap(
+                        width + rowPadding / pixelStride,
+                        height,
+                        Bitmap.Config.ARGB_8888
+                    )
+                    bmp.copyPixelsFromBuffer(buffer)
+                    image.close()
+
+                    val cleanBitmap = if (rowPadding > 0) {
+                        val cropped = Bitmap.createBitmap(bmp, 0, 0, width, height)
+                        bmp.recycle()
+                        cropped
+                    } else {
+                        bmp
+                    }
+
+                    if (reqBase64 != null) {
+                        val baosJpeg = ByteArrayOutputStream()
+                        cleanBitmap.compress(Bitmap.CompressFormat.JPEG, 75, baosJpeg)
+                        val b64 = Base64.encodeToString(baosJpeg.toByteArray(), Base64.NO_WRAP)
+                        latestCapturedBase64 = b64
+                        mainHandler.post { reqBase64.invoke(b64) }
+                    }
+
+                    if (reqRaw != null) {
+                        val baosPng = ByteArrayOutputStream()
+                        cleanBitmap.compress(Bitmap.CompressFormat.PNG, 80, baosPng)
+                        val rawBytes = baosPng.toByteArray()
+                        latestCapturedRawBytes = rawBytes
+                        latestFrameWidth = width
+                        latestFrameHeight = height
+                        mainHandler.post { reqRaw.invoke(rawBytes, width, height) }
+                    }
+
+                    cleanBitmap.recycle()
+                } catch (e: Exception) {
+                    android.util.Log.e("GameTurbo", "Frame listener error: ${e.message}")
+                }
+            }, visionHandler)
+
+            activeImageReader = reader
+            activeVirtualDisplay = display
+            true
+        } catch (e: Exception) {
+            android.util.Log.e("GameTurbo", "ensureMediaProjectionSession error: ${e.message}")
+            releaseMediaProjectionSession()
+            false
+        }
+    }
+
+    private fun releaseMediaProjectionSession() {
+        try { activeVirtualDisplay?.release() } catch (_: Exception) {}
+        try { activeImageReader?.close() } catch (_: Exception) {}
+        try { activeMediaProjection?.stop() } catch (_: Exception) {}
+        activeVirtualDisplay = null
+        activeImageReader = null
+        activeMediaProjection = null
+        latestCapturedBase64 = null
+        latestCapturedRawBytes = null
+        pendingBase64CaptureCallback = null
+        pendingRawCaptureCallback = null
+    }
+
+    fun captureScreenFrame(onCaptured: (String?) -> Unit) {
+        if (!isVisionEnabled || !hasMediaProjectionPermission()) {
             onCaptured(null)
             return
         }
-
+        // Balanced: never open/keep a MediaProjection session warm for sampling.
+        if (!isPerformanceMode) {
+            onCaptured(null)
+            return
+        }
         visionHandler.post {
-            var imageReader: ImageReader? = null
-            var virtualDisplay: VirtualDisplay? = null
-            var projection: MediaProjection? = null
-            var completed = false
-
-            fun finish(result: String?) {
-                if (completed) return
-                completed = true
-                try { virtualDisplay?.release() } catch (_: Exception) {}
-                try { imageReader?.close() } catch (_: Exception) {}
-                try { projection?.stop() } catch (_: Exception) {}
-                onCaptured(result)
+            val ready = ensureMediaProjectionSession()
+            if (!ready) {
+                mainHandler.post { onCaptured(null) }
+                return@post
             }
-
-            visionHandler.postDelayed({ finish(null) }, 1500L)
-
-            try {
-                if (Build.VERSION.SDK_INT >= 34) {
-                    try {
-                        val notification = Notification.Builder(this, CHANNEL_ID)
-                            .setContentTitle("Owl Game Turbo")
-                            .setContentText("Tactical Overlay & Guardian Vision Active")
-                            .setSmallIcon(android.R.drawable.ic_menu_compass)
-                            .build()
-                        val serviceTypes = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or
-                                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
-                        startForeground(NOTIFICATION_ID, notification, serviceTypes)
-                    } catch (_: Exception) {}
+            pendingBase64CaptureCallback = onCaptured
+            visionHandler.postDelayed({
+                val p = pendingBase64CaptureCallback
+                if (p != null) {
+                    pendingBase64CaptureCallback = null
+                    mainHandler.post { p.invoke(latestCapturedBase64) }
                 }
-
-                projection = mpm.getMediaProjection(resCode, data.clone() as Intent)
-                if (projection == null) {
-                    finish(null)
-                    return@post
-                }
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    projection.registerCallback(object : MediaProjection.Callback() {
-                        override fun onStop() {
-                            super.onStop()
-                            finish(null)
-                        }
-                    }, visionHandler)
-                }
-
-                val width = 640
-                val height = 360
-                val metrics = resources.displayMetrics
-                val dpi = metrics.densityDpi
-
-                imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
-                virtualDisplay = projection.createVirtualDisplay(
-                    "OwlVisionVirtualDisplay",
-                    width,
-                    height,
-                    dpi,
-                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                    imageReader.surface,
-                    null,
-                    visionHandler
-                )
-
-                imageReader.setOnImageAvailableListener({ reader ->
-                    try {
-                        val image = reader.acquireLatestImage()
-                        if (image != null) {
-                            val planes = image.planes
-                            val buffer = planes[0].buffer
-                            val pixelStride = planes[0].pixelStride
-                            val rowStride = planes[0].rowStride
-                            val rowPadding = rowStride - pixelStride * width
-
-                            val bmp = Bitmap.createBitmap(
-                                width + rowPadding / pixelStride,
-                                height,
-                                Bitmap.Config.ARGB_8888
-                            )
-                            bmp.copyPixelsFromBuffer(buffer)
-                            image.close()
-
-                            val cleanBitmap = if (rowPadding > 0) {
-                                val cropped = Bitmap.createBitmap(bmp, 0, 0, width, height)
-                                bmp.recycle()
-                                cropped
-                            } else {
-                                bmp
-                            }
-
-                            val baos = ByteArrayOutputStream()
-                            cleanBitmap.compress(Bitmap.CompressFormat.JPEG, 75, baos)
-                            cleanBitmap.recycle()
-
-                            val base64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
-                            finish(base64)
-                        }
-                    } catch (e: Exception) {
-                        android.util.Log.e("GameTurbo", "Frame process error: ${e.message}")
-                        finish(null)
-                    }
-                }, visionHandler)
-
-            } catch (e: Exception) {
-                android.util.Log.e("GameTurbo", "MediaProjection init error: ${e.message}")
-                finish(null)
-            }
+            }, 450L)
         }
     }
 
     fun captureScreenFrameRaw(onCaptured: (ByteArray?, Int, Int) -> Unit) {
-        val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
-        val data = projectionData
-        val resCode = projectionResultCode
-        if (mpm == null || data == null || resCode == 0 || !isVisionEnabled) {
+        if (!isVisionEnabled || !hasMediaProjectionPermission()) {
             onCaptured(null, 0, 0)
             return
         }
-
+        if (!isPerformanceMode) {
+            onCaptured(null, 0, 0)
+            return
+        }
         visionHandler.post {
-            var imageReader: ImageReader? = null
-            var virtualDisplay: VirtualDisplay? = null
-            var projection: MediaProjection? = null
-            var completed = false
-
-            fun finish(bytes: ByteArray?, w: Int, h: Int) {
-                if (completed) return
-                completed = true
-                try { virtualDisplay?.release() } catch (_: Exception) {}
-                try { imageReader?.close() } catch (_: Exception) {}
-                try { projection?.stop() } catch (_: Exception) {}
-                mainHandler.post { onCaptured(bytes, w, h) }
+            val ready = ensureMediaProjectionSession()
+            if (!ready) {
+                mainHandler.post { onCaptured(null, 0, 0) }
+                return@post
             }
-
-            visionHandler.postDelayed({ finish(null, 0, 0) }, 1500L)
-
-            try {
-                projection = mpm.getMediaProjection(resCode, data.clone() as Intent)
-                if (projection == null) {
-                    finish(null, 0, 0)
-                    return@post
+            pendingRawCaptureCallback = onCaptured
+            visionHandler.postDelayed({
+                val p = pendingRawCaptureCallback
+                if (p != null) {
+                    pendingRawCaptureCallback = null
+                    mainHandler.post { p.invoke(latestCapturedRawBytes, latestFrameWidth, latestFrameHeight) }
                 }
-
-                val width = 320
-                val height = 180
-                val metrics = resources.displayMetrics
-                val dpi = metrics.densityDpi
-
-                imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
-                virtualDisplay = projection.createVirtualDisplay(
-                    "OwlVisionRawVirtualDisplay",
-                    width,
-                    height,
-                    dpi,
-                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                    imageReader.surface,
-                    null,
-                    visionHandler
-                )
-
-                imageReader.setOnImageAvailableListener({ reader ->
-                    try {
-                        val image = reader.acquireLatestImage()
-                        if (image != null) {
-                            val planes = image.planes
-                            val buffer = planes[0].buffer
-                            val pixelStride = planes[0].pixelStride
-                            val rowStride = planes[0].rowStride
-                            val rowPadding = rowStride - pixelStride * width
-
-                            val bmp = Bitmap.createBitmap(
-                                width + rowPadding / pixelStride,
-                                height,
-                                Bitmap.Config.ARGB_8888
-                            )
-                            bmp.copyPixelsFromBuffer(buffer)
-                            image.close()
-
-                            val cleanBitmap = if (rowPadding > 0) {
-                                val cropped = Bitmap.createBitmap(bmp, 0, 0, width, height)
-                                bmp.recycle()
-                                cropped
-                            } else {
-                                bmp
-                            }
-
-                            val baos = ByteArrayOutputStream()
-                            cleanBitmap.compress(Bitmap.CompressFormat.PNG, 80, baos)
-                            cleanBitmap.recycle()
-                            finish(baos.toByteArray(), width, height)
-                        }
-                    } catch (e: Exception) {
-                        finish(null, 0, 0)
-                    }
-                }, visionHandler)
-
-            } catch (e: Exception) {
-                finish(null, 0, 0)
-            }
+            }, 450L)
         }
     }
 
@@ -1594,7 +1979,9 @@ class GameTurboOverlayService : Service() {
 
                 val candidateModels = when (currentProvider) {
                     "groq" -> listOf(
-                        currentModel.ifEmpty { "llama-3.3-70b-versatile" },
+                        currentModel.ifEmpty { "openai/gpt-oss-120b" },
+                        "openai/gpt-oss-120b",
+                        "llama-3.3-70b-versatile",
                         "llama-3.1-8b-instant"
                     ).distinct()
                     "openai" -> listOf(
@@ -1606,8 +1993,11 @@ class GameTurboOverlayService : Service() {
                         "Meta-Llama-3.1-8B-Instruct"
                     ).distinct()
                     "openrouter", "deepseek" -> listOf(
-                        currentModel.ifEmpty { "meta-llama/llama-3.3-70b-instruct:free" },
-                        "google/gemini-2.0-flash-exp:free"
+                        currentModel.ifEmpty { "google/gemma-4-31b-it:free" },
+                        "google/gemma-4-31b-it:free",
+                        "google/gemma-4-26b-a4b-it:free",
+                        "inclusionai/ling-3.0-flash-vl:free",
+                        "meta-llama/llama-3.3-70b-instruct:free"
                     ).distinct()
                     "xkiro" -> listOf(
                         currentModel.ifEmpty { "deepseek/deepseek-v4.1-flash" },
@@ -1667,7 +2057,11 @@ class GameTurboOverlayService : Service() {
                             else -> "Standard tactical depth."
                         }
 
-                        val prompt = if (base64Frame != null && (currentProvider == "gemini" || isClaude || model.contains("vision") || model.contains("4o"))) {
+                        val isVisionCapableModel = currentProvider == "gemini" || isClaude ||
+                            model.contains("vision") || model.contains("4o") || model.contains("vl") ||
+                            model.contains("gemma") || model.contains("omni")
+
+                        val prompt = if (base64Frame != null && isVisionCapableModel) {
                             """
                             You are Guardian AI In-Game Tactical Coach.
                             Game: $currentGameName ($gameCategory) | Role: $roleStr | Match Time: $matchTimeStr
@@ -1677,7 +2071,7 @@ class GameTurboOverlayService : Service() {
                             1. Accurately identify the player's champion/hero (e.g. Balmond, Layla, Saber, etc.), active battle spell (Flicker, Retribution, Purify, Sprint, etc.), lane, and match timer.
                             2. Read the minimap to assess enemy positions, missing laners, and upcoming objective timers.
                             3. Provide actionable advice for the next 15-30 seconds tailored to the $roleStr role.
-                            Output valid JSON in this exact schema:
+                            Output ONLY valid raw JSON in this exact schema without any markdown, preamble, or thinking tokens:
                             {"action": "<short bold tactical action, max 6 words>", "reason": "<1 sentence rationale specifying hero/spell/objective>", "warning": "<short warning or radar callout, max 8 words>"}
                             """.trimIndent()
                         } else {
@@ -1687,7 +2081,7 @@ class GameTurboOverlayService : Service() {
                             Mode: ${if (isPerformanceMode) "Turbo" else "Balanced"} | Target: ${currentTargetFps} FPS
                             $depthDirective
                             Provide actionable advice for the $roleStr for the next 15-30 seconds of this match.
-                            Output valid JSON in this exact schema:
+                            Output ONLY valid raw JSON in this exact schema without any markdown, preamble, or thinking tokens:
                             {"action": "<short bold tactical action, max 6 words>", "reason": "<1 sentence rationale>", "warning": "<short warning or radar callout, max 8 words>"}
                             """.trimIndent()
                         }
@@ -1699,13 +2093,13 @@ class GameTurboOverlayService : Service() {
                                     val messagesArr = org.json.JSONArray().apply {
                                         val sysMsg = org.json.JSONObject().apply {
                                             put("role", "system")
-                                            put("content", "You are Guardian AI In-Game Tactical Coach for '$currentGameName' ($gameCategory). Role: ${if (preferredRole == "auto") "player" else preferredRole}. ${when (coachingLevel) { "beginner" -> "Explain simply for a new player." "advanced" -> "Include cooldowns and wave state." else -> "" }} Output valid JSON with keys: action, reason, warning.")
+                                            put("content", "You are Guardian AI In-Game Tactical Coach for '$currentGameName' ($gameCategory). Role: ${if (preferredRole == "auto") "player" else preferredRole}. ${when (coachingLevel) { "beginner" -> "Explain simply for a new player." "advanced" -> "Include cooldowns and wave state." else -> "" }} Output ONLY valid JSON with keys: action, reason, warning. Never output chain-of-thought or reasoning.")
                                         }
                                         put(sysMsg)
 
                                         val userMsg = org.json.JSONObject().apply {
                                             put("role", "user")
-                                            if (base64Frame != null && (model.contains("vision") || model.contains("4o"))) {
+                                            if (base64Frame != null && isVisionCapableModel) {
                                                 val partsArr = org.json.JSONArray().apply {
                                                     put(org.json.JSONObject().apply {
                                                         put("type", "text")
@@ -1727,16 +2121,23 @@ class GameTurboOverlayService : Service() {
                                     }
                                     put("messages", messagesArr)
                                     put("temperature", 0.3)
-                                    put("max_tokens", 300)
-                                    put("response_format", org.json.JSONObject().apply {
-                                        put("type", "json_object")
-                                    })
+                                    val tokenCap = if (currentProvider in listOf("openrouter", "deepseek")) 2048 else 1024
+                                    put("max_tokens", tokenCap)
+                                    val isReasoningModel = model.contains("gpt-oss") || model.contains("deepseek-r1") || model.contains("reason")
+                                    if (currentProvider == "groq" && isReasoningModel) {
+                                        put("reasoning_format", "hidden")
+                                    }
+                                    if (currentProvider == "openai") {
+                                        put("response_format", org.json.JSONObject().apply {
+                                            put("type", "json_object")
+                                        })
+                                    }
                                 }
                             }
                             isClaude -> {
                                 org.json.JSONObject().apply {
                                     put("model", model)
-                                    put("max_tokens", 300)
+                                    put("max_tokens", 1024)
                                     val messagesArr = org.json.JSONArray().apply {
                                         val userMsg = org.json.JSONObject().apply {
                                             put("role", "user")
@@ -1788,8 +2189,11 @@ class GameTurboOverlayService : Service() {
                                     put("contents", contentsArr)
                                     put("generationConfig", org.json.JSONObject().apply {
                                         put("temperature", 0.3)
-                                        put("maxOutputTokens", 300)
+                                        put("maxOutputTokens", 1024)
                                         put("responseMimeType", "application/json")
+                                        put("thinkingConfig", org.json.JSONObject().apply {
+                                            put("thinkingBudget", 0)
+                                        })
                                     })
                                 }
                             }
@@ -1844,7 +2248,9 @@ class GameTurboOverlayService : Service() {
                             val warning = directiveJson.optString("warning", "Radar scanning active threats.")
 
                             resolvedDirective = TacticalDirective(action, reason, warning)
-                            android.util.Log.d("GameTurbo", "$currentProvider ${if (base64Frame != null && !isOpenAiCompat) "Vision" else "Text"} Directive ($model) for $currentGameName: ${resolvedDirective.action}")
+                            val isModelVision = currentProvider == "gemini" || isClaude || model.contains("vision") || model.contains("4o") || model.contains("vl") || model.contains("gemma") || model.contains("omni")
+                            val usedVision = base64Frame != null && isModelVision
+                            android.util.Log.d("GameTurbo", "$currentProvider ${if (usedVision) "Vision" else "Text"} Directive ($model) for $currentGameName: ${resolvedDirective.action}")
                             break
                         } else {
                             val err = try { conn.errorStream?.bufferedReader()?.use { it.readText() } } catch (_: Exception) { null }
@@ -1861,7 +2267,8 @@ class GameTurboOverlayService : Service() {
                     isAnalyzingAi = false
                     val dir = resolvedDirective
                     if (dir != null) {
-                        onSuccess(dir, base64Frame != null)
+                        val isVisionActive = base64Frame != null && (currentProvider == "gemini" || isClaude || currentModel.contains("vision") || currentModel.contains("4o") || currentModel.contains("vl") || currentModel.contains("gemma") || currentModel.contains("omni"))
+                        onSuccess(dir, isVisionActive)
                     } else {
                         onError()
                     }
@@ -1869,7 +2276,7 @@ class GameTurboOverlayService : Service() {
             }
         }
 
-        if (isVisionEnabled && hasMediaProjectionPermission()) {
+        if (isVisionEnabled && hasMediaProjectionPermission() && isPerformanceMode) {
             captureScreenFrame { frame ->
                 executeInference(frame)
             }
@@ -2074,7 +2481,9 @@ class GameTurboOverlayService : Service() {
                         reasonText.text = next.warning ?: next.reason
                     }
                 }
-                startGuardianAutoRefresh(35000L) { cycleDirectiveFn?.invoke() }
+                startGuardianAutoRefresh(if (isPerformanceMode) 35000L else 120000L) {
+                    cycleDirectiveFn?.invoke()
+                }
             }
 
             cycleDirectiveFn = { cycleNextDirective() }
@@ -2109,7 +2518,9 @@ class GameTurboOverlayService : Service() {
                         true
                     }
                     MotionEvent.ACTION_UP -> {
-                        if (!isDrag) {
+                        if (isDrag) {
+                            persistGuardianPosition()
+                        } else {
                             cycleNextDirective()
                         }
                         true
@@ -2122,7 +2533,9 @@ class GameTurboOverlayService : Service() {
         try {
             wm.addView(container, params)
             guardianOverlayView = container
-            startGuardianAutoRefresh(35000L) { cycleDirectiveFn?.invoke() }
+            startGuardianAutoRefresh(if (isPerformanceMode) 35000L else 120000L) {
+                cycleDirectiveFn?.invoke()
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -2180,19 +2593,45 @@ class GameTurboOverlayService : Service() {
         }
     }
 
+    private var overlayPrevIdle: Long = 0L
+    private var overlayPrevTotal: Long = 0L
+
+    private fun readAutonomousCpu(): Int {
+        try {
+            val line = java.io.BufferedReader(java.io.FileReader("/proc/stat")).use { it.readLine() }
+            if (line != null && line.startsWith("cpu ")) {
+                val parts = line.trim().split("\\s+".toRegex()).drop(1).map { it.toLongOrNull() ?: 0L }
+                val idle = if (parts.size > 3) parts[3] else 0L
+                val total = parts.sum()
+                val diffIdle = idle - overlayPrevIdle
+                val diffTotal = total - overlayPrevTotal
+                overlayPrevIdle = idle
+                overlayPrevTotal = total
+                if (diffTotal > 0) {
+                    return ((diffTotal - diffIdle) * 100 / diffTotal).toInt().coerceIn(0, 100)
+                }
+            }
+        } catch (_: Exception) {}
+        return liveCpu
+    }
+
     private fun getBatteryLevel(): Int {
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 val bm = getSystemService(BATTERY_SERVICE) as? BatteryManager
                 val capacity = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
-                if (capacity > 0) capacity else 88
-            } else {
-                88
+                if (capacity in 0..100) return capacity
             }
+            val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val lvl = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+            if (lvl >= 0 && scale > 0) (lvl * 100 / scale).coerceIn(0, 100) else 0
         } catch (e: Exception) {
-            88
+            0
         }
     }
+
+    fun getBatteryLevelPublic(): Int = getBatteryLevel()
 
     private var autonomousTicker: Runnable? = null
 
@@ -2200,14 +2639,33 @@ class GameTurboOverlayService : Service() {
         if (autonomousTicker != null) return
         val r = object : Runnable {
             override fun run() {
-                val hwFps = readHardwareOverlayFps()
-                val batt = getBatteryLevel()
-                pushStats(liveCpu, liveGpu, batt, hwFps)
-                mainHandler.postDelayed(this, 1000)
+                // Sample off the main thread so /proc + battery never hitch the game.
+                statsHandler.post {
+                    val effectiveFps = getEffectiveLiveFps().let {
+                        when {
+                            it <= 0 -> 0
+                            !isPerformanceMode -> it.coerceAtMost(60)
+                            else -> it
+                        }
+                    }
+                    val batt = getBatteryLevel()
+                    val cpu = readAutonomousCpu()
+                    val target = if (isPerformanceMode) currentTargetFps else 60
+                    val ratio = if (effectiveFps > 0) {
+                        (effectiveFps.toFloat() / target.toFloat()).coerceIn(0f, 1f)
+                    } else {
+                        0.5f
+                    }
+                    val gpu = ((ratio * 60f) + (cpu * 0.35f)).toInt().coerceIn(5, 95)
+                    pushStats(cpu, gpu, batt, effectiveFps)
+                }
+                // Slower while collapsed (rail only); faster when HUD is open.
+                val interval = if (expandedToolboxView != null) 1000L else 2000L
+                mainHandler.postDelayed(this, interval)
             }
         }
         autonomousTicker = r
-        mainHandler.postDelayed(r, 1000)
+        mainHandler.postDelayed(r, 1500L)
     }
 
     private fun stopAutonomousTicker() {
@@ -2242,7 +2700,13 @@ class GameTurboOverlayService : Service() {
 
     override fun onDestroy() {
         stopAutonomousTicker()
+        stopOverlayChoreographer()
         stopGuardianAutoRefresh()
+        try {
+            statsHandler.removeCallbacksAndMessages(null)
+            statsThread.quitSafely()
+        } catch (_: Exception) {
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (_: Exception) {}
         } else {
@@ -2263,11 +2727,19 @@ class GameTurboOverlayService : Service() {
         }
         expandedToolboxView?.let {
             try {
+                overlayFlutterView?.detachFromFlutterEngine()
+            } catch (_: Exception) {
+            }
+            overlayFlutterView = null
+            try {
                 wm?.removeView(it)
-            } catch (e: Exception) {}
+            } catch (_: Exception) {
+            }
             expandedToolboxView = null
         }
         hideGuardianOverlay()
+        releaseMediaProjectionSession()
+        OverlayFlutterEngineHost.destroy()
         super.onDestroy()
     }
 
@@ -2289,6 +2761,41 @@ class GameTurboOverlayService : Service() {
 
         fun hasMediaProjectionPermission(): Boolean {
             return projectionResultCode != 0 && projectionData != null
+        }
+
+        fun getOverlayEffectiveLiveFps(): Int? {
+            return instance?.getEffectiveLiveFps()
+        }
+
+        /** Snapshot for the overlay Flutter EventChannel (battery/cpu/gpu/fps). */
+        fun liveSnapshotOrNull(): Map<String, Any?>? {
+            val svc = instance ?: return null
+            val raw = svc.getEffectiveLiveFps()
+            val fps = when {
+                raw <= 0 -> 0
+                !svc.isPerformanceMode -> raw.coerceAtMost(60)
+                else -> raw
+            }
+            return mapOf(
+                "battery" to (if (svc.liveBattery > 0) svc.liveBattery else svc.getBatteryLevelPublic()),
+                "cpu" to svc.liveCpu,
+                "gpu" to svc.liveGpu,
+                "fps" to fps,
+            )
+        }
+
+        fun instanceCpuOrZero(): Int = instance?.liveCpu ?: 0
+
+        fun applyGameContext(
+            gameCategory: String,
+            preferredRole: String,
+            coachingLevel: String,
+            matchElapsedSeconds: Int,
+        ) {
+            val svc = instance ?: return
+            Handler(Looper.getMainLooper()).post {
+                svc.setGameContext(gameCategory, preferredRole, coachingLevel, matchElapsedSeconds)
+            }
         }
 
         fun start(
@@ -2424,11 +2931,24 @@ class GameTurboOverlayService : Service() {
             val svc = instance ?: return
             Handler(Looper.getMainLooper()).post {
                 svc.isPerformanceMode = isPerf
-                svc.currentTargetFps = targetFps
+                if (isPerf) {
+                    val ceiling = targetFps.coerceAtLeast(1)
+                    svc.performanceCeilingFps = ceiling
+                    svc.currentTargetFps = ceiling
+                } else {
+                    svc.currentTargetFps = 60
+                    // Balanced Owl budget: drop warm MediaProjection; stop guardian auto-refresh.
+                    svc.releaseMediaProjectionSession()
+                    svc.stopGuardianAutoRefresh()
+                }
                 svc.onModeUiUpdate?.invoke()
-                svc.updateWindowPreferredRefreshRate(if (isPerf) targetFps.toFloat() else 60f)
-                val displayFps = if (isPerf) targetFps else 60
-                pushStats(svc.liveCpu, svc.liveGpu, svc.liveBattery, displayFps)
+                svc.updateWindowPreferredRefreshRate(
+                    if (isPerf) svc.currentTargetFps.toFloat() else 60f,
+                )
+                val currentFps = svc.getEffectiveLiveFps().let {
+                    if (!isPerf) it.coerceAtMost(60) else it
+                }
+                pushStats(svc.liveCpu, svc.liveGpu, svc.liveBattery, currentFps)
             }
         }
 
@@ -2473,29 +2993,39 @@ class GameTurboOverlayService : Service() {
         /** Called by MainActivity's stats loop or autonomous ticker with live real-time values. */
         fun pushStats(cpu: Int, gpu: Int, battery: Int, fps: Int) {
             val svc = instance ?: return
-            svc.liveCpu     = cpu
-            svc.liveGpu     = gpu
+            svc.liveCpu = cpu
+            svc.liveGpu = gpu
             svc.liveBattery = battery
-            svc.liveFps     = fps
+            svc.liveFps = fps
+
+            val displayFps = if (fps > 0) {
+                if (!svc.isPerformanceMode) fps.coerceAtMost(60) else fps
+            } else {
+                0
+            }
+
+            val hudOpen = svc.expandedToolboxView != null
+            val guardianOpen = svc.guardianOverlayView != null
+
+            // Collapsed rail-only: store volatiles and return — no main-thread UI work.
+            if (!hudOpen && !guardianOpen) return
 
             Handler(Looper.getMainLooper()).post {
                 try {
-                    val displayFps = if (fps > 0) fps else svc.currentTargetFps
-
-                    // 1. ALWAYS update collapsed handle text if visible
-                    val handleRoot = svc.collapsedHandleView as? android.view.ViewGroup
-                    if (handleRoot != null) {
-                        for (i in 0 until handleRoot.childCount) {
-                            val child = handleRoot.getChildAt(i)
-                            if (child is TextView && (child.tag == "handle_fps_text" || child.text.toString().startsWith("TURBO"))) {
-                                child.text = "TURBO $displayFps FPS"
-                                child.setTextColor(if (svc.isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
-                            }
+                    if (hudOpen) {
+                        val now = SystemClock.elapsedRealtime()
+                        if (now - svc.lastFlutterStatsEmitAtMs >= svc.flutterStatsMinIntervalMs) {
+                            svc.lastFlutterStatsEmitAtMs = now
+                            OverlayFlutterEngineHost.emitStats(cpu, gpu, battery, displayFps)
                         }
                     }
 
-                    // 2. Update the expanded toolbox if currently visible
+                    // Legacy Kotlin toolbox tags (only if native toolbox still present)
                     val toolboxRoot = svc.expandedToolboxView as? android.view.ViewGroup ?: return@post
+                    // FlutterTextureView root has no tagged telemetry children — skip walk.
+                    if (toolboxRoot.childCount == 1 && toolboxRoot.getChildAt(0) is io.flutter.embedding.android.FlutterView) {
+                        return@post
+                    }
                     fun findByTag(root: android.view.ViewGroup, tag: String): View? {
                         for (i in 0 until root.childCount) {
                             val child = root.getChildAt(i)
@@ -2532,7 +3062,6 @@ class GameTurboOverlayService : Service() {
                             if (svc.isLightMode) Color.parseColor("#A78BFA") else Color.parseColor("#C084FC")
                         )
                     }
-                    // Update FPS gauge
                     val triple = toolboxRoot.let { vg ->
                         for (i in 0 until vg.childCount) {
                             val c = vg.getChildAt(i)
@@ -2545,9 +3074,14 @@ class GameTurboOverlayService : Service() {
                     }
                     (triple?.first as? ReactorGaugeView)?.let { gauge ->
                         gauge.isLightMode = svc.isLightMode
-                        gauge.setMode(svc.isPerformanceMode, displayFps)
+                        gauge.setMode(
+                            svc.isPerformanceMode,
+                            displayFps,
+                            if (svc.isPerformanceMode) svc.currentTargetFps else 60,
+                        )
                     }
-                } catch (_: Exception) {}
+                } catch (_: Exception) {
+                }
             }
         }
     }
@@ -2573,6 +3107,7 @@ class LucideIconView @JvmOverloads constructor(
         const val TYPE_BOT = 6
         const val TYPE_MIC = 7
         const val TYPE_REFRESH = 8
+        const val TYPE_SLIDERS = 9
     }
 
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -2710,6 +3245,14 @@ class LucideIconView @JvmOverloads constructor(
                 path.close()
                 canvas.drawPath(path, fillPaint)
             }
+            TYPE_SLIDERS -> {
+                // Horizontal sliders/tune glyph matching Icons.tune
+                canvas.drawLine(w * 0.15f, h * 0.32f, w * 0.85f, h * 0.32f, strokePaint)
+                canvas.drawCircle(w * 0.38f, h * 0.32f, w * 0.10f, fillPaint)
+
+                canvas.drawLine(w * 0.15f, h * 0.68f, w * 0.85f, h * 0.68f, strokePaint)
+                canvas.drawCircle(w * 0.62f, h * 0.68f, w * 0.10f, fillPaint)
+            }
         }
     }
 }
@@ -2723,6 +3266,7 @@ class LucideIconView @JvmOverloads constructor(
 class ReactorGaugeView(context: Context) : View(context) {
     var isPerformanceMode: Boolean = true
     var fpsValue: Int = 120
+    var dialMaxFps: Float = 120f
     var isLightMode: Boolean = false
         set(value) {
             field = value
@@ -2760,9 +3304,10 @@ class ReactorGaugeView(context: Context) : View(context) {
         textAlign = Paint.Align.CENTER
     }
 
-    fun setMode(isPerf: Boolean, fps: Int) {
+    fun setMode(isPerf: Boolean, fps: Int, maxFps: Int = if (isPerf) 120 else 60) {
         isPerformanceMode = isPerf
         fpsValue = fps
+        dialMaxFps = maxFps.toFloat().coerceAtLeast(1f)
         invalidate()
     }
 
@@ -2817,7 +3362,8 @@ class ReactorGaugeView(context: Context) : View(context) {
         val arcRect = RectF(cx - arcRadius, cy - arcRadius, cx + arcRadius, cy + arcRadius)
         val startAngle = 135f
         val totalSweep = 270f
-        val progress = (fpsValue.toFloat() / 120f).coerceIn(0.05f, 1.0f)
+        val maxFps = dialMaxFps
+        val progress = (fpsValue.toFloat() / maxFps).coerceIn(0.05f, 1.0f)
         val activeSweep = totalSweep * progress
 
         // Track Arc (Inactive)

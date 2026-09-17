@@ -183,7 +183,7 @@ object HardwareSystemController {
                 measured = (System.currentTimeMillis() - stopwatchStart).toInt().coerceIn(8, 280)
             }
         } catch (_: Exception) {
-            measured = (livePingMs + ((-3..4).random())).coerceIn(16, 95)
+            measured = livePingMs
         }
         livePingMs = measured
         mainHandler.post {

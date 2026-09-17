@@ -92,7 +92,7 @@ class VoiceChangerNotifier extends StateNotifier<VoiceChangerState> {
               'startVoiceProcessing',
               {'preset': state.activePresetId},
             ) ??
-            true;
+            false;
 
         state = state.copyWith(
           isActive: success,
@@ -119,6 +119,21 @@ class VoiceChangerNotifier extends StateNotifier<VoiceChangerState> {
       );
       return true;
     }
+  }
+
+  /// Seeds UI from native voice state when the overlay toolbox opens.
+  Future<void> syncFromNative() async {
+    try {
+      final active =
+          await _channel.invokeMethod<bool>('isVoiceProcessingActive') ?? false;
+      if (active == state.isActive) return;
+      state = state.copyWith(
+        isActive: active,
+        statusMessage: active
+            ? '${state.currentPreset.name} Active'
+            : 'Voice Changer Off',
+      );
+    } catch (_) {}
   }
 
   Future<void> setPreset(String presetId) async {

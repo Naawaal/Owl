@@ -44,6 +44,7 @@ final class OpenAiInferenceClient extends BaseInferenceClient {
     required String apiKey,
     required String model,
     required String prompt,
+    String? base64Image,
     Duration? timeout,
   }) async {
     final tail = maskApiKey(apiKey);
@@ -52,7 +53,12 @@ final class OpenAiInferenceClient extends BaseInferenceClient {
         api.post(
           '$_baseUrl/chat/completions',
           options: _authed(apiKey),
-          data: _requestBody(model: model, prompt: prompt, stream: false),
+          data: _requestBody(
+            model: model,
+            prompt: prompt,
+            base64Image: base64Image,
+            stream: false,
+          ),
         ),
         timeout,
       );
@@ -67,6 +73,7 @@ final class OpenAiInferenceClient extends BaseInferenceClient {
     required String apiKey,
     required String model,
     required String prompt,
+    String? base64Image,
     Duration? timeout,
   }) async* {
     final tail = maskApiKey(apiKey);
@@ -76,7 +83,12 @@ final class OpenAiInferenceClient extends BaseInferenceClient {
         api.postStream(
           '$_baseUrl/chat/completions',
           headers: {'Authorization': 'Bearer $apiKey'},
-          data: _requestBody(model: model, prompt: prompt, stream: true),
+          data: _requestBody(
+            model: model,
+            prompt: prompt,
+            base64Image: base64Image,
+            stream: true,
+          ),
         ),
         timeout,
       );
@@ -101,17 +113,35 @@ final class OpenAiInferenceClient extends BaseInferenceClient {
   Map<String, Object?> _requestBody({
     required String model,
     required String prompt,
+    String? base64Image,
     required bool stream,
   }) {
+    final Object userContent;
+    if (base64Image != null &&
+        base64Image.isNotEmpty &&
+        (model.contains('vision') || model.contains('4o'))) {
+      userContent = [
+        {'type': 'text', 'text': prompt},
+        {
+          'type': 'image_url',
+          'image_url': {
+            'url': 'data:image/jpeg;base64,$base64Image',
+          },
+        },
+      ];
+    } else {
+      userContent = prompt;
+    }
+
     return {
       'model': model,
       'messages': [
         {'role': 'system', 'content': systemPrompt},
-        {'role': 'user', 'content': prompt},
+        {'role': 'user', 'content': userContent},
       ],
+      'stream': stream,
       'max_tokens': 256,
       'temperature': 0.7,
-      'stream': stream,
     };
   }
 

@@ -12,6 +12,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:owl/app/router/app_routes.dart';
 
+// Keep the overlay secondary entrypoint in the app kernel so a second
+// FlutterEngine can resolve package:owl/overlay_entry.dart / overlayMain.
+export 'overlay_entry.dart' show overlayMain;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 

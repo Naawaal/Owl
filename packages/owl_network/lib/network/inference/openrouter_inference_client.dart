@@ -46,9 +46,22 @@ final class OpenRouterInferenceClient extends BaseInferenceClient {
     required String apiKey,
     required String model,
     required String prompt,
+    String? base64Image,
     Duration? timeout,
   }) async {
     final tail = maskApiKey(apiKey);
+    final Object userContent;
+    if (base64Image != null && base64Image.isNotEmpty) {
+      userContent = [
+        {'type': 'text', 'text': prompt},
+        {
+          'type': 'image_url',
+          'image_url': {'url': 'data:image/jpeg;base64,$base64Image'},
+        },
+      ];
+    } else {
+      userContent = prompt;
+    }
     try {
       final response = await withTimeout(
         api.post(
@@ -61,7 +74,7 @@ final class OpenRouterInferenceClient extends BaseInferenceClient {
                 'role': 'system',
                 'content': OpenAiInferenceClient.systemPrompt,
               },
-              {'role': 'user', 'content': prompt},
+              {'role': 'user', 'content': userContent},
             ],
             'max_tokens': 256,
             'temperature': 0.7,
@@ -84,10 +97,23 @@ final class OpenRouterInferenceClient extends BaseInferenceClient {
     required String apiKey,
     required String model,
     required String prompt,
+    String? base64Image,
     Duration? timeout,
   }) async* {
     final tail = maskApiKey(apiKey);
     final budget = timeout ?? defaultTimeout;
+    final Object userContent;
+    if (base64Image != null && base64Image.isNotEmpty) {
+      userContent = [
+        {'type': 'text', 'text': prompt},
+        {
+          'type': 'image_url',
+          'image_url': {'url': 'data:image/jpeg;base64,$base64Image'},
+        },
+      ];
+    } else {
+      userContent = prompt;
+    }
     try {
       final body = await withTimeout(
         api.postStream(
@@ -104,7 +130,7 @@ final class OpenRouterInferenceClient extends BaseInferenceClient {
                 'role': 'system',
                 'content': OpenAiInferenceClient.systemPrompt,
               },
-              {'role': 'user', 'content': prompt},
+              {'role': 'user', 'content': userContent},
             ],
             'max_tokens': 256,
             'temperature': 0.7,
