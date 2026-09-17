@@ -102,10 +102,33 @@ class GameTurboOverlayService : Service() {
     private var pingListener: ((Int) -> Unit)? = null
 
     private var aiApiKey: String? = null
-    private var aiProvider: String = "gemini"
-    private var aiModel: String = "gemini-3-flash-preview"
+    private var aiProvider: String? = null
+    private var aiModel: String? = null
     private val aiExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
     @Volatile private var isAnalyzingAi: Boolean = false
+
+    // ── Live match context (pushed from Flutter via setGameContext channel) ────
+    private var gameCategory: String = "5v5 MOBA"
+    private var preferredRole: String = "auto"
+    private var coachingLevel: String = "intermediate"
+    private var matchElapsedSeconds: Int = 0
+
+    /** Updates live match context received from the Flutter layer. */
+    fun setGameContext(gameCategory: String, preferredRole: String, coachingLevel: String, matchElapsedSeconds: Int) {
+        this.gameCategory = gameCategory
+        this.preferredRole = preferredRole
+        this.coachingLevel = coachingLevel
+        this.matchElapsedSeconds = matchElapsedSeconds
+        try {
+            getSharedPreferences("owl_overlay_prefs", Context.MODE_PRIVATE).edit().apply {
+                putString("game_category", gameCategory)
+                putString("preferred_role", preferredRole)
+                putString("coaching_level", coachingLevel)
+                putInt("match_elapsed_seconds", matchElapsedSeconds)
+                apply()
+            }
+        } catch (_: Exception) {}
+    }
 
     fun detectForegroundGame(): String? {
         try {
@@ -181,6 +204,28 @@ class GameTurboOverlayService : Service() {
                 .getString("ai_api_key", null)
         } catch (_: Exception) {
             null
+        }
+    }
+
+    fun getEffectiveAiProvider(): String {
+        aiProvider?.takeIf { it.isNotEmpty() }?.let { return it }
+        cachedAiProvider?.takeIf { it.isNotEmpty() }?.let { return it }
+        return try {
+            getSharedPreferences("owl_overlay_prefs", Context.MODE_PRIVATE)
+                .getString("ai_provider", null)?.takeIf { it.isNotEmpty() } ?: "gemini"
+        } catch (_: Exception) {
+            "gemini"
+        }
+    }
+
+    fun getEffectiveAiModel(): String {
+        aiModel?.takeIf { it.isNotEmpty() }?.let { return it }
+        cachedAiModel?.takeIf { it.isNotEmpty() }?.let { return it }
+        return try {
+            getSharedPreferences("owl_overlay_prefs", Context.MODE_PRIVATE)
+                .getString("ai_model", null)?.takeIf { it.isNotEmpty() } ?: "gemini-2.5-flash"
+        } catch (_: Exception) {
+            "gemini-2.5-flash"
         }
     }
 
@@ -304,11 +349,26 @@ class GameTurboOverlayService : Service() {
         }
 
         val keyExtra = intent?.getStringExtra("EXTRA_AI_API_KEY")
-        aiApiKey = if (!keyExtra.isNullOrEmpty()) keyExtra else getEffectiveAiApiKey()
+        aiApiKey = if (!keyExtra.isNullOrEmpty()) {
+            cachedAiApiKey = keyExtra
+            keyExtra
+        } else {
+            getEffectiveAiApiKey()
+        }
         val provExtra = intent?.getStringExtra("EXTRA_AI_PROVIDER")
-        aiProvider = if (!provExtra.isNullOrEmpty()) provExtra else cachedAiProvider
+        aiProvider = if (!provExtra.isNullOrEmpty()) {
+            cachedAiProvider = provExtra
+            provExtra
+        } else {
+            getEffectiveAiProvider()
+        }
         val modelExtra = intent?.getStringExtra("EXTRA_AI_MODEL")
-        aiModel = if (!modelExtra.isNullOrEmpty()) modelExtra else cachedAiModel
+        aiModel = if (!modelExtra.isNullOrEmpty()) {
+            cachedAiModel = modelExtra
+            modelExtra
+        } else {
+            getEffectiveAiModel()
+        }
 
         val shouldExpand = intent?.getBooleanExtra("EXTRA_EXPAND", false) ?: false
         val showGuardian = intent?.getBooleanExtra("EXTRA_SHOW_GUARDIAN", true) ?: true
@@ -1416,6 +1476,98 @@ class GameTurboOverlayService : Service() {
         }
     }
 
+    fun captureScreenFrameRaw(onCaptured: (ByteArray?, Int, Int) -> Unit) {
+        val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
+        val data = projectionData
+        val resCode = projectionResultCode
+        if (mpm == null || data == null || resCode == 0 || !isVisionEnabled) {
+            onCaptured(null, 0, 0)
+            return
+        }
+
+        visionHandler.post {
+            var imageReader: ImageReader? = null
+            var virtualDisplay: VirtualDisplay? = null
+            var projection: MediaProjection? = null
+            var completed = false
+
+            fun finish(bytes: ByteArray?, w: Int, h: Int) {
+                if (completed) return
+                completed = true
+                try { virtualDisplay?.release() } catch (_: Exception) {}
+                try { imageReader?.close() } catch (_: Exception) {}
+                try { projection?.stop() } catch (_: Exception) {}
+                mainHandler.post { onCaptured(bytes, w, h) }
+            }
+
+            visionHandler.postDelayed({ finish(null, 0, 0) }, 1500L)
+
+            try {
+                projection = mpm.getMediaProjection(resCode, data.clone() as Intent)
+                if (projection == null) {
+                    finish(null, 0, 0)
+                    return@post
+                }
+
+                val width = 320
+                val height = 180
+                val metrics = resources.displayMetrics
+                val dpi = metrics.densityDpi
+
+                imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+                virtualDisplay = projection.createVirtualDisplay(
+                    "OwlVisionRawVirtualDisplay",
+                    width,
+                    height,
+                    dpi,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                    imageReader.surface,
+                    null,
+                    visionHandler
+                )
+
+                imageReader.setOnImageAvailableListener({ reader ->
+                    try {
+                        val image = reader.acquireLatestImage()
+                        if (image != null) {
+                            val planes = image.planes
+                            val buffer = planes[0].buffer
+                            val pixelStride = planes[0].pixelStride
+                            val rowStride = planes[0].rowStride
+                            val rowPadding = rowStride - pixelStride * width
+
+                            val bmp = Bitmap.createBitmap(
+                                width + rowPadding / pixelStride,
+                                height,
+                                Bitmap.Config.ARGB_8888
+                            )
+                            bmp.copyPixelsFromBuffer(buffer)
+                            image.close()
+
+                            val cleanBitmap = if (rowPadding > 0) {
+                                val cropped = Bitmap.createBitmap(bmp, 0, 0, width, height)
+                                bmp.recycle()
+                                cropped
+                            } else {
+                                bmp
+                            }
+
+                            val baos = ByteArrayOutputStream()
+                            cleanBitmap.compress(Bitmap.CompressFormat.PNG, 80, baos)
+                            cleanBitmap.recycle()
+                            finish(baos.toByteArray(), width, height)
+                        }
+                    } catch (e: Exception) {
+                        finish(null, 0, 0)
+                    }
+                }, visionHandler)
+
+            } catch (e: Exception) {
+                finish(null, 0, 0)
+            }
+        }
+    }
+
     fun queryGeminiTacticalDirectives(
         onSuccess: (TacticalDirective, Boolean) -> Unit,
         onError: () -> Unit
@@ -1435,18 +1587,61 @@ class GameTurboOverlayService : Service() {
 
         fun executeInference(base64Frame: String?) {
             aiExecutor.execute {
-                val candidateModels = listOf(
-                    "gemini-3-flash-preview",
-                    aiModel.ifEmpty { "gemini-3-flash-preview" },
-                    "gemini-2.5-flash"
-                ).distinct()
+                val currentProvider = getEffectiveAiProvider().lowercase()
+                val currentModel = getEffectiveAiModel()
+                val isOpenAiCompat = currentProvider in listOf("groq", "openai", "sambanova", "openrouter", "xkiro", "deepseek")
+                val isClaude = currentProvider == "claude"
+
+                val candidateModels = when (currentProvider) {
+                    "groq" -> listOf(
+                        currentModel.ifEmpty { "llama-3.3-70b-versatile" },
+                        "llama-3.1-8b-instant"
+                    ).distinct()
+                    "openai" -> listOf(
+                        currentModel.ifEmpty { "gpt-4o-mini" },
+                        "gpt-4o"
+                    ).distinct()
+                    "sambanova" -> listOf(
+                        currentModel.ifEmpty { "Meta-Llama-3.3-70B-Instruct" },
+                        "Meta-Llama-3.1-8B-Instruct"
+                    ).distinct()
+                    "openrouter", "deepseek" -> listOf(
+                        currentModel.ifEmpty { "meta-llama/llama-3.3-70b-instruct:free" },
+                        "google/gemini-2.0-flash-exp:free"
+                    ).distinct()
+                    "xkiro" -> listOf(
+                        currentModel.ifEmpty { "deepseek/deepseek-v4.1-flash" },
+                        "llama-3.3-70b-versatile"
+                    ).distinct()
+                    "claude" -> listOf(
+                        currentModel.ifEmpty { "claude-3-5-haiku-20241022" },
+                        "claude-3-5-haiku",
+                        "claude-3-haiku-20240307"
+                    ).distinct()
+                    else -> listOf(
+                        currentModel.ifEmpty { "gemini-2.5-flash" },
+                        "gemini-2.0-flash",
+                        "gemini-1.5-flash"
+                    ).distinct()
+                }
 
                 var resolvedDirective: TacticalDirective? = null
 
                 for (model in candidateModels) {
                     var conn: java.net.HttpURLConnection? = null
                     try {
-                        val urlString = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$key"
+                        val urlString = when {
+                            isOpenAiCompat -> when (currentProvider) {
+                                "groq" -> "https://api.groq.com/openai/v1/chat/completions"
+                                "sambanova" -> "https://api.sambanova.ai/v1/chat/completions"
+                                "openrouter", "deepseek" -> "https://openrouter.ai/api/v1/chat/completions"
+                                "xkiro" -> "https://api.xkiro.com/v1/chat/completions"
+                                else -> "https://api.openai.com/v1/chat/completions"
+                            }
+                            isClaude -> "https://api.anthropic.com/v1/messages"
+                            else -> "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$key"
+                        }
+
                         val url = java.net.URL(urlString)
                         conn = (url.openConnection() as java.net.HttpURLConnection).apply {
                             requestMethod = "POST"
@@ -1454,53 +1649,150 @@ class GameTurboOverlayService : Service() {
                             readTimeout = 8000
                             doOutput = true
                             setRequestProperty("Content-Type", "application/json")
+                            if (isOpenAiCompat) {
+                                setRequestProperty("Authorization", "Bearer $key")
+                            } else if (isClaude) {
+                                setRequestProperty("x-api-key", key)
+                                setRequestProperty("anthropic-version", "2023-06-01")
+                            }
                         }
 
-                        val prompt = if (base64Frame != null) {
+                        val mins = matchElapsedSeconds / 60
+                        val secs = matchElapsedSeconds % 60
+                        val matchTimeStr = "%02d:%02d".format(mins, secs)
+                        val roleStr = if (preferredRole == "auto") "player" else preferredRole
+                        val depthDirective = when (coachingLevel) {
+                            "beginner" -> "Explain tactics simply for a new player."
+                            "advanced" -> "Include cooldown windows, wave state, and vision control."
+                            else -> "Standard tactical depth."
+                        }
+
+                        val prompt = if (base64Frame != null && (currentProvider == "gemini" || isClaude || model.contains("vision") || model.contains("4o"))) {
                             """
-                            You are Guardian AI In-Game Tactical Coach for a player currently playing '$currentGameName'.
-                            Target: ${currentTargetFps} FPS. Mode: ${if (isPerformanceMode) "Turbo" else "Balanced"}.
+                            You are Guardian AI In-Game Tactical Coach.
+                            Game: $currentGameName ($gameCategory) | Role: $roleStr | Match Time: $matchTimeStr
+                            Mode: ${if (isPerformanceMode) "Turbo" else "Balanced"} | Target: ${currentTargetFps} FPS
+                            $depthDirective
                             Inspect the live in-game match screenshot attached:
                             1. Accurately identify the player's champion/hero (e.g. Balmond, Layla, Saber, etc.), active battle spell (Flicker, Retribution, Purify, Sprint, etc.), lane, and match timer.
                             2. Read the minimap to assess enemy positions, missing laners, and upcoming objective timers.
-                            3. Provide actionable advice for the next 15-30 seconds.
+                            3. Provide actionable advice for the next 15-30 seconds tailored to the $roleStr role.
                             Output valid JSON in this exact schema:
                             {"action": "<short bold tactical action, max 6 words>", "reason": "<1 sentence rationale specifying hero/spell/objective>", "warning": "<short warning or radar callout, max 8 words>"}
                             """.trimIndent()
                         } else {
                             """
-                            You are Guardian AI In-Game Tactical Coach for a player currently playing '$currentGameName'.
-                            Target: ${currentTargetFps} FPS. Mode: ${if (isPerformanceMode) "Turbo" else "Balanced"}.
+                            You are Guardian AI In-Game Tactical Coach.
+                            Game: $currentGameName ($gameCategory) | Role: $roleStr | Match Time: $matchTimeStr
+                            Mode: ${if (isPerformanceMode) "Turbo" else "Balanced"} | Target: ${currentTargetFps} FPS
+                            $depthDirective
+                            Provide actionable advice for the $roleStr for the next 15-30 seconds of this match.
                             Output valid JSON in this exact schema:
                             {"action": "<short bold tactical action, max 6 words>", "reason": "<1 sentence rationale>", "warning": "<short warning or radar callout, max 8 words>"}
                             """.trimIndent()
                         }
 
-                        val requestJson = org.json.JSONObject().apply {
-                            val contentsArr = org.json.JSONArray().apply {
-                                val partsArr = org.json.JSONArray()
-                                if (base64Frame != null) {
-                                    val imgPart = org.json.JSONObject().apply {
-                                        val inlineData = org.json.JSONObject().apply {
-                                            put("mimeType", "image/jpeg")
-                                            put("data", base64Frame)
+                        val requestJson = when {
+                            isOpenAiCompat -> {
+                                org.json.JSONObject().apply {
+                                    put("model", model)
+                                    val messagesArr = org.json.JSONArray().apply {
+                                        val sysMsg = org.json.JSONObject().apply {
+                                            put("role", "system")
+                                            put("content", "You are Guardian AI In-Game Tactical Coach for '$currentGameName' ($gameCategory). Role: ${if (preferredRole == "auto") "player" else preferredRole}. ${when (coachingLevel) { "beginner" -> "Explain simply for a new player." "advanced" -> "Include cooldowns and wave state." else -> "" }} Output valid JSON with keys: action, reason, warning.")
                                         }
-                                        put("inlineData", inlineData)
+                                        put(sysMsg)
+
+                                        val userMsg = org.json.JSONObject().apply {
+                                            put("role", "user")
+                                            if (base64Frame != null && (model.contains("vision") || model.contains("4o"))) {
+                                                val partsArr = org.json.JSONArray().apply {
+                                                    put(org.json.JSONObject().apply {
+                                                        put("type", "text")
+                                                        put("text", prompt)
+                                                    })
+                                                    put(org.json.JSONObject().apply {
+                                                        put("type", "image_url")
+                                                        put("image_url", org.json.JSONObject().apply {
+                                                            put("url", "data:image/jpeg;base64,$base64Frame")
+                                                        })
+                                                    })
+                                                }
+                                                put("content", partsArr)
+                                            } else {
+                                                put("content", prompt)
+                                            }
+                                        }
+                                        put(userMsg)
                                     }
-                                    partsArr.put(imgPart)
+                                    put("messages", messagesArr)
+                                    put("temperature", 0.3)
+                                    put("max_tokens", 300)
+                                    put("response_format", org.json.JSONObject().apply {
+                                        put("type", "json_object")
+                                    })
                                 }
-                                val textPart = org.json.JSONObject().apply {
-                                    put("text", prompt)
-                                }
-                                partsArr.put(textPart)
-                                put(org.json.JSONObject().apply { put("parts", partsArr) })
                             }
-                            put("contents", contentsArr)
-                            put("generationConfig", org.json.JSONObject().apply {
-                                put("temperature", 0.3)
-                                put("maxOutputTokens", 300)
-                                put("responseMimeType", "application/json")
-                            })
+                            isClaude -> {
+                                org.json.JSONObject().apply {
+                                    put("model", model)
+                                    put("max_tokens", 300)
+                                    val messagesArr = org.json.JSONArray().apply {
+                                        val userMsg = org.json.JSONObject().apply {
+                                            put("role", "user")
+                                            if (base64Frame != null) {
+                                                val partsArr = org.json.JSONArray().apply {
+                                                    put(org.json.JSONObject().apply {
+                                                        put("type", "image")
+                                                        put("source", org.json.JSONObject().apply {
+                                                            put("type", "base64")
+                                                            put("media_type", "image/jpeg")
+                                                            put("data", base64Frame)
+                                                        })
+                                                    })
+                                                    put(org.json.JSONObject().apply {
+                                                        put("type", "text")
+                                                        put("text", prompt)
+                                                    })
+                                                }
+                                                put("content", partsArr)
+                                            } else {
+                                                put("content", prompt)
+                                            }
+                                        }
+                                        put(userMsg)
+                                    }
+                                    put("messages", messagesArr)
+                                }
+                            }
+                            else -> {
+                                org.json.JSONObject().apply {
+                                    val contentsArr = org.json.JSONArray().apply {
+                                        val partsArr = org.json.JSONArray()
+                                        if (base64Frame != null) {
+                                            val imgPart = org.json.JSONObject().apply {
+                                                val inlineData = org.json.JSONObject().apply {
+                                                    put("mimeType", "image/jpeg")
+                                                    put("data", base64Frame)
+                                                }
+                                                put("inlineData", inlineData)
+                                            }
+                                            partsArr.put(imgPart)
+                                        }
+                                        val textPart = org.json.JSONObject().apply {
+                                            put("text", prompt)
+                                        }
+                                        partsArr.put(textPart)
+                                        put(org.json.JSONObject().apply { put("parts", partsArr) })
+                                    }
+                                    put("contents", contentsArr)
+                                    put("generationConfig", org.json.JSONObject().apply {
+                                        put("temperature", 0.3)
+                                        put("maxOutputTokens", 300)
+                                        put("responseMimeType", "application/json")
+                                    })
+                                }
+                            }
                         }
 
                         val bytes = requestJson.toString().toByteArray(Charsets.UTF_8)
@@ -1513,11 +1805,26 @@ class GameTurboOverlayService : Service() {
                         if (code in 200..299) {
                             val respStr = conn.inputStream.bufferedReader().use { it.readText() }
                             val root = org.json.JSONObject(respStr)
-                            val candidates = root.optJSONArray("candidates")
-                            val candidate = candidates?.optJSONObject(0)
-                            val content = candidate?.optJSONObject("content")
-                            val parts = content?.optJSONArray("parts")
-                            val rawText = parts?.optJSONObject(0)?.optString("text") ?: ""
+                            val rawText = when {
+                                isOpenAiCompat -> {
+                                    val choices = root.optJSONArray("choices")
+                                    val candidate = choices?.optJSONObject(0)
+                                    val msg = candidate?.optJSONObject("message")
+                                    msg?.optString("content") ?: ""
+                                }
+                                isClaude -> {
+                                    val contentArr = root.optJSONArray("content")
+                                    val candidate = contentArr?.optJSONObject(0)
+                                    candidate?.optString("text") ?: ""
+                                }
+                                else -> {
+                                    val candidates = root.optJSONArray("candidates")
+                                    val candidate = candidates?.optJSONObject(0)
+                                    val content = candidate?.optJSONObject("content")
+                                    val parts = content?.optJSONArray("parts")
+                                    parts?.optJSONObject(0)?.optString("text") ?: ""
+                                }
+                            }
 
                             val jsonStart = rawText.indexOf('{')
                             val jsonEnd = rawText.lastIndexOf('}')
@@ -1537,14 +1844,14 @@ class GameTurboOverlayService : Service() {
                             val warning = directiveJson.optString("warning", "Radar scanning active threats.")
 
                             resolvedDirective = TacticalDirective(action, reason, warning)
-                            android.util.Log.d("GameTurbo", "Gemini ${if (base64Frame != null) "Vision" else "Text"} Directive ($model) for $currentGameName: ${resolvedDirective.action}")
+                            android.util.Log.d("GameTurbo", "$currentProvider ${if (base64Frame != null && !isOpenAiCompat) "Vision" else "Text"} Directive ($model) for $currentGameName: ${resolvedDirective.action}")
                             break
                         } else {
                             val err = try { conn.errorStream?.bufferedReader()?.use { it.readText() } } catch (_: Exception) { null }
-                            android.util.Log.w("GameTurbo", "Gemini Model $model returned HTTP $code: $err. Trying next candidate...")
+                            android.util.Log.w("GameTurbo", "$currentProvider Model $model returned HTTP $code: $err. Trying next candidate...")
                         }
                     } catch (e: Exception) {
-                        android.util.Log.w("GameTurbo", "Gemini Model $model Exception: ${e.message}")
+                        android.util.Log.w("GameTurbo", "$currentProvider Model $model Exception: ${e.message}")
                     } finally {
                         try { conn?.disconnect() } catch (_: Exception) {}
                     }
@@ -1968,8 +2275,8 @@ class GameTurboOverlayService : Service() {
         // Singleton reference so MainActivity can push live stats
         @Volatile private var instance: GameTurboOverlayService? = null
         @Volatile var cachedAiApiKey: String? = null
-        @Volatile var cachedAiProvider: String = "gemini"
-        @Volatile var cachedAiModel: String = "gemini-3-flash-preview"
+        @Volatile var cachedAiProvider: String? = null
+        @Volatile var cachedAiModel: String? = null
 
         @Volatile var projectionResultCode: Int = 0
         @Volatile var projectionData: Intent? = null
@@ -1990,15 +2297,23 @@ class GameTurboOverlayService : Service() {
             targetFps: Int = 120,
             isLight: Boolean? = null,
             aiApiKey: String? = null,
-            aiProvider: String = "gemini",
-            aiModel: String = "gemini-3-flash-preview"
+            aiProvider: String? = null,
+            aiModel: String? = null
         ) {
-            val key = aiApiKey ?: cachedAiApiKey ?: try {
-                context.getSharedPreferences("owl_overlay_prefs", Context.MODE_PRIVATE).getString("ai_api_key", null)
+            val prefs = try {
+                context.getSharedPreferences("owl_overlay_prefs", Context.MODE_PRIVATE)
             } catch (_: Exception) { null }
+
+            val key = aiApiKey ?: cachedAiApiKey ?: prefs?.getString("ai_api_key", null)
             if (!key.isNullOrEmpty()) {
                 cachedAiApiKey = key
             }
+            val prov = aiProvider ?: cachedAiProvider ?: prefs?.getString("ai_provider", null) ?: "gemini"
+            cachedAiProvider = prov
+
+            val mod = aiModel ?: cachedAiModel ?: prefs?.getString("ai_model", null) ?: "gemini-2.5-flash"
+            cachedAiModel = mod
+
             val intent = Intent(context, GameTurboOverlayService::class.java).apply {
                 if (!gameName.isNullOrEmpty()) {
                     putExtra("EXTRA_GAME_NAME", gameName)
@@ -2010,8 +2325,8 @@ class GameTurboOverlayService : Service() {
                 if (!key.isNullOrEmpty()) {
                     putExtra("EXTRA_AI_API_KEY", key)
                 }
-                putExtra("EXTRA_AI_PROVIDER", aiProvider)
-                putExtra("EXTRA_AI_MODEL", aiModel)
+                putExtra("EXTRA_AI_PROVIDER", prov)
+                putExtra("EXTRA_AI_MODEL", mod)
                 putExtra("EXTRA_SHOW_GUARDIAN", true)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -2021,18 +2336,21 @@ class GameTurboOverlayService : Service() {
             }
         }
 
-        fun setAiCredentials(context: Context? = null, apiKey: String?, provider: String = "gemini", model: String = "gemini-3-flash-preview") {
+        fun setAiCredentials(context: Context? = null, apiKey: String?, provider: String = "gemini", model: String = "gemini-2.5-flash") {
             cachedAiApiKey = apiKey
             cachedAiProvider = provider
             cachedAiModel = model
-            if (context != null && !apiKey.isNullOrEmpty()) {
+            if (context != null) {
                 try {
-                    context.getSharedPreferences("owl_overlay_prefs", Context.MODE_PRIVATE)
-                        .edit()
-                        .putString("ai_api_key", apiKey)
-                        .putString("ai_provider", provider)
-                        .putString("ai_model", model)
-                        .apply()
+                    val editor = context.getSharedPreferences("owl_overlay_prefs", Context.MODE_PRIVATE).edit()
+                    if (!apiKey.isNullOrEmpty()) {
+                        editor.putString("ai_api_key", apiKey)
+                    } else {
+                        editor.remove("ai_api_key")
+                    }
+                    editor.putString("ai_provider", provider)
+                    editor.putString("ai_model", model)
+                    editor.apply()
                 } catch (_: Exception) {}
             }
             val svc = instance ?: return
@@ -2040,6 +2358,25 @@ class GameTurboOverlayService : Service() {
                 svc.aiApiKey = apiKey
                 svc.aiProvider = provider
                 svc.aiModel = model
+            }
+        }
+
+        /** Pushes live match context from Flutter into the running overlay service instance. */
+        fun setGameContext(context: Context? = null, gameCategory: String, preferredRole: String, coachingLevel: String, matchElapsedSeconds: Int) {
+            if (context != null) {
+                try {
+                    context.getSharedPreferences("owl_overlay_prefs", Context.MODE_PRIVATE).edit().apply {
+                        putString("game_category", gameCategory)
+                        putString("preferred_role", preferredRole)
+                        putString("coaching_level", coachingLevel)
+                        putInt("match_elapsed_seconds", matchElapsedSeconds)
+                        apply()
+                    }
+                } catch (_: Exception) {}
+            }
+            val svc = instance ?: return
+            Handler(Looper.getMainLooper()).post {
+                svc.setGameContext(gameCategory, preferredRole, coachingLevel, matchElapsedSeconds)
             }
         }
 
@@ -2092,6 +2429,44 @@ class GameTurboOverlayService : Service() {
                 svc.updateWindowPreferredRefreshRate(if (isPerf) targetFps.toFloat() else 60f)
                 val displayFps = if (isPerf) targetFps else 60
                 pushStats(svc.liveCpu, svc.liveGpu, svc.liveBattery, displayFps)
+            }
+        }
+
+        fun updateTacticalAdvice(badge: String, action: String, warning: String?) {
+            val svc = instance ?: return
+            Handler(Looper.getMainLooper()).post {
+                val root = svc.guardianOverlayView as? android.view.ViewGroup ?: return@post
+                fun findByTag(vg: android.view.ViewGroup, tag: String): View? {
+                    for (i in 0 until vg.childCount) {
+                        val c = vg.getChildAt(i)
+                        if (c.tag == tag) return c
+                        if (c is android.view.ViewGroup) {
+                            val f = findByTag(c, tag)
+                            if (f != null) return f
+                        }
+                    }
+                    return null
+                }
+                (findByTag(root, "guardian_badge") as? TextView)?.apply {
+                    text = badge
+                }
+                (findByTag(root, "guardian_action") as? TextView)?.apply {
+                    text = action
+                }
+                (findByTag(root, "guardian_reason") as? TextView)?.apply {
+                    text = warning ?: ""
+                }
+            }
+        }
+
+        fun captureFrameBytes(context: Context, callback: (ByteArray?, Int, Int) -> Unit) {
+            val svc = instance
+            if (svc != null && hasMediaProjectionPermission()) {
+                svc.captureScreenFrameRaw { bytes, w, h ->
+                    callback(bytes, w, h)
+                }
+            } else {
+                callback(null, 0, 0)
             }
         }
 

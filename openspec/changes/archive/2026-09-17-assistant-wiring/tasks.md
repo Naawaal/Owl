@@ -9,7 +9,7 @@
 - [x] 2.1 Map `performanceMode` to budget presets and wire `adaptiveWorkload` plus CPU/battery stress throttling behind `thermalProtection`
 - [x] 2.2 Surface last measured inference latency in the toolbox and edge handle behind `showInGameLatencyHud`
 - [x] 2.3 Add the TTS engine behind `voiceAlertsEnabled`, `alertPriority`, `speechCooldownSeconds`, and mix-don't-duck audio config (adds `flutter_tts`)
-- [ ] 2.4 Route all haptic sites through a central `hapticsEnabled` gate; enforce immersive boot plus master kill-switch for all automation
+- [x] 2.4 Route all haptic sites through a central `hapticsEnabled` gate; enforce immersive boot plus master kill-switch for all automation
 
 ## 3. Verification
 

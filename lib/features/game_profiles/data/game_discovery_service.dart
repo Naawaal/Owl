@@ -135,16 +135,23 @@ class GameDiscoveryService {
   }) async {
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       try {
+        final payload = <String, dynamic>{
+          'packageName': packageName,
+          'gameName': gameName,
+          'targetFps': targetFps,
+        };
+        if (aiApiKey != null && aiApiKey.isNotEmpty) {
+          payload['aiApiKey'] = aiApiKey;
+        }
+        if (aiProvider != null) {
+          payload['aiProvider'] = aiProvider;
+        }
+        if (aiModel != null) {
+          payload['aiModel'] = aiModel;
+        }
         final bool? success = await _channel.invokeMethod<bool>(
           'launchGame',
-          {
-            'packageName': packageName,
-            'gameName': gameName,
-            'targetFps': targetFps,
-            if (aiApiKey != null && aiApiKey.isNotEmpty) 'aiApiKey': aiApiKey,
-            if (aiProvider != null) 'aiProvider': aiProvider,
-            if (aiModel != null) 'aiModel': aiModel,
-          },
+          payload,
         );
         return success ?? false;
       } catch (e) {

@@ -6,6 +6,7 @@ import 'package:owl_core/owl_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:owl/features/ai_coach/data/coach_service.dart';
 import 'package:owl/features/overlay/data/dnd_service.dart';
+import 'package:owl/features/overlay/data/overlay_channel.dart';
 import 'package:owl/features/overlay/data/system_stats_service.dart';
 import 'package:owl/features/overlay/data/voice_changer_service.dart';
 import 'package:owl/features/overlay/data/wifi_optimizer_service.dart';
@@ -29,12 +30,15 @@ class GameturboFloatingToolbox extends ConsumerStatefulWidget {
     this.onOpenGpuSettings,
     this.gameTitle = 'Mobile Legends: Bang Bang',
     this.targetFps = 120,
+    this.matchElapsedSeconds = 0,
   });
 
   final VoidCallback onClose;
   final VoidCallback? onOpenGpuSettings;
   final String gameTitle;
   final int targetFps;
+  /// Elapsed match session seconds from the HUD session clock.
+  final int matchElapsedSeconds;
 
   @override
   ConsumerState<GameturboFloatingToolbox> createState() =>
@@ -42,17 +46,25 @@ class GameturboFloatingToolbox extends ConsumerStatefulWidget {
 }
 
 class _GameturboFloatingToolboxState
-    extends ConsumerState<GameturboFloatingToolbox> {
+    extends ConsumerState<GameturboFloatingToolbox>
+    with TickerProviderStateMixin {
   bool _isAiActive = true;
   Timer? _topicRefreshTimer;
+  late AnimationController _shimmerController;
+  bool _refreshAnimating = false;
 
   @override
   void initState() {
     super.initState();
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
     // Request live advice once the toolbox opens; budgets inside the
     // service suppress repeats. Never throws — failures stay silent here.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      _syncGameContext();
       _requestAdvice();
     });
     // Periodic topic auto-refresh; the service enforces gates and budgets.
@@ -60,6 +72,7 @@ class _GameturboFloatingToolboxState
       const Duration(seconds: 90),
       (_) {
         if (!mounted) return;
+        _syncGameContext();
         ref.read(coachServiceProvider.notifier).requestTopicRefresh();
       },
     );
@@ -68,15 +81,42 @@ class _GameturboFloatingToolboxState
   @override
   void dispose() {
     _topicRefreshTimer?.cancel();
+    _shimmerController.dispose();
     super.dispose();
   }
 
+  /// Pushes current game context into the Android overlay service so that
+  /// the autonomous Guardian AI loop uses the same grounding as Flutter.
+  void _syncGameContext() {
+    if (!mounted) return;
+    final settings = ref.read(gameTurboSettingsProvider);
+    unawaited(
+      OverlayChannel().setGameContext(
+        gameCategory: '5v5 MOBA',
+        preferredRole: settings.preferredRole,
+        coachingLevel: settings.coachingLevel,
+        matchElapsedSeconds: widget.matchElapsedSeconds,
+      ),
+    );
+  }
+
   void _requestAdvice() {
+    final settings = ref.read(gameTurboSettingsProvider);
+    final stats = ref.read(systemStatsProvider).valueOrNull;
+    final role = settings.preferredRole == 'auto' ? 'auto-detected role' : settings.preferredRole;
+    final fpsPart = stats?.fps != null ? ' | Live FPS: ${stats!.fps}' : '';
+    final cpuPart = stats?.cpu != null ? ' | CPU: ${stats!.cpu}%' : '';
+    final modePart = ' | Mode: ${settings.performanceMode}';
+    setState(() => _refreshAnimating = true);
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (mounted) setState(() => _refreshAnimating = false);
+    });
     ref.read(coachServiceProvider.notifier).requestAdvice(
-          situation:
-              'Live coaching for ${widget.gameTitle} at ${widget.targetFps} FPS target.',
-          manual: true,
-        );
+      situation: 'Live coaching for ${widget.gameTitle} at ${widget.targetFps} FPS target'
+          ' | Role: $role$fpsPart$cpuPart$modePart.',
+      matchTimeSeconds: widget.matchElapsedSeconds,
+      manual: true,
+    );
   }
 
   @override
@@ -170,30 +210,25 @@ class _GameturboFloatingToolboxState
     final service = ref.read(coachServiceProvider.notifier);
     final shown = adviceAsync.valueOrNull ?? service.lastKnown;
 
+    // ── Shimmer loading placeholder when no cached advice exists ─────────
     if (shown == null) {
       if (!adviceAsync.isLoading) return const SizedBox.shrink();
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 11,
-              height: 11,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: colors.turboBlueLight,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: AnimatedBuilder(
+          animation: _shimmerController,
+          builder: (ctx, _) {
+            final opacity =
+                0.25 + (_shimmerController.value * 0.4);
+            return Container(
+              height: 52,
+              decoration: BoxDecoration(
+                color: colors.surfaceGlass.withValues(alpha: opacity),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.borderGlass),
               ),
-            ),
-            const SizedBox(width: 7),
-            Text(
-              'Consulting coach…',
-              style: TypographyTokens.bodySmallOf(context).copyWith(
-                fontSize: 10.5,
-                color: colors.textMuted,
-              ),
-            ),
-          ],
+            );
+          },
         ),
       );
     }
@@ -205,6 +240,21 @@ class _GameturboFloatingToolboxState
     if (!CoachService.isTopicEnabled(settings, topic)) {
       return const SizedBox.shrink();
     }
+
+    // ── Topic dot color mapping ───────────────────────────────────────────
+    final Color topicDotColor = switch (topic) {
+      'missing-enemy' => colors.telemetryCritical,
+      'overextension' => colors.badgeYellow,
+      'objective'     => colors.emeraldLive,
+      'wave'          => colors.turboBlue,
+      _               => colors.textMuted,
+    };
+
+    // ── Provider + latency badge text ─────────────────────────────────────
+    final latencyMs = service.lastLatencyMs;
+    final providerLabel = settings.activeAiProvider;
+    final latencyText = latencyMs != null ? '$providerLabel • ${latencyMs}ms' : providerLabel;
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _requestAdvice,
@@ -223,19 +273,68 @@ class _GameturboFloatingToolboxState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    isLive
-                        ? 'GUARDIAN AI COACH • LIVE'
-                        : 'GUARDIAN AI COACH • LAST KNOWN',
-                    style: TypographyTokens.tacticalBadgeOf(context).copyWith(
-                      fontSize: 8.5,
-                      color: colors.turboBlueLight,
-                    ),
+                  // Header row: topic dot + LIVE badge + provider/latency
+                  Row(
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: topicDotColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          isLive
+                              ? 'GUARDIAN AI COACH • LIVE'
+                              : 'GUARDIAN AI COACH • LAST KNOWN',
+                          style: TypographyTokens.tacticalBadgeOf(context).copyWith(
+                            fontSize: 8.5,
+                            color: colors.turboBlueLight,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        latencyText,
+                        style: TypographyTokens.tacticalBadgeOf(context).copyWith(
+                          fontSize: 8,
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
+
+                  // ── Warning severity pill (shown above action when present) ──
+                  if (shown.warning != null && shown.warning!.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: colors.telemetryCritical.withValues(alpha: 0.15),
+                        borderRadius: RadiusTokens.pillBadge,
+                        border: Border.all(
+                          color: colors.telemetryCritical.withValues(alpha: 0.55),
+                        ),
+                      ),
+                      child: Text(
+                        shown.warning!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TypographyTokens.telemetryBadge.copyWith(
+                          fontSize: 9,
+                          color: colors.telemetryCritical,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                  ],
+
+                  // ── Action text (2-line) ──────────────────────────────────
                   Text(
                     shown.action,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TypographyTokens.titleSmallOf(context).copyWith(
                       fontSize: 12,
@@ -244,7 +343,7 @@ class _GameturboFloatingToolboxState
                   ),
                   if (settings.explainRecommendations)
                     Text(
-                      shown.warning ?? shown.reason,
+                      shown.reason,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TypographyTokens.bodySmallOf(context).copyWith(
@@ -256,10 +355,24 @@ class _GameturboFloatingToolboxState
               ),
             ),
             const SizedBox(width: 8),
-            Icon(
-              Icons.refresh_rounded,
-              size: 14,
-              color: colors.textMuted,
+            // ── Refresh icon with tap scale micro-animation ───────────────
+            TweenAnimationBuilder<double>(
+              tween: Tween<double>(
+                begin: 1.0,
+                end: _refreshAnimating ? 1.4 : 1.0,
+              ),
+              duration: const Duration(milliseconds: 200),
+              builder: (ctx, scale, child) {
+                return Transform.scale(
+                  scale: scale,
+                  child: child,
+                );
+              },
+              child: Icon(
+                Icons.refresh_rounded,
+                size: 14,
+                color: colors.textMuted,
+              ),
             ),
           ],
         ),

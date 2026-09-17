@@ -50,6 +50,7 @@ class MainActivity : FlutterActivity() {
     private val STATS_CHANNEL  = "com.example.owl/stats"
     private val SYSTEM_CHANNEL = "com.example.owl/system_controls"
     private val VOICE_CHANNEL  = "com.example.owl/voice_changer"
+    private val CAPTURE_CHANNEL = "com.example.owl/screen_capture"
 
     private val REQUEST_SCREEN_CAPTURE = 8812
     private var pendingScreenCaptureResult: MethodChannel.Result? = null
@@ -220,6 +221,16 @@ class MainActivity : FlutterActivity() {
                         GameTurboOverlayService.setAiCredentials(this, apiKey, provider, model)
                         result.success(true)
                     }
+                    "setGameContext" -> {
+                        val gameCategory = call.argument<String>("gameCategory") ?: "5v5 MOBA"
+                        val preferredRole = call.argument<String>("preferredRole") ?: "auto"
+                        val coachingLevel = call.argument<String>("coachingLevel") ?: "intermediate"
+                        val matchElapsedSeconds = call.argument<Int>("matchElapsedSeconds") ?: 0
+                        GameTurboOverlayService.setGameContext(
+                            this, gameCategory, preferredRole, coachingLevel, matchElapsedSeconds
+                        )
+                        result.success(true)
+                    }
                     "hasScreenCapturePermission" -> {
                         result.success(GameTurboOverlayService.hasMediaProjectionPermission())
                     }
@@ -235,6 +246,13 @@ class MainActivity : FlutterActivity() {
                     "setGuardianVisionEnabled" -> {
                         val enabled = call.argument<Boolean>("enabled") ?: true
                         GameTurboOverlayService.isVisionEnabled = enabled
+                        result.success(true)
+                    }
+                    "updateTacticalAdvice" -> {
+                        val badge = call.argument<String>("badge") ?: "GUARDIAN AI"
+                        val action = call.argument<String>("action") ?: "Hold Position"
+                        val warning = call.argument<String>("warning")
+                        GameTurboOverlayService.updateTacticalAdvice(badge, action, warning)
                         result.success(true)
                     }
                     // Keep legacy single-shot calls as fallback (they still work from main thread)
@@ -310,6 +328,38 @@ class MainActivity : FlutterActivity() {
                     }
                     "isVoiceProcessingActive" -> {
                         result.success(HardwareSystemController.isVoiceRunning)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        // 5. Screen Capture Channel (MediaProjection raw frame sampling)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CAPTURE_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "hasCapturePermission" -> {
+                        result.success(GameTurboOverlayService.hasMediaProjectionPermission())
+                    }
+                    "requestCapturePermission" -> {
+                        val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
+                        if (mpm != null) {
+                            pendingScreenCaptureResult = result
+                            startActivityForResult(mpm.createScreenCaptureIntent(), REQUEST_SCREEN_CAPTURE)
+                        } else {
+                            result.success(false)
+                        }
+                    }
+                    "getLatestFrame" -> {
+                        GameTurboOverlayService.captureFrameBytes(this) { bytes: ByteArray?, width: Int, height: Int ->
+                            if (bytes != null && width > 0 && height > 0) {
+                                result.success(mapOf("bytes" to bytes, "width" to width, "height" to height))
+                            } else {
+                                result.success(null)
+                            }
+                        }
+                    }
+                    "stopCapture" -> {
+                        result.success(true)
                     }
                     else -> result.notImplemented()
                 }

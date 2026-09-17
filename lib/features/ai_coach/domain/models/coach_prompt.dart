@@ -25,6 +25,18 @@ class CoachPrompt {
   /// Optional list of upcoming objective timers or active map states.
   final Map<String, dynamic>? tacticalContext;
 
+  /// Game genre/category (e.g. '5v5 MOBA', 'Battle Royale', 'Strategy').
+  final String? gameCategory;
+
+  /// Current device CPU utilisation percentage (0–100).
+  final int? cpuPercent;
+
+  /// Current device battery level percentage (0–100).
+  final int? batteryPercent;
+
+  /// Live measured frames per second at the time of the request.
+  final int? liveFps;
+
   const CoachPrompt({
     required this.gameName,
     required this.matchTimeSeconds,
@@ -33,6 +45,10 @@ class CoachPrompt {
     required this.promptType,
     this.heroChampion,
     this.tacticalContext,
+    this.gameCategory,
+    this.cpuPercent,
+    this.batteryPercent,
+    this.liveFps,
   });
 
   /// Formatted match time in MM:SS.
@@ -52,7 +68,16 @@ class CoachPrompt {
         ? 'Action (immediate verb), Reason (1 sentence), Warning (risk if any).'
         : 'Action (immediate verb), Warning (risk if any). Omit Reason.';
 
-    return 'Game: $gameName | Match Time: $formattedMatchTime | Role: $role.$heroLine\n'
+    // Assemble device + game-state grounding block from any available fields.
+    final deviceParts = <String>[];
+    if (gameCategory != null) deviceParts.add('Category: $gameCategory');
+    if (cpuPercent != null) deviceParts.add('CPU: $cpuPercent%');
+    if (batteryPercent != null) deviceParts.add('Battery: $batteryPercent%');
+    if (liveFps != null) deviceParts.add('FPS: $liveFps');
+    final deviceLine =
+        deviceParts.isNotEmpty ? '\nDevice: ${deviceParts.join(' | ')}' : '';
+
+    return 'Game: $gameName | Match Time: $formattedMatchTime | Role: $role.$heroLine$deviceLine\n'
         'Intent: $promptType\n'
         'Situation: $currentSituation$contextLine\n'
         'Respond in short, high-urgency tactical HUD style: $explainDirective';
@@ -67,6 +92,10 @@ class CoachPrompt {
     String? promptType,
     String? heroChampion,
     Map<String, dynamic>? tacticalContext,
+    String? gameCategory,
+    int? cpuPercent,
+    int? batteryPercent,
+    int? liveFps,
   }) {
     return CoachPrompt(
       gameName: gameName ?? this.gameName,
@@ -76,6 +105,10 @@ class CoachPrompt {
       promptType: promptType ?? this.promptType,
       heroChampion: heroChampion ?? this.heroChampion,
       tacticalContext: tacticalContext ?? this.tacticalContext,
+      gameCategory: gameCategory ?? this.gameCategory,
+      cpuPercent: cpuPercent ?? this.cpuPercent,
+      batteryPercent: batteryPercent ?? this.batteryPercent,
+      liveFps: liveFps ?? this.liveFps,
     );
   }
 
@@ -89,6 +122,10 @@ class CoachPrompt {
       'promptType': promptType,
       if (heroChampion != null) 'heroChampion': heroChampion,
       if (tacticalContext != null) 'tacticalContext': tacticalContext,
+      if (gameCategory != null) 'gameCategory': gameCategory,
+      if (cpuPercent != null) 'cpuPercent': cpuPercent,
+      if (batteryPercent != null) 'batteryPercent': batteryPercent,
+      if (liveFps != null) 'liveFps': liveFps,
     };
   }
 
@@ -104,6 +141,10 @@ class CoachPrompt {
       tacticalContext: map['tacticalContext'] != null
           ? Map<String, dynamic>.from(map['tacticalContext'] as Map)
           : null,
+      gameCategory: map['gameCategory'] as String?,
+      cpuPercent: (map['cpuPercent'] as num?)?.toInt(),
+      batteryPercent: (map['batteryPercent'] as num?)?.toInt(),
+      liveFps: (map['liveFps'] as num?)?.toInt(),
     );
   }
 
@@ -123,6 +164,10 @@ class CoachPrompt {
           currentSituation == other.currentSituation &&
           promptType == other.promptType &&
           heroChampion == other.heroChampion &&
+          gameCategory == other.gameCategory &&
+          cpuPercent == other.cpuPercent &&
+          batteryPercent == other.batteryPercent &&
+          liveFps == other.liveFps &&
           mapEquals(tacticalContext, other.tacticalContext);
 
   @override
@@ -133,6 +178,10 @@ class CoachPrompt {
         currentSituation,
         promptType,
         heroChampion,
+        gameCategory,
+        cpuPercent,
+        batteryPercent,
+        liveFps,
       );
 
   @override

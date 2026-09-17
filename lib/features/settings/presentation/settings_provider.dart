@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:owl/features/overlay/data/system_stats_service.dart';
 import 'package:owl/features/settings/domain/models/game_turbo_settings.dart';
+import 'package:owl_core/owl_core.dart';
 import 'package:owl_network/owl_network.dart';
 import 'package:owl_storage/owl_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -296,7 +297,10 @@ class GameTurboSettingsNotifier extends StateNotifier<GameTurboSettings> {
   }
 
   void toggleHaptics(bool value) {
-    HapticFeedback.selectionClick();
+    HapticHelper.globalEnabled = value;
+    if (value) {
+      HapticFeedback.selectionClick();
+    }
     _persist(state.copyWith(hapticsEnabled: value));
   }
 
@@ -355,6 +359,7 @@ class GameTurboSettingsNotifier extends StateNotifier<GameTurboSettings> {
   /// performance toggle. Never throws: channel errors are contained, so
   /// tests run platform-free with zero native leakage.
   Future<void> applyPersistedHardwareState() async {
+    HapticHelper.globalEnabled = state.hapticsEnabled;
     final isPerf = state.performanceOptimization;
     RealTimeFpsTracker.instance.setModeTarget(isPerf ? 120 : 60);
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;

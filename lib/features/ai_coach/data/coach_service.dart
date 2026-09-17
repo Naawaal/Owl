@@ -7,7 +7,9 @@ import 'package:owl/features/ai_coach/data/tts_announcer.dart';
 import 'package:owl/features/ai_coach/domain/models/coach_prompt.dart';
 import 'package:owl/features/ai_coach/domain/models/coach_response.dart';
 import 'package:owl/features/ai_coach/domain/offline_tactical_heuristics_engine.dart';
+import 'package:owl/features/ai_coach/domain/vision/moba_minimap_extractor.dart';
 import 'package:owl/features/game_profiles/presentation/game_discovery_provider.dart';
+import 'package:owl/features/overlay/data/overlay_channel.dart';
 import 'package:owl/features/overlay/data/system_stats_service.dart';
 import 'package:owl/features/settings/domain/models/game_turbo_settings.dart';
 import 'package:owl/features/settings/presentation/settings_provider.dart';
@@ -57,6 +59,42 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
   String _lastPromptType = 'tactical';
   String _lastKnownTopic = 'tactical';
   int? _lastLatencyMs;
+
+  final MobaMinimapExtractor _minimapExtractor = MobaMinimapExtractor();
+  MobaTacticalSnapshot? _latestMinimapSnapshot;
+
+  /// Underlying minimap extractor instance.
+  MobaMinimapExtractor get minimapExtractor => _minimapExtractor;
+
+  /// Most recent tactical snapshot extracted from vision minimap.
+  MobaTacticalSnapshot? get latestMinimapSnapshot => _latestMinimapSnapshot;
+
+  /// High latency threshold (1500ms) beyond which tactical guidance
+  /// degrades to fast localized heuristics with a warning flag.
+  static const int latencyDegradationThresholdMs = 1500;
+
+  /// Ingests detected raw minimap hero tokens and updates current tactical context.
+  void ingestMinimapTokens({
+    required List<MinimapHeroToken> detectedTokens,
+    required int matchTimeSeconds,
+    List<NeutralObjectiveState>? objectiveOverrides,
+  }) {
+    _latestMinimapSnapshot = _minimapExtractor.processTokens(
+      detectedTokens: detectedTokens,
+      matchTimeSeconds: matchTimeSeconds,
+      objectiveOverrides: objectiveOverrides,
+    );
+  }
+
+  /// Calculates latency-compensated game time in seconds, offsetting match duration
+  /// by the measured provider RTT to project advice ahead in time.
+  int computeCompensatedMatchTime(int rawMatchTimeSeconds) {
+    if (_lastLatencyMs == null || _lastLatencyMs! <= 0) {
+      return rawMatchTimeSeconds;
+    }
+    final latencySeconds = (_lastLatencyMs! / 1000.0).round();
+    return rawMatchTimeSeconds + latencySeconds;
+  }
 
   /// Last successfully received advice, if any. Survives errors and restarts
   /// of the query pipeline within the session.
@@ -228,6 +266,10 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
       if (settings.assistantMode != 'live') return;
     }
 
+    final compensatedTime = computeCompensatedMatchTime(matchTimeSeconds);
+    final effectiveContext =
+        tacticalContext ?? _latestMinimapSnapshot?.toTacticalContext();
+
     final key =
         await _ref.read(apiKeyManagerProvider).getApiKey(settings.activeAiProvider);
     if (key == null || key.isEmpty) {
@@ -236,7 +278,7 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
           const OfflineTacticalHeuristicsEngine().generateAdvice(
         gameName: game?.name ?? 'Unknown Match',
         role: settings.preferredRole,
-        matchTimeSeconds: matchTimeSeconds,
+        matchTimeSeconds: compensatedTime,
         targetFps: game?.targetFps ?? 120,
         settings: settings,
       );
@@ -265,14 +307,19 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
     final stopwatch = Stopwatch()..start();
     try {
       final game = _ref.read(activeGameProvider);
+      final stats = _ref.read(systemStatsProvider).valueOrNull;
       final prompt = CoachPrompt(
         gameName: game?.name ?? 'Unknown Match',
-        matchTimeSeconds: matchTimeSeconds,
+        matchTimeSeconds: compensatedTime,
         role: settings.preferredRole,
         currentSituation: situation,
         promptType: promptType,
         heroChampion: heroChampion,
-        tacticalContext: tacticalContext,
+        tacticalContext: effectiveContext,
+        gameCategory: game?.category,
+        cpuPercent: stats?.cpu,
+        batteryPercent: stats?.battery,
+        liveFps: stats?.fps,
       );
       final client = inferenceClientFor(
         providerId: settings.activeAiProvider,
@@ -285,12 +332,32 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
             '${prompt.toFormattedPrompt(explainRecommendations: settings.explainRecommendations)}${depthBlock(settings.coachingLevel)}',
         timeout: requestTimeout,
       );
-      final response = CoachResponse.fromRawText(text);
+      final elapsed = stopwatch.elapsedMilliseconds;
+      _lastLatencyMs = elapsed;
+
+      CoachResponse response;
+      if (elapsed > latencyDegradationThresholdMs) {
+        // High latency degradation: fallback to localized heuristic alerts + latency warning
+        final heuristic = const OfflineTacticalHeuristicsEngine().generateAdvice(
+          gameName: game?.name ?? 'Unknown Match',
+          role: settings.preferredRole,
+          matchTimeSeconds: compensatedTime,
+          targetFps: game?.targetFps ?? 120,
+          settings: settings,
+        );
+        response = heuristic.copyWith(
+          warning:
+              'High latency (${elapsed}ms) - using local tactical guidance. ${heuristic.warning ?? ""}'
+                  .trim(),
+        );
+      } else {
+        response = CoachResponse.fromRawText(text);
+      }
+
       _lastKnown = response;
       _lastKnownTopic = promptType;
       _callsThisMatch++;
       _lastCallAt = now;
-      _lastLatencyMs = stopwatch.elapsedMilliseconds;
       state = AsyncValue.data(response);
       unawaited(_maybeAnnounce(response, settings));
     } on InferenceException catch (_) {
@@ -298,7 +365,7 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
       final fallback = const OfflineTacticalHeuristicsEngine().generateAdvice(
         gameName: game?.name ?? 'Unknown Match',
         role: settings.preferredRole,
-        matchTimeSeconds: matchTimeSeconds,
+        matchTimeSeconds: compensatedTime,
         targetFps: game?.targetFps ?? 120,
         settings: settings,
       );
@@ -311,7 +378,7 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
       final fallback = const OfflineTacticalHeuristicsEngine().generateAdvice(
         gameName: game?.name ?? 'Unknown Match',
         role: settings.preferredRole,
-        matchTimeSeconds: matchTimeSeconds,
+        matchTimeSeconds: compensatedTime,
         targetFps: game?.targetFps ?? 120,
         settings: settings,
       );
@@ -367,9 +434,13 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
     if (topics.isEmpty) return;
     final topic = topics[_topicCursor % topics.length];
     _topicCursor++;
+    final stats = _ref.read(systemStatsProvider).valueOrNull;
+    final role = settings.preferredRole == 'auto' ? 'your role' : settings.preferredRole;
+    final fpsPart = stats?.fps != null ? ' | Live FPS: ${stats!.fps}' : '';
+    final cpuPart = stats?.cpu != null ? ' | CPU: ${stats!.cpu}%' : '';
     await requestAdvice(
-      situation: 'Scheduled $topic check-in. Report only if actionable, '
-          'otherwise reply HOLD with a one-line reason.',
+      situation: 'Scheduled $topic check-in for $role$fpsPart$cpuPart. '
+          'Report only if actionable, otherwise reply HOLD with a one-line reason.',
       promptType: topic,
     );
   }
@@ -402,7 +473,16 @@ class CoachService extends StateNotifier<AsyncValue<CoachResponse?>> {
         }
       }
 
-      // 2. Master Voice Alerts Gate
+      // 2. Push to Android Native Floating Guardian HUD Window
+      unawaited(
+        const OverlayChannel().updateTacticalAdvice(
+          badge: 'GUARDIAN AI',
+          action: response.action,
+          warning: response.warning,
+        ),
+      );
+
+      // 3. Master Voice Alerts Gate
       if (!settings.voiceAlertsEnabled) return;
 
       // 3. Priority Filter Gate

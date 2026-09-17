@@ -40,6 +40,12 @@ class TacticalBattlefieldHud extends ConsumerStatefulWidget {
 class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
     with TickerProviderStateMixin {
   bool _isToolboxOpen = false;
+  DateTime? _sessionStart;
+
+  /// Elapsed seconds since the HUD was first displayed (never resets on toolbox
+  /// open/close — represents actual match session time).
+  int get _matchElapsedSeconds =>
+      _sessionStart == null ? 0 : DateTime.now().difference(_sessionStart!).inSeconds;
 
   late final AnimationController _toolboxController;
   late final Animation<double> _toolboxScaleAnimation;
@@ -53,6 +59,7 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
   @override
   void initState() {
     super.initState();
+    _sessionStart = DateTime.now();
 
     _toolboxController = AnimationController(
       vsync: this,
@@ -217,6 +224,7 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
                       child: GameturboFloatingToolbox(
                         gameTitle: game?.name ?? 'Mobile Legends: Bang Bang',
                         targetFps: game?.targetFps ?? 120,
+                        matchElapsedSeconds: _matchElapsedSeconds,
                         onClose: () => _toggleToolbox(false),
                         onOpenGpuSettings: _openGpuSettings,
                       ),

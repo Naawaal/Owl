@@ -81,10 +81,11 @@ class _AppSettingsTwoPaneScreenState
     super.dispose();
   }
 
-  Future<void> _loadCurrentApiKey() async {
+  Future<void> _loadCurrentApiKey([String? explicitProvider]) async {
     final settings = ref.read(gameTurboSettingsProvider);
+    final provider = explicitProvider ?? settings.activeAiProvider;
     final keyManager = ref.read(apiKeyManagerProvider);
-    final key = await keyManager.getApiKey(settings.activeAiProvider);
+    final key = await keyManager.getApiKey(provider);
     if (mounted) {
       setState(() {
         _keyController.text = key ?? '';
@@ -92,6 +93,16 @@ class _AppSettingsTwoPaneScreenState
         _keyValidationError = null;
       });
     }
+    unawaited(
+      ref
+          .read(gameDiscoveryServiceProvider)
+          .setAiCredentials(
+            apiKey: (key != null && key.isNotEmpty) ? key : null,
+            provider: provider,
+            model: settings.activeModel,
+          )
+          .catchError((_) => false),
+    );
   }
 
   Future<void> _testAndSaveKey() async {
@@ -806,7 +817,7 @@ class _AppSettingsTwoPaneScreenState
                           isSelected: settings.activeAiProvider == 'gemini',
                           onTap: () {
                             notifier.setActiveAiProvider('gemini');
-                            _loadCurrentApiKey();
+                            _loadCurrentApiKey('gemini');
                           },
                         ),
                       ),
@@ -821,7 +832,7 @@ class _AppSettingsTwoPaneScreenState
                           isSelected: settings.activeAiProvider == 'openai',
                           onTap: () {
                             notifier.setActiveAiProvider('openai');
-                            _loadCurrentApiKey();
+                            _loadCurrentApiKey('openai');
                           },
                         ),
                       ),
@@ -836,7 +847,7 @@ class _AppSettingsTwoPaneScreenState
                           isSelected: settings.activeAiProvider == 'claude',
                           onTap: () {
                             notifier.setActiveAiProvider('claude');
-                            _loadCurrentApiKey();
+                            _loadCurrentApiKey('claude');
                           },
                         ),
                       ),
@@ -851,7 +862,7 @@ class _AppSettingsTwoPaneScreenState
                           isSelected: settings.activeAiProvider == 'deepseek',
                           onTap: () {
                             notifier.setActiveAiProvider('deepseek');
-                            _loadCurrentApiKey();
+                            _loadCurrentApiKey('deepseek');
                           },
                         ),
                       ),
@@ -866,7 +877,7 @@ class _AppSettingsTwoPaneScreenState
                           isSelected: settings.activeAiProvider == 'sambanova',
                           onTap: () {
                             notifier.setActiveAiProvider('sambanova');
-                            _loadCurrentApiKey();
+                            _loadCurrentApiKey('sambanova');
                           },
                         ),
                       ),
@@ -881,7 +892,7 @@ class _AppSettingsTwoPaneScreenState
                           isSelected: settings.activeAiProvider == 'xkiro',
                           onTap: () {
                             notifier.setActiveAiProvider('xkiro');
-                            _loadCurrentApiKey();
+                            _loadCurrentApiKey('xkiro');
                           },
                         ),
                       ),
@@ -896,7 +907,7 @@ class _AppSettingsTwoPaneScreenState
                           isSelected: settings.activeAiProvider == 'groq',
                           onTap: () {
                             notifier.setActiveAiProvider('groq');
-                            _loadCurrentApiKey();
+                            _loadCurrentApiKey('groq');
                           },
                         ),
                       ),
@@ -1324,7 +1335,20 @@ class _AppSettingsTwoPaneScreenState
                           child: _buildModelCard(
                             model: m,
                             isSelected: isSelected,
-                            onTap: () => notifier.setActiveModel(m.id),
+                            onTap: () {
+                              notifier.setActiveModel(m.id);
+                              final key = _keyController.text.trim();
+                              unawaited(
+                                ref
+                                    .read(gameDiscoveryServiceProvider)
+                                    .setAiCredentials(
+                                      apiKey: key.isNotEmpty ? key : null,
+                                      provider: settings.activeAiProvider,
+                                      model: m.id,
+                                    )
+                                    .catchError((_) => false),
+                              );
+                            },
                           ),
                         );
                       }).toList(),
