@@ -1,6 +1,6 @@
 // language: Dart, file: add_games_modal.dart, target: Flutter / Owl Game Turbo
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:owl_core/owl_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:owl/features/game_profiles/domain/models/installed_game.dart';
 import 'package:owl/features/game_profiles/presentation/game_discovery_provider.dart';
@@ -248,7 +248,7 @@ class _AddGamesModalState extends ConsumerState<AddGamesModal> {
                                 MiuiSwitch(
                                   value: isEnabled,
                                   onChanged: (val) {
-                                    HapticFeedback.selectionClick();
+                                    HapticHelper.selectionClick();
                                     ref
                                         .read(installedGamesProvider.notifier)
                                         .toggleGameInSpace(app, val);

@@ -28,7 +28,7 @@ void main() {
 
       // AI Provider & Models
       expect(s.activeAiProvider, equals('gemini'));
-      expect(s.activeModel, equals('gemini-2.0-flash'));
+      expect(s.activeModel, equals('gemini-3-flash-preview'));
 
       // Assistant & Tactical AI
       expect(s.assistantMode, equals('live'));
@@ -74,7 +74,7 @@ void main() {
       );
 
       expect(s1.activeAiProvider, equals('gemini'));
-      expect(s1.activeModel, equals('gemini-2.0-flash'));
+      expect(s1.activeModel, equals('gemini-3-flash-preview'));
       expect(s1.preferredRole, equals('auto'));
       expect(s1.performanceMode, equals('balanced'));
 

@@ -129,6 +129,9 @@ class GameDiscoveryService {
     String packageName, {
     String? gameName,
     int? targetFps,
+    String? aiApiKey,
+    String? aiProvider,
+    String? aiModel,
   }) async {
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       try {
@@ -138,6 +141,9 @@ class GameDiscoveryService {
             'packageName': packageName,
             'gameName': gameName,
             'targetFps': targetFps,
+            if (aiApiKey != null && aiApiKey.isNotEmpty) 'aiApiKey': aiApiKey,
+            if (aiProvider != null) 'aiProvider': aiProvider,
+            if (aiModel != null) 'aiModel': aiModel,
           },
         );
         return success ?? false;
@@ -148,6 +154,31 @@ class GameDiscoveryService {
     }
 
     debugPrint('[GameDiscoveryService] Desktop/Simulation launch: $packageName');
+    return false;
+  }
+
+  /// Update live AI credentials for the active overlay service.
+  Future<bool> setAiCredentials({
+    String? apiKey,
+    String provider = 'gemini',
+    String model = 'gemini-3-flash-preview',
+  }) async {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        final bool? success = await _channel.invokeMethod<bool>(
+          'setAiCredentials',
+          {
+            'apiKey': apiKey,
+            'provider': provider,
+            'model': model,
+          },
+        );
+        return success ?? false;
+      } catch (e) {
+        debugPrint('[GameDiscoveryService] Failed to set AI credentials: $e');
+        return false;
+      }
+    }
     return false;
   }
 

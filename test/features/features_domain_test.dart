@@ -135,12 +135,27 @@ void main() {
   group('3. AI Coach Feature', () {
     test('AIProvider metadata and models', () {
       expect(AIProvider.gemini.displayName, 'Google Gemini');
-      expect(AIProvider.gemini.defaultModel, 'gemini-2.0-flash');
-      expect(AIProvider.gemini.availableModels, contains('gemini-2.0-flash'));
+      expect(AIProvider.gemini.defaultModel, 'gemini-3-flash-preview');
+      expect(AIProvider.gemini.availableModels, contains('gemini-3-flash-preview'));
 
       expect(AIProvider.openai.displayName, 'OpenAI');
       expect(AIProvider.claude.displayName, 'Anthropic Claude');
       expect(AIProvider.openrouter.displayName, 'OpenRouter');
+
+      expect(AIProvider.sambanova.displayName, 'SambaNova');
+      expect(AIProvider.sambanova.defaultModel, 'Meta-Llama-3.3-70B-Instruct');
+      expect(AIProvider.sambanova.availableModels, contains('DeepSeek-R1-0528'));
+      expect(AIProvider.sambanova.apiKeyStorageKey, 'owl_api_key_sambanova');
+
+      expect(AIProvider.xkiro.displayName, 'xKiro');
+      expect(AIProvider.xkiro.defaultModel, 'deepseek/deepseek-v4.1-flash');
+      expect(AIProvider.xkiro.availableModels, contains('qwen/qwen3.7-flash:free'));
+      expect(AIProvider.xkiro.apiKeyStorageKey, 'owl_api_key_xkiro');
+
+      expect(AIProvider.groq.displayName, 'Groq');
+      expect(AIProvider.groq.defaultModel, 'openai/gpt-oss-120b');
+      expect(AIProvider.groq.availableModels, contains('qwen/qwen3.6-27b'));
+      expect(AIProvider.groq.apiKeyStorageKey, 'owl_api_key_groq');
     });
 
     test('CoachPrompt generates well-formed LLM prompt', () {

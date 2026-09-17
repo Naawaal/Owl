@@ -12,3 +12,9 @@ export 'network/inference/gemini_inference_client.dart';
 export 'network/inference/openai_inference_client.dart';
 export 'network/inference/claude_inference_client.dart';
 export 'network/inference/openrouter_inference_client.dart';
+export 'network/inference/sambanova_inference_client.dart';
+export 'network/inference/xkiro_inference_client.dart';
+export 'network/inference/groq_inference_client.dart';
+export 'network/models/discovered_model.dart';
+export 'network/model_discovery_service.dart';
+

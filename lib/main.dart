@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:owl/app/app.dart';
 import 'package:owl/app/app_observer.dart';
+import 'package:owl/features/game_profiles/presentation/game_discovery_provider.dart';
 import 'package:owl/features/settings/presentation/settings_provider.dart';
+import 'package:owl_core/owl_core.dart';
 import 'package:owl_storage/owl_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -40,6 +42,21 @@ void main() async {
     await bootContainer
         .read(gameTurboSettingsProvider.notifier)
         .migrateLegacyPayloadIfNeeded();
+    HapticHelper.globalEnabled =
+        bootContainer.read(gameTurboSettingsProvider).hapticsEnabled;
+
+    final settings = bootContainer.read(gameTurboSettingsProvider);
+    final key = await bootContainer
+        .read(apiKeyManagerProvider)
+        .getApiKey(settings.activeAiProvider);
+    if (key != null && key.isNotEmpty) {
+      await bootContainer.read(gameDiscoveryServiceProvider).setAiCredentials(
+            apiKey: key,
+            provider: settings.activeAiProvider,
+            model: settings.activeModel,
+          );
+    }
+
     bootContainer.dispose();
   } catch (_) {}
 

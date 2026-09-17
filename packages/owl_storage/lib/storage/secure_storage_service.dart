@@ -10,7 +10,9 @@ enum AIProvider {
   openAI('OpenAI', 'OpenAI GPT-4o / Mini'),
   anthropic('Anthropic', 'Anthropic Claude 3.5 Sonnet'),
   deepSeek('DeepSeek', 'DeepSeek-V3 / R1'),
-  groq('Groq', 'Groq Ultra-fast Llama 3');
+  sambanova('SambaNova', 'SambaNova Systems SN40L'),
+  xkiro('xKiro', 'xKiro Unified AI Gateway'),
+  groq('Groq', 'Groq Ultra-fast LPU');
 
   final String label;
   final String description;

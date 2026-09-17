@@ -1,5 +1,8 @@
 package com.example.owl
 
+import android.Manifest
+import android.app.NotificationManager
+import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ApplicationInfo
@@ -12,7 +15,15 @@ import android.graphics.Typeface
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioManager
+import android.media.AudioRecord
+import android.media.AudioTrack
+import android.media.MediaRecorder
+import android.media.projection.MediaProjectionManager
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
@@ -24,6 +35,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -31,10 +43,16 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.Executors
+import kotlin.math.sin
 
 class MainActivity : FlutterActivity() {
-    private val CHANNEL       = "com.example.owl/games"
-    private val STATS_CHANNEL = "com.example.owl/stats" // EventChannel for live stats push
+    private val CHANNEL        = "com.example.owl/games"
+    private val STATS_CHANNEL  = "com.example.owl/stats"
+    private val SYSTEM_CHANNEL = "com.example.owl/system_controls"
+    private val VOICE_CHANNEL  = "com.example.owl/voice_changer"
+
+    private val REQUEST_SCREEN_CAPTURE = 8812
+    private var pendingScreenCaptureResult: MethodChannel.Result? = null
 
     private val executor = Executors.newSingleThreadExecutor()
     private var floatingHandleView: View? = null
@@ -111,11 +129,32 @@ class MainActivity : FlutterActivity() {
                         result.success(true)
                     }
                     "showFloatingOverlay" -> {
-                        GameTurboOverlayService.start(this)
+                        GameTurboOverlayService.start(this, isLight = readIsLightMode())
                         result.success(true)
                     }
                     "hideFloatingOverlay" -> {
                         GameTurboOverlayService.stop(this)
+                        result.success(true)
+                    }
+                    "setThemeMode" -> {
+                        val modeStr = call.argument<String>("themeMode") ?: "system"
+                        val isLight = when (modeStr) {
+                            "light" -> true
+                            "dark" -> false
+                            else -> {
+                                val nightMode = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+                                nightMode != android.content.res.Configuration.UI_MODE_NIGHT_YES
+                            }
+                        }
+                        GameTurboOverlayService.setThemeMode(isLight)
+                        result.success(true)
+                    }
+                    "showGuardianOverlay" -> {
+                        GameTurboOverlayService.showGuardianOverlay()
+                        result.success(true)
+                    }
+                    "hideGuardianOverlay" -> {
+                        GameTurboOverlayService.hideGuardianOverlay()
                         result.success(true)
                     }
                     "getInstalledGames" -> {
@@ -142,6 +181,9 @@ class MainActivity : FlutterActivity() {
                         val packageName = call.argument<String>("packageName")
                         val gameName    = call.argument<String>("gameName") ?: "Game"
                         val targetFps   = call.argument<Int>("targetFps") ?: 120
+                        val aiApiKey    = call.argument<String>("aiApiKey")
+                        val aiProvider  = call.argument<String>("aiProvider") ?: "gemini"
+                        val aiModel     = call.argument<String>("aiModel") ?: "gemini-3-flash-preview"
                         if (packageName.isNullOrEmpty()) {
                             result.error("INVALID_ARGS", "Package name cannot be empty", null)
                             return@setMethodCallHandler
@@ -151,7 +193,15 @@ class MainActivity : FlutterActivity() {
                             if (launchIntent != null) {
                                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
                                     Settings.canDrawOverlays(this)) {
-                                    GameTurboOverlayService.start(this, gameName, targetFps)
+                                    GameTurboOverlayService.start(
+                                        this,
+                                        gameName,
+                                        targetFps,
+                                        isLight = readIsLightMode(),
+                                        aiApiKey = aiApiKey,
+                                        aiProvider = aiProvider,
+                                        aiModel = aiModel
+                                    )
                                 }
                                 launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 startActivity(launchIntent)
@@ -162,6 +212,30 @@ class MainActivity : FlutterActivity() {
                         } catch (e: Exception) {
                             result.error("LAUNCH_FAILED", e.message, null)
                         }
+                    }
+                    "setAiCredentials" -> {
+                        val apiKey = call.argument<String>("apiKey")
+                        val provider = call.argument<String>("provider") ?: "gemini"
+                        val model = call.argument<String>("model") ?: "gemini-2.5-flash"
+                        GameTurboOverlayService.setAiCredentials(this, apiKey, provider, model)
+                        result.success(true)
+                    }
+                    "hasScreenCapturePermission" -> {
+                        result.success(GameTurboOverlayService.hasMediaProjectionPermission())
+                    }
+                    "requestScreenCapturePermission" -> {
+                        val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
+                        if (mpm != null) {
+                            pendingScreenCaptureResult = result
+                            startActivityForResult(mpm.createScreenCaptureIntent(), REQUEST_SCREEN_CAPTURE)
+                        } else {
+                            result.success(false)
+                        }
+                    }
+                    "setGuardianVisionEnabled" -> {
+                        val enabled = call.argument<Boolean>("enabled") ?: true
+                        GameTurboOverlayService.isVisionEnabled = enabled
+                        result.success(true)
                     }
                     // Keep legacy single-shot calls as fallback (they still work from main thread)
                     "getBatteryLevel" -> result.success(readBatteryLevel())
@@ -190,6 +264,56 @@ class MainActivity : FlutterActivity() {
                     statsEventSink = null
                 }
             })
+
+        // 3. System Controls Channel (DND ZenMode, Wi-Fi low-latency lock)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SYSTEM_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "isNotificationPolicyAccessGranted" -> {
+                        result.success(HardwareSystemController.isNotificationPolicyAccessGranted(this))
+                    }
+                    "requestNotificationPolicyAccess" -> {
+                        HardwareSystemController.openNotificationPolicySettings(this)
+                        result.success(true)
+                    }
+                    "setDndMode" -> {
+                        val enabled = call.argument<Boolean>("enabled") ?: false
+                        val success = HardwareSystemController.setDndMode(this, enabled)
+                        result.success(success)
+                    }
+                    "setWifiLowLatency" -> {
+                        val enabled = call.argument<Boolean>("enabled") ?: false
+                        val success = HardwareSystemController.setWifiLowLatency(this, enabled)
+                        result.success(success)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        // 4. Tactical Voice Changer Channel (Real-time DSP pitch/formant shifting)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, VOICE_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "startVoiceProcessing" -> {
+                        val preset = call.argument<String>("preset") ?: "commander"
+                        val success = HardwareSystemController.startVoiceProcessing(this, preset)
+                        result.success(success)
+                    }
+                    "stopVoiceProcessing" -> {
+                        HardwareSystemController.stopVoiceProcessing()
+                        result.success(true)
+                    }
+                    "setPreset" -> {
+                        val preset = call.argument<String>("preset") ?: "commander"
+                        HardwareSystemController.setVoicePreset(preset)
+                        result.success(true)
+                    }
+                    "isVoiceProcessingActive" -> {
+                        result.success(HardwareSystemController.isVoiceRunning)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
     }
 
     // ── Stats push loop ────────────────────────────────────────────────────────
@@ -461,6 +585,21 @@ class MainActivity : FlutterActivity() {
         return syntheticGpuBaseline
     }
 
+    private fun readIsLightMode(): Boolean {
+        val modeStr = try {
+            getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                .getString("flutter.owl_theme_mode", "system")
+        } catch (_: Exception) { "system" }
+        return when (modeStr) {
+            "light" -> true
+            "dark" -> false
+            else -> {
+                val nightMode = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+                nightMode != android.content.res.Configuration.UI_MODE_NIGHT_YES
+            }
+        }
+    }
+
     // ── App scanning ───────────────────────────────────────────────────────────
 
     private fun scanInstalledGames(onlyGames: Boolean): List<Map<String, Any?>> {
@@ -524,5 +663,27 @@ class MainActivity : FlutterActivity() {
         return ByteArrayOutputStream().also {
             bitmap.compress(Bitmap.CompressFormat.PNG, 85, it)
         }.toByteArray()
+    }
+
+    // ── System Controls (DND ZenMode & Wi-Fi Low-Latency) ─────────────────────
+
+    override fun onDestroy() {
+        super.onDestroy()
+        HardwareSystemController.stopVoiceProcessing()
+        HardwareSystemController.setWifiLowLatency(this, false)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_SCREEN_CAPTURE) {
+            if (resultCode == android.app.Activity.RESULT_OK && data != null) {
+                GameTurboOverlayService.setMediaProjectionData(resultCode, data)
+                pendingScreenCaptureResult?.success(true)
+            } else {
+                pendingScreenCaptureResult?.success(false)
+            }
+            pendingScreenCaptureResult = null
+        }
     }
 }

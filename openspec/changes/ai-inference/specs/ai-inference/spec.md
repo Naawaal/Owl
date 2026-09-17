@@ -39,17 +39,27 @@ The system SHALL generate tactical advice from live game state (active game, pla
 
 ### Requirement: Toolbox callout fed by live advice
 
-The system SHALL display the latest live advice in the Guardian toolbox callout, falling back to last-known advice and then silence when inference is unavailable.
+The system SHALL display the latest live advice in the Guardian toolbox callout, falling back to last-known advice, then to offline heuristic advice, and then silence when inference is unavailable.
 
 #### Scenario: Fresh advice displayed
 
 - **WHEN** a new advice response arrives while the toolbox is open
 - **THEN** the callout SHALL update to the new advice without user interaction
 
+#### Scenario: Failed call falls back to offline advice
+
+- **WHEN** a keyed query fails (auth, network, or timeout)
+- **THEN** the callout SHALL show game-appropriate offline heuristic advice with no error state, and SHALL NOT count the failed call against budgets
+
+#### Scenario: Keyless queries serve offline advice
+
+- **WHEN** no API key is stored
+- **THEN** the callout SHALL show game-appropriate offline heuristic advice without touching the network, and SHALL NOT count against budgets
+
 #### Scenario: Graceful degradation without key or connectivity
 
-- **WHEN** no API key is stored or the device is offline
-- **THEN** the callout SHALL show last-known advice if present, otherwise SHALL stay silent, and SHALL never block gameplay or show an error state in the overlay
+- **WHEN** automation is gated off (master, engine, or assistant mode)
+- **THEN** the callout SHALL show last-known advice if present, offline heuristic advice next, otherwise SHALL stay silent, and SHALL never block gameplay or show an error state in the overlay
 
 ### Requirement: Request budgets enforced
 

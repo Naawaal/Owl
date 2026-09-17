@@ -1,7 +1,7 @@
-// language: Dart, file: game_discovery_provider.dart, target: Flutter / Owl Game Turbo
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:owl/features/game_profiles/data/game_discovery_service.dart';
 import 'package:owl/features/game_profiles/domain/models/installed_game.dart';
+import 'package:owl/features/settings/presentation/settings_provider.dart';
 import 'package:owl_storage/owl_storage.dart';
 
 /// Provider exposing the native/platform game discovery service.
@@ -42,8 +42,9 @@ class InstalledGamesState {
 /// StateNotifier controlling the dynamic games list and active deck.
 class InstalledGamesNotifier extends StateNotifier<InstalledGamesState> {
   final GameDiscoveryService _service;
+  final Ref? _ref;
 
-  InstalledGamesNotifier(this._service)
+  InstalledGamesNotifier(this._service, [this._ref])
       : super(const InstalledGamesState(games: [], isLoading: true)) {
     loadGames();
   }
@@ -61,12 +62,14 @@ class InstalledGamesNotifier extends StateNotifier<InstalledGamesState> {
       }
       active ??= games.firstOrNull;
 
+      if (!mounted) return;
       state = InstalledGamesState(
         games: games,
         activeGame: active,
         isLoading: false,
       );
     } catch (e) {
+      if (!mounted) return;
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
@@ -119,10 +122,24 @@ class InstalledGamesNotifier extends StateNotifier<InstalledGamesState> {
   Future<bool> launchActiveGame() async {
     final game = state.activeGame;
     if (game == null) return false;
+    String? apiKey;
+    String provider = 'gemini';
+    String model = 'gemini-3-flash-preview';
+    if (_ref != null) {
+      try {
+        final settings = _ref.read(gameTurboSettingsProvider);
+        provider = settings.activeAiProvider;
+        model = settings.activeModel;
+        apiKey = await _ref.read(apiKeyManagerProvider).getApiKey(provider);
+      } catch (_) {}
+    }
     return await _service.launchGame(
       game.packageName,
       gameName: game.name,
       targetFps: game.targetFps,
+      aiApiKey: apiKey,
+      aiProvider: provider,
+      aiModel: model,
     );
   }
 }
@@ -131,7 +148,7 @@ class InstalledGamesNotifier extends StateNotifier<InstalledGamesState> {
 final installedGamesProvider =
     StateNotifierProvider<InstalledGamesNotifier, InstalledGamesState>((ref) {
   final service = ref.watch(gameDiscoveryServiceProvider);
-  return InstalledGamesNotifier(service);
+  return InstalledGamesNotifier(service, ref);
 });
 
 /// Riverpod selector provider for the active selected game.

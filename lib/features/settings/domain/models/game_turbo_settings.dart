@@ -19,6 +19,7 @@ class GameTurboSettings {
   // --- Category 2: AI Provider & Models ---
   final String activeAiProvider;
   final String activeModel;
+  final bool showOnlyFreeModels;
 
   // --- Category 3: Assistant & Tactical AI ---
   final String assistantMode;
@@ -53,6 +54,7 @@ class GameTurboSettings {
   final bool restrictFloatingNotifications;
   final bool restrictButtonsAndGestures;
   final bool guardianTacticalEngine;
+  final bool guardianVisionEnabled;
 
   // --- GPU Settings Screen (global profile) ---
   final String gpuFpsTarget;
@@ -75,7 +77,8 @@ class GameTurboSettings {
 
     // AI Provider & Models
     this.activeAiProvider = 'gemini',
-    this.activeModel = 'gemini-2.0-flash',
+    this.activeModel = 'gemini-3-flash-preview',
+    this.showOnlyFreeModels = false,
 
     // Assistant & Tactical AI
     this.assistantMode = 'live',
@@ -110,6 +113,7 @@ class GameTurboSettings {
     this.restrictFloatingNotifications = true,
     this.restrictButtonsAndGestures = true,
     this.guardianTacticalEngine = true,
+    this.guardianVisionEnabled = true,
 
     // GPU Settings Screen (global profile)
     this.gpuFpsTarget = '120',
@@ -134,6 +138,7 @@ class GameTurboSettings {
     String? interfaceLanguage,
     String? activeAiProvider,
     String? activeModel,
+    bool? showOnlyFreeModels,
     String? assistantMode,
     String? coachingLevel,
     String? preferredRole,
@@ -160,6 +165,7 @@ class GameTurboSettings {
     bool? restrictFloatingNotifications,
     bool? restrictButtonsAndGestures,
     bool? guardianTacticalEngine,
+    bool? guardianVisionEnabled,
     String? gpuFpsTarget,
     String? gpuResolution,
     String? gpuMsaa,
@@ -178,6 +184,7 @@ class GameTurboSettings {
       interfaceLanguage: interfaceLanguage ?? this.interfaceLanguage,
       activeAiProvider: activeAiProvider ?? this.activeAiProvider,
       activeModel: activeModel ?? this.activeModel,
+      showOnlyFreeModels: showOnlyFreeModels ?? this.showOnlyFreeModels,
       assistantMode: assistantMode ?? this.assistantMode,
       coachingLevel: coachingLevel ?? this.coachingLevel,
       preferredRole: preferredRole ?? this.preferredRole,
@@ -211,6 +218,8 @@ class GameTurboSettings {
           restrictButtonsAndGestures ?? this.restrictButtonsAndGestures,
       guardianTacticalEngine:
           guardianTacticalEngine ?? this.guardianTacticalEngine,
+      guardianVisionEnabled:
+          guardianVisionEnabled ?? this.guardianVisionEnabled,
       gpuFpsTarget: gpuFpsTarget ?? this.gpuFpsTarget,
       gpuResolution: gpuResolution ?? this.gpuResolution,
       gpuMsaa: gpuMsaa ?? this.gpuMsaa,
@@ -234,6 +243,7 @@ class GameTurboSettings {
       'interfaceLanguage': interfaceLanguage,
       'activeAiProvider': activeAiProvider,
       'activeModel': activeModel,
+      'showOnlyFreeModels': showOnlyFreeModels,
       'assistantMode': assistantMode,
       'coachingLevel': coachingLevel,
       'preferredRole': preferredRole,
@@ -260,6 +270,7 @@ class GameTurboSettings {
       'restrictFloatingNotifications': restrictFloatingNotifications,
       'restrictButtonsAndGestures': restrictButtonsAndGestures,
       'guardianTacticalEngine': guardianTacticalEngine,
+      'guardianVisionEnabled': guardianVisionEnabled,
       'gpuFpsTarget': gpuFpsTarget,
       'gpuResolution': gpuResolution,
       'gpuMsaa': gpuMsaa,
@@ -280,7 +291,8 @@ class GameTurboSettings {
     return GameTurboSettings(
       interfaceLanguage: map['interfaceLanguage'] as String? ?? 'en',
       activeAiProvider: map['activeAiProvider'] as String? ?? 'gemini',
-      activeModel: map['activeModel'] as String? ?? 'gemini-2.0-flash',
+      activeModel: map['activeModel'] as String? ?? 'gemini-3-flash-preview',
+      showOnlyFreeModels: map['showOnlyFreeModels'] as bool? ?? false,
       assistantMode: map['assistantMode'] as String? ?? 'live',
       coachingLevel: map['coachingLevel'] as String? ?? 'intermediate',
       preferredRole: map['preferredRole'] as String? ?? 'auto',
@@ -314,6 +326,8 @@ class GameTurboSettings {
           map['restrictButtonsAndGestures'] as bool? ?? true,
       guardianTacticalEngine:
           map['guardianTacticalEngine'] as bool? ?? true,
+      guardianVisionEnabled:
+          map['guardianVisionEnabled'] as bool? ?? true,
       gpuFpsTarget: map['gpuFpsTarget'] as String? ?? '120',
       gpuResolution: map['gpuResolution'] as String? ?? '1080p',
       gpuMsaa: map['gpuMsaa'] as String? ?? '4X',
@@ -344,6 +358,7 @@ class GameTurboSettings {
           interfaceLanguage == other.interfaceLanguage &&
           activeAiProvider == other.activeAiProvider &&
           activeModel == other.activeModel &&
+          showOnlyFreeModels == other.showOnlyFreeModels &&
           assistantMode == other.assistantMode &&
           coachingLevel == other.coachingLevel &&
           preferredRole == other.preferredRole &&
@@ -371,6 +386,7 @@ class GameTurboSettings {
               other.restrictFloatingNotifications &&
           restrictButtonsAndGestures == other.restrictButtonsAndGestures &&
           guardianTacticalEngine == other.guardianTacticalEngine &&
+          guardianVisionEnabled == other.guardianVisionEnabled &&
           gpuFpsTarget == other.gpuFpsTarget &&
           gpuResolution == other.gpuResolution &&
           gpuMsaa == other.gpuMsaa &&
@@ -390,6 +406,7 @@ class GameTurboSettings {
         interfaceLanguage,
         activeAiProvider,
         activeModel,
+        showOnlyFreeModels,
         assistantMode,
         coachingLevel,
         preferredRole,
@@ -416,6 +433,7 @@ class GameTurboSettings {
         restrictFloatingNotifications,
         restrictButtonsAndGestures,
         guardianTacticalEngine,
+        guardianVisionEnabled,
         gpuFpsTarget,
         gpuResolution,
         gpuMsaa,

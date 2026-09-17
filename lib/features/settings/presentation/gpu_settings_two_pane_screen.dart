@@ -1,6 +1,6 @@
 // language: Dart, file: gpu_settings_two_pane_screen.dart, target: Flutter / Owl Game Turbo
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:owl_core/owl_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:owl/features/settings/domain/models/game_turbo_settings.dart';
 import 'package:owl/features/settings/presentation/settings_provider.dart';
@@ -39,7 +39,7 @@ class _GpuSettingsTwoPaneScreenState
   GpuSettingCategory _selectedCategory = GpuSettingCategory.graphics;
 
   void _resetDefaults() {
-    HapticFeedback.mediumImpact();
+    HapticHelper.mediumImpact();
     ref.read(gameTurboSettingsProvider.notifier).resetGpuSettings();
   }
 
@@ -167,7 +167,7 @@ class _GpuSettingsTwoPaneScreenState
           return GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () {
-              HapticFeedback.selectionClick();
+              HapticHelper.selectionClick();
               setState(() => _selectedCategory = cat);
             },
             child: AnimatedContainer(

@@ -22,6 +22,49 @@ final gameTurboSettingsProvider =
   return GameTurboSettingsNotifier(prefs);
 });
 
+/// Provider for ModelDiscoveryService instance.
+final modelDiscoveryServiceProvider = Provider<ModelDiscoveryService>((ref) {
+  ApiClient? api;
+  try {
+    api = ref.watch(apiClientProvider);
+  } catch (_) {}
+  return ModelDiscoveryService(api);
+});
+
+/// Timestamp of last successful catalog refresh from upstream.
+final catalogRefreshTimestampProvider = StateProvider<DateTime?>((ref) => null);
+
+/// True while an upstream model discovery fetch is in progress.
+final isCatalogRefreshingProvider = StateProvider<bool>((ref) => false);
+
+/// Dynamic list of discovered models for currently active AI provider,
+/// respecting the showOnlyFreeModels filter.
+final discoveredModelsForCurrentProvider =
+    FutureProvider<List<DiscoveredModel>>((ref) async {
+  final settings = ref.watch(gameTurboSettingsProvider);
+  final discoveryService = ref.watch(modelDiscoveryServiceProvider);
+  ref.watch(catalogRefreshTimestampProvider);
+
+  final models = await discoveryService.getModelsForProvider(settings.activeAiProvider);
+  if (settings.showOnlyFreeModels) {
+    return discoveryService.filterFreeOnly(models);
+  }
+  return models;
+});
+
+/// Global action to trigger an upstream refresh of all model catalogs.
+Future<void> refreshModelCatalog(WidgetRef ref) async {
+  final refreshingNotifier = ref.read(isCatalogRefreshingProvider.notifier);
+  refreshingNotifier.state = true;
+  try {
+    final discovery = ref.read(modelDiscoveryServiceProvider);
+    await discovery.refreshAllCatalogs();
+    ref.read(catalogRefreshTimestampProvider.notifier).state = DateTime.now();
+  } finally {
+    refreshingNotifier.state = false;
+  }
+}
+
 /// Typed outcome of a settings persist attempt.
 enum SettingsPersistResult { ok, storageUnavailable, writeFailed }
 
@@ -150,11 +193,21 @@ class GameTurboSettingsNotifier extends StateNotifier<GameTurboSettings> {
         defaultModel = 'claude-3-5-haiku';
         break;
       case 'deepseek':
-        defaultModel = 'deepseek/deepseek-chat';
+      case 'openrouter':
+        defaultModel = 'meta-llama/llama-3.3-70b-instruct';
+        break;
+      case 'sambanova':
+        defaultModel = 'Meta-Llama-3.3-70B-Instruct';
+        break;
+      case 'xkiro':
+        defaultModel = 'deepseek/deepseek-v4.1-flash';
+        break;
+      case 'groq':
+        defaultModel = 'llama-3.3-70b-versatile';
         break;
       case 'gemini':
       default:
-        defaultModel = 'gemini-2.0-flash';
+        defaultModel = 'gemini-3-flash-preview';
         break;
     }
     _persist(state.copyWith(
@@ -166,6 +219,11 @@ class GameTurboSettingsNotifier extends StateNotifier<GameTurboSettings> {
   void setActiveModel(String model) {
     HapticFeedback.selectionClick();
     _persist(state.copyWith(activeModel: model));
+  }
+
+  void toggleShowOnlyFreeModels(bool value) {
+    HapticFeedback.selectionClick();
+    _persist(state.copyWith(showOnlyFreeModels: value));
   }
 
   // --- Category 3: Assistant & Tactical AI ---
@@ -331,6 +389,29 @@ class GameTurboSettingsNotifier extends StateNotifier<GameTurboSettings> {
     _persist(state.copyWith(guardianTacticalEngine: value));
   }
 
+  Future<void> toggleGuardianVisionEnabled(bool value) async {
+    HapticFeedback.selectionClick();
+    if (value) {
+      try {
+        final hasPerm =
+            await _gamesChannel.invokeMethod<bool>('hasScreenCapturePermission') ??
+                false;
+        if (!hasPerm) {
+          await _gamesChannel
+              .invokeMethod<bool>('requestScreenCapturePermission');
+        }
+        await _gamesChannel
+            .invokeMethod('setGuardianVisionEnabled', {'enabled': true});
+      } catch (_) {}
+    } else {
+      try {
+        await _gamesChannel
+            .invokeMethod('setGuardianVisionEnabled', {'enabled': false});
+      } catch (_) {}
+    }
+    _persist(state.copyWith(guardianVisionEnabled: value));
+  }
+
   // --- GPU Settings Screen (global profile) ---
 
   void setGpuFpsTarget(String value) {
@@ -469,8 +550,24 @@ class ApiKeyManager {
         }
         break;
       case 'deepseek':
+      case 'openrouter':
         if (sanitized.length < 15) {
           return 'Invalid API key length for OpenRouter/DeepSeek';
+        }
+        break;
+      case 'sambanova':
+        if (sanitized.length < 15) {
+          return 'Invalid API key length for SambaNova';
+        }
+        break;
+      case 'xkiro':
+        if (sanitized.length < 15) {
+          return 'Invalid API key length for xKiro';
+        }
+        break;
+      case 'groq':
+        if (!sanitized.startsWith('gsk_') || sanitized.length < 20) {
+          return 'Groq API keys must begin with "gsk_"';
         }
         break;
     }
@@ -552,10 +649,17 @@ class ApiKeyManager {
       case 'claude':
         return 'claude-3-5-haiku-20241022';
       case 'deepseek':
-        return 'deepseek/deepseek-chat';
+      case 'openrouter':
+        return 'meta-llama/llama-3.3-70b-instruct';
+      case 'sambanova':
+        return 'Meta-Llama-3.3-70B-Instruct';
+      case 'xkiro':
+        return 'deepseek/deepseek-v4.1-flash';
+      case 'groq':
+        return 'llama-3.3-70b-versatile';
       case 'gemini':
       default:
-        return 'gemini-2.0-flash';
+        return 'gemini-3-flash-preview';
     }
   }
 
@@ -566,7 +670,14 @@ class ApiKeyManager {
       case 'claude':
         return AIProvider.anthropic;
       case 'deepseek':
+      case 'openrouter':
         return AIProvider.deepSeek;
+      case 'sambanova':
+        return AIProvider.sambanova;
+      case 'xkiro':
+        return AIProvider.xkiro;
+      case 'groq':
+        return AIProvider.groq;
       case 'gemini':
       default:
         return AIProvider.gemini;

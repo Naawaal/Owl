@@ -1,7 +1,8 @@
 // language: Dart, file: tactical_battlefield_hud.dart, target: Flutter / Owl Game Turbo
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:owl_core/owl_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:owl/features/ai_coach/data/coach_service.dart';
 import 'package:owl/features/game_profiles/domain/models/installed_game.dart';
 import 'package:owl/features/overlay/presentation/gameturbo_floating_toolbox.dart';
 import 'package:owl/features/settings/domain/models/game_turbo_settings.dart';
@@ -9,7 +10,9 @@ import 'package:owl/features/settings/presentation/gpu_settings_two_pane_screen.
 import 'package:owl/features/settings/presentation/settings_provider.dart';
 import 'package:owl_design/owl_design.dart';
 
+import 'package:owl/features/overlay/data/dnd_service.dart';
 import 'package:owl/features/overlay/data/system_stats_service.dart';
+import 'package:owl/features/overlay/data/wifi_optimizer_service.dart';
 
 /// In-Game HUD & Companion View matching the Game Space Console design system 1:1.
 ///
@@ -96,7 +99,7 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
   }
 
   void _toggleToolbox(bool open) {
-    HapticFeedback.mediumImpact();
+    HapticHelper.mediumImpact();
     setState(() => _isToolboxOpen = open);
     if (open) {
       _toolboxController.forward();
@@ -324,9 +327,60 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
             ],
           ),
 
-          // Right: Live Battery & CPU
+          // Right: Live Battery & CPU with DND/Wi-Fi Active Indicators
           Row(
             children: [
+              if (ref.watch(dndServiceProvider).isEnabled) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: colors.telemetryCritical.withValues(alpha: 0.18),
+                    borderRadius: RadiusTokens.borderXs,
+                    border: Border.all(
+                      color: colors.telemetryCritical.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: Icon(
+                    LucideIcons.bellOff,
+                    size: 10,
+                    color: colors.telemetryCritical,
+                  ),
+                ),
+                AppSpacing.gapH8,
+              ],
+              if (ref.watch(wifiOptimizerProvider).isBoostActive) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: colors.turboBlue.withValues(alpha: 0.18),
+                    borderRadius: RadiusTokens.borderXs,
+                    border: Border.all(
+                      color: colors.turboBlueLight.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        LucideIcons.wifi,
+                        size: 9,
+                        color: colors.turboBlueLight,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        '${ref.watch(wifiOptimizerProvider).latencyMs}ms',
+                        style: TypographyTokens.telemetryBadge.copyWith(
+                          fontSize: 8,
+                          fontWeight: FontWeight.w800,
+                          color: colors.turboBlueLight,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                AppSpacing.gapH8,
+              ],
+
               // Battery Shell — live fill
               Row(
                 children: [
@@ -496,11 +550,10 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
                     children: [
                       Row(
                         children: [
-                          Text(
-                            '⚡',
-                            style: TypographyTokens.dialogTitleOf(
-                              context,
-                            ).copyWith(fontSize: 14),
+                          Icon(
+                            LucideIcons.zap,
+                            size: 14,
+                            color: colors.badgeYellow,
                           ),
                           AppSpacing.gapH8,
                           Expanded(
@@ -585,6 +638,14 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
     final colors = ColorTokens.of(context);
     final stats = ref.watch(systemStatsProvider).valueOrNull;
     final liveFps = stats?.fps ?? (game?.targetFps ?? 120);
+    // Subscribe so the latency readout refreshes on each completed query.
+    ref.watch(coachServiceProvider);
+    final settings = ref.watch(gameTurboSettingsProvider);
+    final latencyMs =
+        ref.read(coachServiceProvider.notifier).lastLatencyMs;
+    final label = settings.showInGameLatencyHud && latencyMs != null
+        ? 'TURBO $liveFps FPS • ${latencyMs}ms'
+        : 'TURBO $liveFps FPS';
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -595,13 +656,22 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
           vertical: AppSpacing.pillPaddingVertical - 1,
         ),
         decoration: BoxDecoration(
-          color: colors.toolboxBg,
+          color: colors.isLight
+              ? colors.surfaceCard.withValues(alpha: 0.88)
+              : colors.horizonTop.withValues(alpha: 0.90),
           borderRadius: RadiusTokens.borderPill,
           border: Border.all(
-            color: colors.turboBlueLight.withValues(alpha: 0.4),
-            width: 1.5,
+            color: colors.turboBlueLight.withValues(alpha: 0.5),
+            width: 1.2,
           ),
-          boxShadow: [ElevationTokens.toolboxShadow(colors.isLight)],
+          boxShadow: [
+            ElevationTokens.toolboxShadow(colors.isLight),
+            BoxShadow(
+              color: colors.turboBlue
+                  .withValues(alpha: colors.isLight ? 0.12 : 0.20),
+              blurRadius: 10,
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -621,15 +691,14 @@ class _TacticalBattlefieldHudState extends ConsumerState<TacticalBattlefieldHud>
               ),
             ),
             AppSpacing.gapH8,
-            Text(
-              '⚡',
-              style: TypographyTokens.dialogTitleOf(
-                context,
-              ).copyWith(fontSize: 10, color: colors.turboBlueLight),
+            Icon(
+              LucideIcons.zap,
+              size: 11,
+              color: colors.turboBlueLight,
             ),
             AppSpacing.gapH4,
             Text(
-              'TURBO $liveFps FPS',
+              label,
               style: TypographyTokens.tacticalBadgeOf(context).copyWith(
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.2,

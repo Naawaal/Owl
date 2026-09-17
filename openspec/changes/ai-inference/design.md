@@ -38,7 +38,7 @@ Alternative considered: minimal generation call. Rejected — costs tokens on ev
 
 ### 2. Coach service owns prompt assembly, budgets, and reactive state
 
-A `CoachService` Riverpod notifier builds `CoachPrompt`s from live state (active game, role, clock, timers), enforces cooldown/cap/timeout, calls the active `InferenceClient`, parses via `CoachResponse.fromRawText`, and exposes `AsyncValue<CoachResponse?>` latest-advice state plus last-known caching. The toolbox watches this state; it never calls the network directly.
+A `CoachService` Riverpod notifier builds `CoachPrompt`s from live state (active game, role, clock, timers), enforces cooldown/cap/timeout, calls the active `InferenceClient`, parses via `CoachResponse.fromRawText`, and exposes `AsyncValue<CoachResponse?>` latest-advice state plus last-known caching. Failed keyed queries fall back to the offline heuristics engine (game-specific rule-based advice, no error state, budget-neutral). The toolbox watches this state; it never calls the network directly.
 
 Alternative considered: toolbox calls the client directly. Rejected — scatters budgeting, caching, and fallback logic across UI widgets.
 

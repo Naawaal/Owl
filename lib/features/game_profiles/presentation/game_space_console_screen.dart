@@ -2,7 +2,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:owl_core/owl_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:owl/features/game_profiles/domain/models/installed_game.dart';
 import 'package:owl/features/game_profiles/presentation/add_games_modal.dart';
@@ -87,7 +87,7 @@ class _GameSpaceConsoleScreenState extends ConsumerState<GameSpaceConsoleScreen>
     setState(() {
       _isOverlayToolboxOpen = nextState;
     });
-    HapticFeedback.lightImpact();
+    HapticHelper.lightImpact();
     if (nextState) {
       _toolboxController?.forward();
     } else {
@@ -96,14 +96,14 @@ class _GameSpaceConsoleScreenState extends ConsumerState<GameSpaceConsoleScreen>
   }
 
   void _openAppSettings() {
-    HapticFeedback.selectionClick();
+    HapticHelper.selectionClick();
     Navigator.of(context).push(
       MaterialPageRoute(builder: (context) => const AppSettingsTwoPaneScreen()),
     );
   }
 
   void _openGpuSettings(InstalledGame? activeGame) {
-    HapticFeedback.selectionClick();
+    HapticHelper.selectionClick();
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => GpuSettingsTwoPaneScreen(
@@ -114,7 +114,7 @@ class _GameSpaceConsoleScreenState extends ConsumerState<GameSpaceConsoleScreen>
   }
 
   void _openAddGames() {
-    HapticFeedback.lightImpact();
+    HapticHelper.lightImpact();
     AddGamesModal.show(context);
   }
 
@@ -134,28 +134,28 @@ class _GameSpaceConsoleScreenState extends ConsumerState<GameSpaceConsoleScreen>
                 children: [
                   Text(
                     '⚡',
-                    style: TypographyTokens.dialogTitle.copyWith(
+                    style: TypographyTokens.dialogTitleOf(ctx).copyWith(
                       fontSize: 18,
-                      color: ColorTokens.turboBlueLight,
+                      color: ColorSemantics.turboBlue,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     'Display Over Apps',
-                    style: TypographyTokens.dialogTitle,
+                    style: TypographyTokens.dialogTitleOf(ctx),
                   ),
                 ],
               ),
               content: Text(
                 'To display the floating Game Turbo handle & live FPS meter over your game, Owl needs "Display over other apps" permission.',
-                style: TypographyTokens.dialogBody,
+                style: TypographyTokens.dialogBodyOf(ctx),
               ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(true),
                   child: Text(
                     'Skip to In-App HUD',
-                    style: TypographyTokens.dialogAction.copyWith(
+                    style: TypographyTokens.dialogActionOf(ctx).copyWith(
                       color: dialogColors.textPrimary.withValues(alpha: 0.6),
                     ),
                   ),
@@ -179,7 +179,9 @@ class _GameSpaceConsoleScreenState extends ConsumerState<GameSpaceConsoleScreen>
                   },
                   child: Text(
                     'Grant Permission',
-                    style: TypographyTokens.dialogAction,
+                    style: TypographyTokens.dialogAction.copyWith(
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ],
@@ -190,7 +192,7 @@ class _GameSpaceConsoleScreenState extends ConsumerState<GameSpaceConsoleScreen>
   }
 
   void _launchGameMatch(InstalledGame? activeGame) async {
-    HapticFeedback.heavyImpact();
+    HapticHelper.heavyImpact();
     bool externalLaunched = false;
     if (activeGame != null) {
       if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
@@ -672,7 +674,7 @@ class _GameSpaceConsoleScreenState extends ConsumerState<GameSpaceConsoleScreen>
                   return GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () {
-                      HapticFeedback.selectionClick();
+                      HapticHelper.selectionClick();
                       ref
                           .read(installedGamesProvider.notifier)
                           .selectGame(game);
@@ -819,7 +821,7 @@ class _GameSpaceConsoleScreenState extends ConsumerState<GameSpaceConsoleScreen>
     final owlColors = ColorTokens.of(context);
     void switchGameDelta(int delta) {
       if (deckGames.isEmpty) return;
-      HapticFeedback.selectionClick();
+      HapticHelper.selectionClick();
       final newIndex = (_activeHeroIndex + delta).clamp(0, 4);
       setState(() => _activeHeroIndex = newIndex);
       final target = deckGames[newIndex % deckGames.length];
@@ -1056,7 +1058,7 @@ class _GameSpaceConsoleScreenState extends ConsumerState<GameSpaceConsoleScreen>
             final isActive = index == _activeHeroIndex;
             return GestureDetector(
               onTap: () {
-                HapticFeedback.selectionClick();
+                HapticHelper.selectionClick();
                 setState(() => _activeHeroIndex = index);
                 if (deckGames.isNotEmpty) {
                   final target = deckGames[index % deckGames.length];

@@ -1,11 +1,13 @@
 // language: Dart, file: app_settings_two_pane_screen.dart, target: Flutter / Owl MOBA Companion
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:owl_core/owl_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:owl/features/game_profiles/presentation/game_discovery_provider.dart';
 import 'package:owl/features/settings/domain/models/game_turbo_settings.dart';
 import 'package:owl/features/settings/presentation/settings_provider.dart';
 import 'package:owl_design/owl_design.dart';
+import 'package:owl_network/owl_network.dart';
 import 'package:owl_storage/owl_storage.dart';
 
 /// Authentic Two-Pane Global Application & Tactical Settings Screen.
@@ -117,6 +119,16 @@ class _AppSettingsTwoPaneScreenState
         model: settings.activeModel,
       );
       await keyManager.saveApiKey(settings.activeAiProvider, text);
+      unawaited(
+        ref
+            .read(gameDiscoveryServiceProvider)
+            .setAiCredentials(
+              apiKey: text,
+              provider: settings.activeAiProvider,
+              model: settings.activeModel,
+            )
+            .catchError((_) => false),
+      );
       if (mounted) {
         setState(() {
           _isValidatingKey = false;
@@ -142,7 +154,7 @@ class _AppSettingsTwoPaneScreenState
   }
 
   void _triggerTestCallout() {
-    HapticFeedback.heavyImpact();
+    HapticHelper.heavyImpact();
     _toastTimer?.cancel();
     setState(() => _showToastAlert = true);
     _toastTimer = Timer(const Duration(milliseconds: 3600), () {
@@ -286,7 +298,10 @@ class _AppSettingsTwoPaneScreenState
     final providerLabel = switch (settings.activeAiProvider) {
       'openai' => 'OpenAI',
       'claude' => 'Claude',
-      'deepseek' => 'DeepSeek',
+      'deepseek' || 'openrouter' => 'DeepSeek',
+      'sambanova' => 'SambaNova',
+      'xkiro' => 'xKiro',
+      'groq' => 'Groq',
       _ => 'Gemini',
     };
     final modelShort = settings.activeModel.split('/').last;
@@ -445,7 +460,7 @@ class _AppSettingsTwoPaneScreenState
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
                   onTap: () {
-                    HapticFeedback.selectionClick();
+                    HapticHelper.selectionClick();
                     setState(() => _selectedCategory = cat);
                   },
                   child: Container(
@@ -685,7 +700,7 @@ class _AppSettingsTwoPaneScreenState
                         borderRadius: BorderRadius.circular(8)),
                   ),
                   onPressed: () {
-                    HapticFeedback.mediumImpact();
+                    HapticHelper.mediumImpact();
                     notifier.resetToDefaults();
                     _loadCurrentApiKey();
                   },
@@ -705,29 +720,27 @@ class _AppSettingsTwoPaneScreenState
     GameTurboSettings settings,
     GameTurboSettingsNotifier notifier,
   ) {
-    final availableModels = switch (settings.activeAiProvider) {
-      'openai' => const ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo'],
-      'claude' => const [
-          'claude-3-5-haiku',
-          'claude-3-5-sonnet',
-          'claude-3-opus'
-        ],
-      'deepseek' => const [
-          'deepseek/deepseek-chat',
-          'deepseek/deepseek-r1',
-          'meta-llama/llama-3.3-70b'
-        ],
-      _ => const ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'],
-    };
+    final discoveryService = ref.watch(modelDiscoveryServiceProvider);
+    final modelsAsync = ref.watch(discoveredModelsForCurrentProvider);
+    final isRefreshing = ref.watch(isCatalogRefreshingProvider);
 
-    final selectedModel = availableModels.contains(settings.activeModel)
+    final rawDiscovered = modelsAsync.valueOrNull ??
+        (settings.showOnlyFreeModels
+            ? discoveryService.filterFreeOnly(
+                discoveryService.getFallbackModels(settings.activeAiProvider))
+            : discoveryService.getFallbackModels(settings.activeAiProvider));
+
+    final selectedModel = rawDiscovered.any((m) => m.id == settings.activeModel)
         ? settings.activeModel
-        : availableModels.first;
+        : (rawDiscovered.isNotEmpty ? rawDiscovered.first.id : settings.activeModel);
 
     final providerDisplayName = switch (settings.activeAiProvider) {
       'openai' => 'OpenAI',
       'claude' => 'Claude',
-      'deepseek' => 'DeepSeek',
+      'deepseek' => 'OpenRouter',
+      'sambanova' => 'SambaNova',
+      'xkiro' => 'xKiro',
+      'groq' => 'Groq',
       _ => 'Google Gemini',
     };
 
@@ -816,12 +829,57 @@ class _AppSettingsTwoPaneScreenState
                         width: 180,
                         child: _buildProviderCard(
                           id: 'deepseek',
-                          name: 'DeepSeek / OpenRouter',
-                          tag: 'OPEN',
-                          hint: 'Community models',
+                          name: 'OpenRouter',
+                          tag: 'FREE TIER',
+                          hint: 'Free & community models',
                           isSelected: settings.activeAiProvider == 'deepseek',
                           onTap: () {
                             notifier.setActiveAiProvider('deepseek');
+                            _loadCurrentApiKey();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 180,
+                        child: _buildProviderCard(
+                          id: 'sambanova',
+                          name: 'SambaNova',
+                          tag: 'FREE QUOTA',
+                          hint: 'Fast Llama 3.3 & R1',
+                          isSelected: settings.activeAiProvider == 'sambanova',
+                          onTap: () {
+                            notifier.setActiveAiProvider('sambanova');
+                            _loadCurrentApiKey();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 180,
+                        child: _buildProviderCard(
+                          id: 'xkiro',
+                          name: 'xKiro Gateway',
+                          tag: 'FREE / PRO',
+                          hint: 'Free DeepSeek & Qwen',
+                          isSelected: settings.activeAiProvider == 'xkiro',
+                          onTap: () {
+                            notifier.setActiveAiProvider('xkiro');
+                            _loadCurrentApiKey();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 180,
+                        child: _buildProviderCard(
+                          id: 'groq',
+                          name: 'Groq',
+                          tag: 'FREE TIER',
+                          hint: 'Sub-50ms LPU engine',
+                          isSelected: settings.activeAiProvider == 'groq',
+                          onTap: () {
+                            notifier.setActiveAiProvider('groq');
                             _loadCurrentApiKey();
                           },
                         ),
@@ -906,7 +964,15 @@ class _AppSettingsTwoPaneScreenState
                             fontSize: 11,
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Enter API Key',
+                            hintText: switch (settings.activeAiProvider) {
+                              'groq' => 'Enter Groq API Key (gsk_...)',
+                              'gemini' => 'Enter Gemini API Key (AIza...)',
+                              'openai' => 'Enter OpenAI API Key (sk-...)',
+                              'claude' => 'Enter Anthropic API Key (sk-ant-...)',
+                              'sambanova' => 'Enter SambaNova Cloud Key',
+                              'xkiro' => 'Enter xKiro Gateway Key',
+                              _ => 'Enter API Key',
+                            },
                             hintStyle: TypographyTokens.keyInputOf(context).copyWith(
                               fontSize: 11,
                               color: ColorTokens.of(context).textPrimary
@@ -1043,57 +1109,211 @@ class _AppSettingsTwoPaneScreenState
             ),
           ),
 
-          // ── Model Checkpoint Row (setting-row style with horizontal scroll) ─
+          // ── Model Checkpoint Row with Dynamic Discovery & Free Filter ─────
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Select Active Tactical Model',
-                        style: TypographyTokens.settingsRowTitleOf(context).copyWith(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
+                // Header & Action Bar
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Select Active Tactical Model',
+                                style: TypographyTokens.settingsRowTitleOf(context).copyWith(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: ColorTokens.turboBlue.withValues(alpha: 0.12),
+                                  borderRadius: RadiusTokens.pillBadge,
+                                  border: Border.all(
+                                    color: ColorTokens.turboBlue.withValues(alpha: 0.25),
+                                  ),
+                                ),
+                                child: Text(
+                                  'MODELS.DEV',
+                                  style: TypographyTokens.tacticalBadgeOf(context).copyWith(
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w800,
+                                    color: ColorTokens.turboBlue,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            isRefreshing
+                                ? '↻ Ingesting models.dev & live gateway endpoints...'
+                                : 'Active LLM checkpoints discovered upstream • ${rawDiscovered.length} available',
+                            style: TypographyTokens.settingsRowDescOf(context).copyWith(
+                              fontSize: 10.5,
+                              color: ColorTokens.of(context).textPrimary
+                                  .withValues(alpha: 0.53),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    // "Free Only" filter button
+                    GestureDetector(
+                      onTap: () {
+                        HapticHelper.selectionClick();
+                        notifier.toggleShowOnlyFreeModels(!settings.showOnlyFreeModels);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: settings.showOnlyFreeModels
+                              ? ColorTokens.of(context).emeraldLive.withValues(alpha: 0.14)
+                              : ColorTokens.of(context).textPrimary.withValues(alpha: 0.04),
+                          borderRadius: RadiusTokens.pillBadge,
+                          border: Border.all(
+                            color: settings.showOnlyFreeModels
+                                ? ColorTokens.of(context).emeraldLive
+                                : ColorTokens.of(context).textPrimary.withValues(alpha: 0.12),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.circle,
+                              size: 7,
+                              color: settings.showOnlyFreeModels
+                                  ? ColorTokens.of(context).emeraldLive
+                                  : ColorTokens.of(context).textPrimary.withValues(alpha: 0.35),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Free Only',
+                              style: TypographyTokens.bodySmallOf(context).copyWith(
+                                fontSize: 10.5,
+                                fontWeight: settings.showOnlyFreeModels ? FontWeight.w700 : FontWeight.w500,
+                                color: settings.showOnlyFreeModels
+                                    ? ColorTokens.of(context).emeraldLive
+                                    : ColorTokens.of(context).textPrimary.withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Choose between ultra-fast Flash/Mini models for combat callouts or larger models for macro analysis.',
-                        style: TypographyTokens.settingsRowDescOf(context).copyWith(
-                          fontSize: 10.5,
-                          color: ColorTokens.of(context).textPrimary
-                              .withValues(alpha: 0.53),
+                    ),
+                    const SizedBox(width: 8),
+                    // "Sync" button
+                    GestureDetector(
+                      onTap: isRefreshing
+                          ? null
+                          : () {
+                              HapticHelper.selectionClick();
+                              refreshModelCatalog(ref);
+                            },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: ColorTokens.turboBlue.withValues(alpha: 0.1),
+                          borderRadius: RadiusTokens.pillBadge,
+                          border: Border.all(
+                            color: ColorTokens.turboBlue.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isRefreshing)
+                              const SizedBox(
+                                width: 10,
+                                height: 10,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.8,
+                                  color: ColorTokens.turboBlue,
+                                ),
+                              )
+                            else
+                              const Icon(
+                                LucideIcons.refreshCw,
+                                size: 10,
+                                color: ColorTokens.turboBlue,
+                              ),
+                            const SizedBox(width: 5),
+                            Text(
+                              isRefreshing ? 'Syncing...' : 'Sync',
+                              style: TypographyTokens.bodySmallOf(context).copyWith(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: ColorTokens.turboBlue,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '⇄ Swipe horizontally if options exceed space',
-                        style: TypographyTokens.bodySmallOf(context).copyWith(
-                          fontSize: 9.5,
-                          color: ColorTokens.of(context).textPrimary
-                              .withValues(alpha: 0.33),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 14),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 360),
-                  child: SingleChildScrollView(
+                const SizedBox(height: 12),
+                // Horizontal scrolling cards or empty state
+                if (rawDiscovered.isEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: ColorTokens.of(context).textPrimary.withValues(alpha: 0.03),
+                      borderRadius: RadiusTokens.card,
+                      border: Border.all(
+                        color: ColorTokens.of(context).borderGlass,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          LucideIcons.alertCircle,
+                          size: 15,
+                          color: ColorTokens.of(context).tacticalAmber,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'No zero-cost models found for $providerDisplayName with "Free Only" enabled. Disable filter or switch to SambaNova, OpenRouter, xKiro, or Groq.',
+                            style: TypographyTokens.bodySmallOf(context).copyWith(
+                              fontSize: 11,
+                              color: ColorTokens.of(context).textPrimary.withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     physics: const BouncingScrollPhysics(),
-                    child: OemSegmentedChips<String>(
-                      options: availableModels,
-                      selected: selectedModel,
-                      onSelected: notifier.setActiveModel,
+                    child: Row(
+                      children: rawDiscovered.map((m) {
+                        final isSelected = m.id == selectedModel;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: _buildModelCard(
+                            model: m,
+                            isSelected: isSelected,
+                            onTap: () => notifier.setActiveModel(m.id),
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -1136,7 +1356,7 @@ class _AppSettingsTwoPaneScreenState
   }) {
     return GestureDetector(
       onTap: () {
-        HapticFeedback.selectionClick();
+        HapticHelper.selectionClick();
         onTap();
       },
       child: AnimatedContainer(
@@ -1203,6 +1423,161 @@ class _AppSettingsTwoPaneScreenState
                 fontSize: 9.5,
                 color: ColorTokens.of(context).textPrimary.withValues(alpha: 0.45),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModelCard({
+    required DiscoveredModel model,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final colors = ColorTokens.of(context);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        HapticHelper.selectionClick();
+        onTap();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? ColorTokens.turboBlue.withValues(alpha: 0.12)
+              : (colors.isDark
+                  ? ColorPrimitives.segTrackBlack40
+                  : colors.surfaceElevated),
+          borderRadius: RadiusTokens.card,
+          border: Border.all(
+            color: isSelected
+                ? ColorTokens.turboBlue
+                : colors.borderGlass,
+            width: isSelected ? 1.5 : 1.0,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: ColorTokens.turboBlue.withValues(alpha: 0.28),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  model.name,
+                  style: TypographyTokens.buttonTextOf(context).copyWith(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    color: isSelected
+                        ? ColorTokens.turboBlue
+                        : colors.textPrimary,
+                  ),
+                ),
+                if (model.formattedContext != null) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: colors.textPrimary.withValues(alpha: 0.08),
+                      borderRadius: RadiusTokens.tag,
+                    ),
+                    child: Text(
+                      model.formattedContext!,
+                      style: TypographyTokens.tacticalBadgeOf(context).copyWith(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textPrimary.withValues(alpha: 0.75),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 5),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (model.isFree)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: colors.emeraldLive.withValues(alpha: 0.15),
+                      borderRadius: RadiusTokens.pillBadge,
+                      border: Border.all(
+                        color: colors.emeraldLive.withValues(alpha: 0.5),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.check_circle, size: 9, color: colors.emeraldLive),
+                        const SizedBox(width: 3.5),
+                        Text(
+                          'FREE TIER',
+                          style: TypographyTokens.tacticalBadgeOf(context).copyWith(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w800,
+                            color: colors.emeraldLive,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: ColorTokens.turboBlue.withValues(alpha: 0.09),
+                      borderRadius: RadiusTokens.pillBadge,
+                      border: Border.all(
+                        color: ColorTokens.turboBlue.withValues(alpha: 0.3),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(LucideIcons.zap, size: 9, color: ColorTokens.turboBlue),
+                        const SizedBox(width: 3.5),
+                        Text(
+                          'PRO MODEL',
+                          style: TypographyTokens.tacticalBadgeOf(context).copyWith(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w700,
+                            color: ColorTokens.turboBlue,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(width: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 160),
+                  child: Text(
+                    model.id,
+                    overflow: TextOverflow.ellipsis,
+                    style: TypographyTokens.bodySmallOf(context).copyWith(
+                      fontSize: 9.5,
+                      color: colors.textPrimary.withValues(alpha: 0.4),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -1379,6 +1754,15 @@ class _AppSettingsTwoPaneScreenState
 
         // Card 2: Feature Toggles
         _buildSettingsCard([
+          _buildSettingRow(
+            title: 'Guardian AI Screen Vision',
+            hint:
+                'Allow Guardian AI to capture transient gameplay frames to visually detect your hero, battle spells, and minimap.',
+            control: MiuiSwitch(
+              value: settings.guardianVisionEnabled,
+              onChanged: notifier.toggleGuardianVisionEnabled,
+            ),
+          ),
           _buildSettingRow(
             title: 'Missing-Enemy Warnings',
             hint:
@@ -1681,7 +2065,13 @@ class _AppSettingsTwoPaneScreenState
             children: [
               _buildTelemetryColumn(
                 'Cloud Latency',
-                settings.activeAiProvider == 'gemini' ? '38 ms' : '110 ms',
+                switch (settings.activeAiProvider) {
+                  'groq' => '42 ms',
+                  'gemini' => '38 ms',
+                  'sambanova' => '65 ms',
+                  'xkiro' => '95 ms',
+                  _ => '110 ms',
+                },
                 ColorTokens.of(context).turboCyan,
               ),
               _buildTelemetryColumn(

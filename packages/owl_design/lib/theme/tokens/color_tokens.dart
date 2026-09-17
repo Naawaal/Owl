@@ -735,7 +735,7 @@ class OwlColors extends ThemeExtension<OwlColors> {
     consolePurpleVivid: Color(0xFF6D28D9),
     gameboxStart: ColorPrimitives.gameboxIndigoStart,
     gameboxEnd: ColorPrimitives.gameboxIndigoEnd,
-    toolboxBg: Color(0xF0FFFFFF),
+    toolboxBg: Color(0xF2F8FAFC),
     gaugeLaser: ColorPrimitives.alertDangerLight,
     radarBorder: ColorPrimitives.radarBorder55,
     dialogBg: Color(0xF2FFFFFF),

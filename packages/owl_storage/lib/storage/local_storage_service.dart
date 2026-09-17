@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:owl_core/owl_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -290,6 +291,8 @@ class OverlayScaleNotifier extends StateNotifier<double> {
 
 class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   final LocalStorageService? _storage;
+  static const MethodChannel _systemChannel =
+      MethodChannel('com.example.owl/system_controls');
 
   ThemeModeNotifier([this._storage])
       : super(_storage?.getThemeMode() ?? ThemeMode.system);
@@ -297,6 +300,13 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   Future<void> setThemeMode(ThemeMode mode) async {
     state = mode;
     await _storage?.setThemeMode(mode);
+    try {
+      await _systemChannel.invokeMethod('setThemeMode', {
+        'themeMode': mode.name,
+      });
+    } catch (_) {
+      // Graceful fallback for non-Android platforms and unit tests
+    }
   }
 }
 

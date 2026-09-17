@@ -253,6 +253,18 @@ void main() {
         isA<OpenRouterInferenceClient>(),
       );
       expect(
+        inferenceClientFor(providerId: 'sambanova', api: stubApi()),
+        isA<SambaNovaInferenceClient>(),
+      );
+      expect(
+        inferenceClientFor(providerId: 'xkiro', api: stubApi()),
+        isA<XKiroInferenceClient>(),
+      );
+      expect(
+        inferenceClientFor(providerId: 'groq', api: stubApi()),
+        isA<GroqInferenceClient>(),
+      );
+      expect(
         inferenceClientFor(providerId: 'unknown-id', api: stubApi()),
         isA<GeminiInferenceClient>(),
       );
@@ -353,7 +365,8 @@ void main() {
       );
     }
 
-    test('stays silent without a stored key and never throws', () async {
+    test('serves offline advice without a stored key and never throws',
+        () async {
       final dio = cannedDio((options) async => Response(
             requestOptions: options,
             statusCode: 200,
@@ -366,8 +379,11 @@ void main() {
       await service.requestAdvice(situation: 'Dragon spawning soon.');
 
       final state = container.read(coachServiceProvider);
-      expect(state.valueOrNull, isNull);
-      expect(service.lastKnown, isNull);
+      final response = state.valueOrNull;
+      expect(state.hasError, isFalse);
+      expect(response, isNotNull);
+      expect(response!.action, isNotEmpty);
+      expect(service.lastKnown, isNotNull);
       expect(service.callsThisMatch, equals(0));
     });
 
@@ -406,7 +422,8 @@ void main() {
       expect(hits, equals(1));
     });
 
-    test('auth failure lands in error state with lastKnown intact', () async {
+    test('auth failure falls back to offline advice without error state',
+        () async {
       final dio = cannedDio((options) async {
         throw dioError(options, statusCode: 401);
       });
@@ -424,8 +441,12 @@ void main() {
       await service.requestAdvice(situation: 'Baron spawning soon.');
 
       final state = container.read(coachServiceProvider);
-      expect(state.hasError, isTrue);
-      expect(service.lastKnown, isNull);
+      final response = state.valueOrNull;
+      expect(state.hasError, isFalse);
+      expect(response, isNotNull);
+      expect(response!.action, isNotEmpty);
+      expect(response.reason, isNotEmpty);
+      expect(service.lastKnown, isNotNull);
       expect(service.callsThisMatch, equals(0));
     });
 

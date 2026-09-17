@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:owl_core/owl_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:owl_design/owl_design.dart';
@@ -382,7 +382,7 @@ class _DesignSystemShowcaseViewState
   }) {
     return GestureDetector(
       onTap: () {
-        HapticFeedback.selectionClick();
+        HapticHelper.selectionClick();
         ref.read(themeModeProvider.notifier).setThemeMode(mode);
       },
       behavior: HitTestBehavior.opaque,
@@ -583,7 +583,7 @@ class _DesignSystemShowcaseViewState
                       setState(() {
                         _lastPingStatus = 'QUICK ACTION: $action';
                       });
-                      HapticFeedback.heavyImpact();
+                      HapticHelper.heavyImpact();
                     },
                     isDraggable: true,
                   ),

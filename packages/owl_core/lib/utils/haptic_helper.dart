@@ -21,9 +21,14 @@ enum TacticalHapticType {
 class HapticHelper {
   HapticHelper._();
 
+  /// Global kill-switch driven by the persisted `hapticsEnabled` setting.
+  /// All helpers below consult it in addition to their per-call [enabled]
+  /// flag, so one assignment silences the entire app.
+  static bool globalEnabled = true;
+
   /// Subtle light impact feedback.
   static Future<void> lightImpact({bool enabled = true}) async {
-    if (!enabled) return;
+    if (!enabled || !globalEnabled) return;
     try {
       await HapticFeedback.lightImpact();
     } catch (_) {}
@@ -31,7 +36,7 @@ class HapticHelper {
 
   /// Medium tactile impact feedback.
   static Future<void> mediumImpact({bool enabled = true}) async {
-    if (!enabled) return;
+    if (!enabled || !globalEnabled) return;
     try {
       await HapticFeedback.mediumImpact();
     } catch (_) {}
@@ -39,7 +44,7 @@ class HapticHelper {
 
   /// Heavy impact feedback for critical notifications.
   static Future<void> heavyImpact({bool enabled = true}) async {
-    if (!enabled) return;
+    if (!enabled || !globalEnabled) return;
     try {
       await HapticFeedback.heavyImpact();
     } catch (_) {}
@@ -47,7 +52,7 @@ class HapticHelper {
 
   /// Standard vibration.
   static Future<void> vibrate({bool enabled = true}) async {
-    if (!enabled) return;
+    if (!enabled || !globalEnabled) return;
     try {
       await HapticFeedback.vibrate();
     } catch (_) {}
@@ -55,7 +60,7 @@ class HapticHelper {
 
   /// UI selection click.
   static Future<void> selectionClick({bool enabled = true}) async {
-    if (!enabled) return;
+    if (!enabled || !globalEnabled) return;
     try {
       await HapticFeedback.selectionClick();
     } catch (_) {}

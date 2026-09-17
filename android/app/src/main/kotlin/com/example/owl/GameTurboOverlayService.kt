@@ -1,8 +1,17 @@
 package com.example.owl
 
+import android.app.AlertDialog
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
@@ -13,12 +22,22 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
+import android.media.Image
+import android.media.ImageReader
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
+import android.os.HandlerThread
+import android.util.Base64
+import java.io.ByteArrayOutputStream
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
+import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -47,18 +66,141 @@ class GameTurboOverlayService : Service() {
     private var windowManager: WindowManager? = null
     private var collapsedHandleView: View? = null
     private var expandedToolboxView: View? = null
+    private var guardianOverlayView: View? = null
+    private var guardianX: Int = 80
+    private var guardianY: Int = 160
+    private var currentDirectiveIndex: Int = 0
+    private var aiHolderRef: ToolButtonHolder? = null
 
-    private var currentGameName: String = "Mobile Legends: Bang Bang"
+    var isLightMode: Boolean = false
+
+    fun isLightModeActive(): Boolean {
+        return try {
+            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            val mode = prefs.getString("flutter.owl_theme_mode", "system")
+            when (mode) {
+                "light" -> true
+                "dark" -> false
+                "system" -> {
+                    val nightMode = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+                    nightMode != android.content.res.Configuration.UI_MODE_NIGHT_YES
+                }
+                else -> false
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private var currentGameName: String = "Pokémon UNITE"
     private var currentTargetFps: Int = 120
     private var isPerformanceMode: Boolean = true
-    private var isDndActive: Boolean = true
-    private var isWifiBoostActive: Boolean = true
+    private var isDndActive: Boolean = false
+    private var isWifiBoostActive: Boolean = false
     private var isAiActive: Boolean = true
     private var isVoiceChangerActive: Boolean = false
+    private var pingListener: ((Int) -> Unit)? = null
+
+    private var aiApiKey: String? = null
+    private var aiProvider: String = "gemini"
+    private var aiModel: String = "gemini-3-flash-preview"
+    private val aiExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+    @Volatile private var isAnalyzingAi: Boolean = false
+
+    fun detectForegroundGame(): String? {
+        try {
+            val usm = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+            val time = System.currentTimeMillis()
+            val events = usm?.queryEvents(time - 25000, time)
+            if (events != null) {
+                val event = UsageEvents.Event()
+                var lastPkg: String? = null
+                while (events.hasNextEvent()) {
+                    events.getNextEvent(event)
+                    if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED ||
+                        event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                        if (event.packageName != packageName) {
+                            lastPkg = event.packageName
+                        }
+                    }
+                }
+                if (!lastPkg.isNullOrEmpty()) {
+                    val resolved = resolveGameTitle(lastPkg)
+                    if (resolved != null) return resolved
+                }
+            }
+            val stats = usm?.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, time - 60000, time)
+            val topUsed = stats?.filter { it.packageName != packageName }?.maxByOrNull { it.lastTimeUsed }
+            if (topUsed != null) {
+                val resolved = resolveGameTitle(topUsed.packageName)
+                if (resolved != null) return resolved
+            }
+        } catch (_: Exception) {}
+        return null
+    }
+
+    private fun resolveGameTitle(pkg: String): String? {
+        val lower = pkg.lowercase()
+        return when {
+            lower.contains("pokemon.pokemonunite") || lower.contains("pokemonunite") || lower.contains("pokemon.unite") -> "Pokémon UNITE"
+            lower.contains("mobile.legends") || lower.contains("mobilelegends") -> "Mobile Legends: Bang Bang"
+            lower.contains("freefire") || lower.contains("dts.freefire") -> "Free Fire"
+            lower.contains("pubg") || lower.contains("tencent.ig") -> "PUBG Mobile"
+            lower.contains("wildrift") || lower.contains("riotgames") -> "League of Legends: Wild Rift"
+            lower.contains("callofduty") || lower.contains("codm") -> "Call of Duty: Mobile"
+            lower.contains("genshin") -> "Genshin Impact"
+            lower.contains("hkrpg") || lower.contains("starrail") -> "Honkai: Star Rail"
+            lower.contains("brawlstars") -> "Brawl Stars"
+            lower.contains("clashofclans") -> "Clash of Clans"
+            lower.contains("roblox") -> "Roblox"
+            lower.contains("minecraft") -> "Minecraft"
+            else -> try {
+                val pm = packageManager
+                val info = pm.getApplicationInfo(pkg, 0)
+                val isGameCategory = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    info.category == ApplicationInfo.CATEGORY_GAME
+                } else false
+                val isLegacyGame = (info.flags and ApplicationInfo.FLAG_IS_GAME) != 0
+                if (isGameCategory || isLegacyGame) {
+                    pm.getApplicationLabel(info).toString()
+                } else null
+            } catch (_: Exception) { null }
+        }
+    }
 
     private var handleX: Int = 40
     private var handleY: Int = 80
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var guardianAutoRefreshRunnable: Runnable? = null
+
+    fun getEffectiveAiApiKey(): String? {
+        if (!aiApiKey.isNullOrEmpty()) return aiApiKey
+        if (!cachedAiApiKey.isNullOrEmpty()) return cachedAiApiKey
+        return try {
+            getSharedPreferences("owl_overlay_prefs", Context.MODE_PRIVATE)
+                .getString("ai_api_key", null)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun startGuardianAutoRefresh(intervalMs: Long = 14000L, cycleFn: (() -> Unit)? = null) {
+        stopGuardianAutoRefresh()
+        val r = object : Runnable {
+            override fun run() {
+                if (guardianOverlayView != null) {
+                    cycleFn?.invoke()
+                }
+            }
+        }
+        guardianAutoRefreshRunnable = r
+        mainHandler.postDelayed(r, intervalMs)
+    }
+
+    private fun stopGuardianAutoRefresh() {
+        guardianAutoRefreshRunnable?.let { mainHandler.removeCallbacks(it) }
+        guardianAutoRefreshRunnable = null
+    }
 
     // Live stat refs — updated by MainActivity.pushStats()
     @Volatile var liveCpu: Int = 30
@@ -89,27 +231,98 @@ class GameTurboOverlayService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private val NOTIFICATION_ID = 4096
+    private val CHANNEL_ID = "owl_game_turbo_channel"
+
+    private fun startAsForegroundService() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    "Owl Game Turbo",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "Game Turbo tactical floating overlay and guardian AI coach"
+                    setShowBadge(false)
+                }
+                val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                nm?.createNotificationChannel(channel)
+            }
+
+            val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Notification.Builder(this, CHANNEL_ID)
+            } else {
+                @Suppress("DEPRECATION")
+                Notification.Builder(this)
+            }.apply {
+                setContentTitle("Owl Game Turbo")
+                setContentText("Tactical Overlay & Guardian AI Live")
+                setSmallIcon(android.R.drawable.ic_menu_compass)
+                setOngoing(true)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+                }
+            }.build()
+
+            if (Build.VERSION.SDK_INT >= 34) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, notification)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         instance = this   // register singleton for pushStats()
+        startAsForegroundService()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             stopSelf()
             return START_NOT_STICKY
         }
 
-        intent?.getStringExtra("EXTRA_GAME_NAME")?.let {
-            if (it.isNotEmpty()) currentGameName = it
+        if (intent?.hasExtra("EXTRA_IS_LIGHT_MODE") == true) {
+            isLightMode = intent.getBooleanExtra("EXTRA_IS_LIGHT_MODE", false)
+        } else {
+            isLightMode = isLightModeActive()
         }
+
+        intent?.getStringExtra("EXTRA_GAME_NAME")?.let {
+            if (it.isNotEmpty() && it != "Game" && it != "Mobile Legends: Bang Bang") currentGameName = it
+        }
+        detectForegroundGame()?.let { currentGameName = it }
         val fpsExtra = intent?.getIntExtra("EXTRA_TARGET_FPS", -1) ?: -1
         if (fpsExtra > 0) {
             currentTargetFps = fpsExtra
         }
 
+        val keyExtra = intent?.getStringExtra("EXTRA_AI_API_KEY")
+        aiApiKey = if (!keyExtra.isNullOrEmpty()) keyExtra else getEffectiveAiApiKey()
+        val provExtra = intent?.getStringExtra("EXTRA_AI_PROVIDER")
+        aiProvider = if (!provExtra.isNullOrEmpty()) provExtra else cachedAiProvider
+        val modelExtra = intent?.getStringExtra("EXTRA_AI_MODEL")
+        aiModel = if (!modelExtra.isNullOrEmpty()) modelExtra else cachedAiModel
+
         val shouldExpand = intent?.getBooleanExtra("EXTRA_EXPAND", false) ?: false
+        val showGuardian = intent?.getBooleanExtra("EXTRA_SHOW_GUARDIAN", true) ?: true
+
         if (shouldExpand) {
             expandToolbox()
         } else if (collapsedHandleView == null && expandedToolboxView == null) {
             showCollapsedHandle()
         }
+
+        if (showGuardian && isAiActive && guardianOverlayView == null) {
+            showGuardianOverlay()
+        }
+
         startAutonomousTicker()
         return START_STICKY
     }
@@ -155,8 +368,13 @@ class GameTurboOverlayService : Service() {
             val bg = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dp(999f).toFloat()
-                setColor(Color.parseColor("#E60D121B"))
-                setStroke(dp(1.5f), Color.parseColor("#4D3B82F6"))
+                if (isLightMode) {
+                    setColor(Color.parseColor("#F2FFFFFF"))
+                    setStroke(dp(1.5f), Color.parseColor("#CBD5E1"))
+                } else {
+                    setColor(Color.parseColor("#E60D121B"))
+                    setStroke(dp(1.5f), Color.parseColor("#4D3B82F6"))
+                }
             }
             background = bg
             setPadding(dp(12f), dp(6f), dp(12f), dp(6f))
@@ -182,7 +400,7 @@ class GameTurboOverlayService : Service() {
 
             val text = TextView(context).apply {
                 text = "TURBO ${currentTargetFps} FPS"
-                setTextColor(Color.WHITE)
+                setTextColor(if (isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
                 textSize = 10.5f
                 typeface = Typeface.DEFAULT_BOLD
                 letterSpacing = 0.03f
@@ -238,6 +456,28 @@ class GameTurboOverlayService : Service() {
         }
     }
 
+    fun refreshCollapsedHandleTheme() {
+        val handleRoot = collapsedHandleView as? LinearLayout ?: return
+        val bg = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(999f).toFloat()
+            if (isLightMode) {
+                setColor(Color.parseColor("#F2FFFFFF"))
+                setStroke(dp(1.5f), Color.parseColor("#CBD5E1"))
+            } else {
+                setColor(Color.parseColor("#E60D121B"))
+                setStroke(dp(1.5f), Color.parseColor("#4D3B82F6"))
+            }
+        }
+        handleRoot.background = bg
+        for (i in 0 until handleRoot.childCount) {
+            val child = handleRoot.getChildAt(i)
+            if (child is TextView && (child.tag == "handle_fps_text" || child.text.toString().startsWith("TURBO"))) {
+                child.setTextColor(if (isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
+            }
+        }
+    }
+
     /**
      * Expands the sleek Xiaomi Game Turbo toolbox with Reactor Gauge and Live Telemetry.
      */
@@ -268,7 +508,7 @@ class GameTurboOverlayService : Service() {
         )
 
         val root = FrameLayout(this).apply {
-            setBackgroundColor(Color.parseColor("#33000000"))
+            setBackgroundColor(if (isLightMode) Color.parseColor("#26000000") else Color.parseColor("#33000000"))
             setOnClickListener {
                 collapseToHandle()
             }
@@ -277,15 +517,27 @@ class GameTurboOverlayService : Service() {
         val cardWidth = dp(288f)
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.parseColor("#F5090B12"), Color.parseColor("#FA06070B"))
-            ).apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(18f).toFloat()
-                setStroke(dp(1f), Color.parseColor("#26389BFF"))
+            background = if (isLightMode) {
+                GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    intArrayOf(Color.parseColor("#FAFFFFFF"), Color.parseColor("#F5F8FAFC"))
+                ).apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = dp(18f).toFloat()
+                    setStroke(dp(1.2f), Color.parseColor("#CBD5E1"))
+                }
+            } else {
+                GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    intArrayOf(Color.parseColor("#F5090B12"), Color.parseColor("#FA06070B"))
+                ).apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = dp(18f).toFloat()
+                    setStroke(dp(1f), Color.parseColor("#26389BFF"))
+                }
             }
             setPadding(dp(12f), dp(9f), dp(12f), dp(9f))
+            tag = "toolbox_card"
             layoutParams = FrameLayout.LayoutParams(
                 cardWidth,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -294,7 +546,7 @@ class GameTurboOverlayService : Service() {
                 val screenW = resources.displayMetrics.widthPixels
                 val screenH = resources.displayMetrics.heightPixels
                 leftMargin = dp(14f).coerceAtLeast(handleX - dp(20f)).coerceAtMost(screenW - cardWidth - dp(14f))
-                topMargin = dp(10f).coerceAtLeast(handleY - dp(10f)).coerceAtMost((screenH - dp(270f)).coerceAtLeast(dp(10f)))
+                topMargin = dp(10f).coerceAtLeast(handleY - dp(10f)).coerceAtMost((screenH - dp(320f)).coerceAtLeast(dp(10f)))
             }
             setOnClickListener {
                 // Consume click inside card
@@ -312,8 +564,40 @@ class GameTurboOverlayService : Service() {
         }
     }
 
+    fun refreshExpandedToolboxTheme() {
+        val root = expandedToolboxView as? FrameLayout ?: return
+        root.setBackgroundColor(if (isLightMode) Color.parseColor("#26000000") else Color.parseColor("#33000000"))
+        val card = root.findViewWithTag<LinearLayout>("toolbox_card") ?: return
+        card.background = if (isLightMode) {
+            GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.parseColor("#FAFFFFFF"), Color.parseColor("#F5F8FAFC"))
+            ).apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(18f).toFloat()
+                setStroke(dp(1.2f), Color.parseColor("#CBD5E1"))
+            }
+        } else {
+            GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.parseColor("#F5090B12"), Color.parseColor("#FA06070B"))
+            ).apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(18f).toFloat()
+                setStroke(dp(1f), Color.parseColor("#26389BFF"))
+            }
+        }
+        card.removeAllViews()
+        buildToolboxContent(card)
+    }
+
     private fun collapseToHandle() {
         val wm = windowManager ?: return
+
+        pingListener?.let {
+            HardwareSystemController.removePingListener(it)
+            pingListener = null
+        }
 
         expandedToolboxView?.let {
             try {
@@ -359,7 +643,7 @@ class GameTurboOverlayService : Service() {
                     text = "Gaming tools"
                     textSize = 11.5f
                     typeface = Typeface.DEFAULT_BOLD
-                    setTextColor(Color.WHITE)
+                    setTextColor(if (isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
                 }
                 addView(title)
             }
@@ -368,10 +652,18 @@ class GameTurboOverlayService : Service() {
             val closeBtn = FrameLayout(context).apply {
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
-                    setColor(Color.parseColor("#1AFFFFFF"))
+                    setColor(if (isLightMode) Color.parseColor("#F1F5F9") else Color.parseColor("#1AFFFFFF"))
+                    if (isLightMode) {
+                        setStroke(dp(1f), Color.parseColor("#E2E8F0"))
+                    }
                 }
                 layoutParams = LinearLayout.LayoutParams(dp(22f), dp(22f))
-                val icon = LucideIconView(context, LucideIconView.TYPE_CLOSE, Color.parseColor("#CBD5E1"), 1.8f).apply {
+                val icon = LucideIconView(
+                    context,
+                    LucideIconView.TYPE_CLOSE,
+                    if (isLightMode) Color.parseColor("#475569") else Color.parseColor("#CBD5E1"),
+                    1.8f
+                ).apply {
                     layoutParams = FrameLayout.LayoutParams(dp(10f), dp(10f), Gravity.CENTER)
                 }
                 addView(icon)
@@ -387,8 +679,13 @@ class GameTurboOverlayService : Service() {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dp(12f).toFloat()
-                setColor(Color.parseColor("#10FFFFFF"))
-                setStroke(dp(1f), Color.parseColor("#1FFFFFFF"))
+                if (isLightMode) {
+                    setColor(Color.parseColor("#F8FAFC"))
+                    setStroke(dp(1f), Color.parseColor("#E2E8F0"))
+                } else {
+                    setColor(Color.parseColor("#10FFFFFF"))
+                    setStroke(dp(1f), Color.parseColor("#1FFFFFFF"))
+                }
             }
             setPadding(dp(10f), dp(6f), dp(10f), dp(7f))
             layoutParams = LinearLayout.LayoutParams(
@@ -410,7 +707,7 @@ class GameTurboOverlayService : Service() {
                     text = sdf.format(Date())
                     textSize = 8.5f
                     typeface = Typeface.DEFAULT_BOLD
-                    setTextColor(Color.parseColor("#8E9BAE"))
+                    setTextColor(if (isLightMode) Color.parseColor("#64748B") else Color.parseColor("#8E9BAE"))
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 }
                 addView(timeText)
@@ -430,7 +727,7 @@ class GameTurboOverlayService : Service() {
                         text = "${getBatteryLevel()}%"
                         textSize = 8.5f
                         typeface = Typeface.DEFAULT_BOLD
-                        setTextColor(Color.parseColor("#8E9BAE"))
+                        setTextColor(if (isLightMode) Color.parseColor("#64748B") else Color.parseColor("#8E9BAE"))
                     }
                     addView(battText)
                 }
@@ -444,6 +741,7 @@ class GameTurboOverlayService : Service() {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     dp(66f)
                 )
+                this.isLightMode = this@GameTurboOverlayService.isLightMode
                 setMode(isPerformanceMode, if (isPerformanceMode) currentTargetFps else 60)
             }
             addView(reactorGaugeView)
@@ -467,7 +765,7 @@ class GameTurboOverlayService : Service() {
                         text = "${liveCpu}%"
                         textSize = 8.5f
                         typeface = Typeface.DEFAULT_BOLD
-                        setTextColor(Color.WHITE)
+                        setTextColor(if (isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
                         tag = "cpu_val"
                     }
 
@@ -476,7 +774,7 @@ class GameTurboOverlayService : Service() {
                         val l = TextView(context).apply {
                             text = "CPU"
                             textSize = 7.5f
-                            setTextColor(Color.parseColor("#8E9BAE"))
+                            setTextColor(if (isLightMode) Color.parseColor("#64748B") else Color.parseColor("#8E9BAE"))
                             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                         }
                         addView(l)
@@ -487,8 +785,17 @@ class GameTurboOverlayService : Service() {
                     val cpuProgress = TelemetryProgressBarView(
                         context,
                         liveCpu / 100f,
-                        Color.parseColor("#007AFF"),
-                        Color.parseColor("#60A5FA")
+                        if (isLightMode) {
+                            if (isPerformanceMode) Color.parseColor("#FF3B30") else Color.parseColor("#0284C7")
+                        } else {
+                            if (isPerformanceMode) Color.parseColor("#FF3B30") else Color.parseColor("#007AFF")
+                        },
+                        if (isLightMode) {
+                            if (isPerformanceMode) Color.parseColor("#FB7185") else Color.parseColor("#38BDF8")
+                        } else {
+                            if (isPerformanceMode) Color.parseColor("#FF6961") else Color.parseColor("#60A5FA")
+                        },
+                        isLightMode = isLightMode
                     ).apply {
                         layoutParams = LinearLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -512,7 +819,7 @@ class GameTurboOverlayService : Service() {
                         text = "${liveGpu}%"
                         textSize = 8.5f
                         typeface = Typeface.DEFAULT_BOLD
-                        setTextColor(Color.WHITE)
+                        setTextColor(if (isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
                         tag = "gpu_val"
                     }
 
@@ -521,7 +828,7 @@ class GameTurboOverlayService : Service() {
                         val l = TextView(context).apply {
                             text = "GPU"
                             textSize = 7.5f
-                            setTextColor(Color.parseColor("#8E9BAE"))
+                            setTextColor(if (isLightMode) Color.parseColor("#64748B") else Color.parseColor("#8E9BAE"))
                             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                         }
                         addView(l)
@@ -532,8 +839,9 @@ class GameTurboOverlayService : Service() {
                     val gpuProgress = TelemetryProgressBarView(
                         context,
                         liveGpu / 100f,
-                        Color.parseColor("#8B5CF6"),
-                        Color.parseColor("#C084FC")
+                        if (isLightMode) Color.parseColor("#7C3AED") else Color.parseColor("#8B5CF6"),
+                        if (isLightMode) Color.parseColor("#A78BFA") else Color.parseColor("#C084FC"),
+                        isLightMode = isLightMode
                     ).apply {
                         layoutParams = LinearLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -558,8 +866,13 @@ class GameTurboOverlayService : Service() {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dp(999f).toFloat()
-                setColor(Color.parseColor("#1AFFFFFF"))
-                setStroke(dp(1f), Color.parseColor("#1FFFFFFF"))
+                if (isLightMode) {
+                    setColor(Color.parseColor("#F1F5F9"))
+                    setStroke(dp(1f), Color.parseColor("#CBD5E1"))
+                } else {
+                    setColor(Color.parseColor("#1AFFFFFF"))
+                    setStroke(dp(1f), Color.parseColor("#1FFFFFFF"))
+                }
             }
             setPadding(dp(3.5f), dp(3.5f), dp(3.5f), dp(3.5f))
             layoutParams = LinearLayout.LayoutParams(
@@ -574,6 +887,7 @@ class GameTurboOverlayService : Service() {
             lateinit var perfBtn: TextView
 
             fun updateModeUi() {
+                val unselectedTextColor = if (isLightMode) Color.parseColor("#475569") else Color.parseColor("#8E9BAE")
                 if (isPerformanceMode) {
                     perfBtn.background = GradientDrawable(
                         GradientDrawable.Orientation.LEFT_RIGHT,
@@ -583,39 +897,53 @@ class GameTurboOverlayService : Service() {
                     }
                     perfBtn.setTextColor(Color.WHITE)
                     balancedBtn.background = null
-                    balancedBtn.setTextColor(Color.parseColor("#8E9BAE"))
+                    balancedBtn.setTextColor(unselectedTextColor)
                 } else {
                     balancedBtn.background = GradientDrawable(
                         GradientDrawable.Orientation.LEFT_RIGHT,
-                        intArrayOf(Color.parseColor("#007AFF"), Color.parseColor("#0055B8"))
+                        if (isLightMode) intArrayOf(Color.parseColor("#0284C7"), Color.parseColor("#0369A1"))
+                        else intArrayOf(Color.parseColor("#007AFF"), Color.parseColor("#0055B8"))
                     ).apply {
                         cornerRadius = dp(999f).toFloat()
                     }
                     balancedBtn.setTextColor(Color.WHITE)
                     perfBtn.background = null
-                    perfBtn.setTextColor(Color.parseColor("#8E9BAE"))
+                    perfBtn.setTextColor(unselectedTextColor)
                 }
 
                 val triple = gaugeContainer.tag as? Triple<*, *, *>
                 val gauge = triple?.first as? ReactorGaugeView
                 val displayFps = if (liveFps > 0) liveFps else (if (isPerformanceMode) currentTargetFps else 60)
+                gauge?.isLightMode = isLightMode
                 gauge?.setMode(isPerformanceMode, displayFps)
 
                 val cpuPair = (triple?.second as? View)?.tag as? Pair<*, *>
-                (cpuPair?.first as? TextView)?.text = "${liveCpu}%"
-                (cpuPair?.second as? TelemetryProgressBarView)?.updateProgress(
-                    liveCpu / 100f,
-                    if (isPerformanceMode) Color.parseColor("#FF3B30") else Color.parseColor("#007AFF"),
-                    if (isPerformanceMode) Color.parseColor("#FF6961") else Color.parseColor("#60A5FA")
-                )
+                (cpuPair?.first as? TextView)?.apply {
+                    text = "${liveCpu}%"
+                    setTextColor(if (isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
+                }
+                (cpuPair?.second as? TelemetryProgressBarView)?.let { bar ->
+                    bar.isLightMode = isLightMode
+                    bar.updateProgress(
+                        liveCpu / 100f,
+                        if (isPerformanceMode) Color.parseColor("#FF3B30") else (if (isLightMode) Color.parseColor("#0284C7") else Color.parseColor("#007AFF")),
+                        if (isPerformanceMode) Color.parseColor("#FF6961") else (if (isLightMode) Color.parseColor("#38BDF8") else Color.parseColor("#60A5FA"))
+                    )
+                }
 
                 val gpuPair = (triple?.third as? View)?.tag as? Pair<*, *>
-                (gpuPair?.first as? TextView)?.text = "${liveGpu}%"
-                (gpuPair?.second as? TelemetryProgressBarView)?.updateProgress(
-                    liveGpu / 100f,
-                    Color.parseColor("#8B5CF6"),
-                    Color.parseColor("#C084FC")
-                )
+                (gpuPair?.first as? TextView)?.apply {
+                    text = "${liveGpu}%"
+                    setTextColor(if (isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
+                }
+                (gpuPair?.second as? TelemetryProgressBarView)?.let { bar ->
+                    bar.isLightMode = isLightMode
+                    bar.updateProgress(
+                        liveGpu / 100f,
+                        if (isLightMode) Color.parseColor("#7C3AED") else Color.parseColor("#8B5CF6"),
+                        if (isLightMode) Color.parseColor("#A78BFA") else Color.parseColor("#C084FC")
+                    )
+                }
             }
 
             balancedBtn = TextView(context).apply {
@@ -669,6 +997,10 @@ class GameTurboOverlayService : Service() {
         }
         card.addView(modeSwitcher)
 
+        isDndActive = HardwareSystemController.isDndEnabled
+        isWifiBoostActive = HardwareSystemController.isWifiBoostActive
+        isVoiceChangerActive = HardwareSystemController.isVoiceRunning
+
         // 4. Essential 4 Tools (DND / Wi-Fi / AI / Voice) with Lucide vector icons
         val toolsRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -678,50 +1010,165 @@ class GameTurboOverlayService : Service() {
             )
 
             // DND
-            addView(createToggleToolButton(
+            val (_, dndHolder) = createToggleToolButton(
                 LucideIconView.TYPE_BELL_OFF,
                 "DND",
                 isDndActive,
                 Color.parseColor("#FF453A")
-            ) { active ->
-                isDndActive = active
-                Toast.makeText(context, "DND: ${if (active) "ON" else "OFF"}", Toast.LENGTH_SHORT).show()
-            })
+            ) { targetActive, holder ->
+                val success = HardwareSystemController.setDndMode(this@GameTurboOverlayService, targetActive)
+                if (success) {
+                    isDndActive = targetActive
+                    holder.updateState(isDndActive)
+                    Toast.makeText(context, "DND: ${if (isDndActive) "PRIORITY" else "OFF"}", Toast.LENGTH_SHORT).show()
+                } else {
+                    holder.updateState(isDndActive)
+                    Toast.makeText(context, "Notification Policy Access required for DND", Toast.LENGTH_SHORT).show()
+                }
+            }
+            addView(dndHolder.root)
 
             // Wi-Fi
-            addView(createToggleToolButton(
+            val initialWifiBadge = if (isWifiBoostActive) "${HardwareSystemController.livePingMs}ms" else null
+            val (_, wifiHolder) = createToggleToolButton(
                 LucideIconView.TYPE_WIFI,
                 "Wi-Fi",
                 isWifiBoostActive,
-                Color.parseColor("#389BFF")
-            ) { active ->
-                isWifiBoostActive = active
-                Toast.makeText(context, "Wi-Fi Boost: ${if (active) "18ms" else "OFF"}", Toast.LENGTH_SHORT).show()
-            })
+                Color.parseColor("#389BFF"),
+                initialBadge = initialWifiBadge
+            ) { targetActive, holder ->
+                val success = HardwareSystemController.setWifiLowLatency(this@GameTurboOverlayService, targetActive)
+                if (success) {
+                    isWifiBoostActive = targetActive
+                    val badge = if (isWifiBoostActive) "${HardwareSystemController.livePingMs}ms" else null
+                    holder.updateState(isWifiBoostActive, badge)
+                    Toast.makeText(context, "Wi-Fi Boost: ${if (isWifiBoostActive) "${HardwareSystemController.livePingMs}ms" else "OFF"}", Toast.LENGTH_SHORT).show()
+                } else {
+                    holder.updateState(isWifiBoostActive)
+                }
+            }
+            addView(wifiHolder.root)
+
+            // Register live ping tracking on Wi-Fi button badge
+            pingListener?.let { HardwareSystemController.removePingListener(it) }
+            val pListener: (Int) -> Unit = { pingMs ->
+                mainHandler.post {
+                    if (isWifiBoostActive) {
+                        wifiHolder.updateState(true, "${pingMs}ms")
+                    }
+                }
+            }
+            pingListener = pListener
+            HardwareSystemController.addPingListener(pListener)
 
             // AI Assistant / Guide
-            addView(createToggleToolButton(
+            val (_, aiHolder) = createToggleToolButton(
                 LucideIconView.TYPE_BOT,
                 "AI",
                 isAiActive,
                 Color.parseColor("#389BFF")
-            ) { active ->
-                isAiActive = active
-                Toast.makeText(context, "AI Tactical Guide: ${if (active) "ACTIVE" else "OFF"}", Toast.LENGTH_SHORT).show()
-            })
+            ) { targetActive, holder ->
+                isAiActive = targetActive
+                holder.updateState(isAiActive)
+                if (isAiActive) {
+                    showGuardianOverlay()
+                    Toast.makeText(context, "Guardian AI Overlay: ON", Toast.LENGTH_SHORT).show()
+                } else {
+                    hideGuardianOverlay()
+                    Toast.makeText(context, "Guardian AI Overlay: OFF", Toast.LENGTH_SHORT).show()
+                }
+            }
+            aiHolderRef = aiHolder
+            addView(aiHolder.root)
 
             // Voice Changer
-            addView(createToggleToolButton(
+            val voicePresetName = HardwareSystemController.activeVoicePreset.replaceFirstChar {
+                if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+            }
+            val initialVoiceBadge = if (isVoiceChangerActive) voicePresetName else null
+
+            lateinit var voiceHolderRef: ToolButtonHolder
+            val (_, voiceHolder) = createToggleToolButton(
                 LucideIconView.TYPE_MIC,
                 "Voice",
                 isVoiceChangerActive,
-                Color.parseColor("#A855F7")
-            ) { active ->
-                isVoiceChangerActive = active
-                Toast.makeText(context, "Voice Changer: ${if (active) "ON" else "OFF"}", Toast.LENGTH_SHORT).show()
-            })
+                Color.parseColor("#A855F7"),
+                initialBadge = initialVoiceBadge,
+                onLongClick = {
+                    showVoicePresetDialog(voiceHolderRef)
+                }
+            ) { targetActive, holder ->
+                if (targetActive) {
+                    val started = HardwareSystemController.startVoiceProcessing(
+                        this@GameTurboOverlayService,
+                        HardwareSystemController.activeVoicePreset
+                    )
+                    if (started) {
+                        isVoiceChangerActive = true
+                        val preset = HardwareSystemController.activeVoicePreset.replaceFirstChar {
+                            if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+                        }
+                        holder.updateState(true, preset)
+                        Toast.makeText(context, "Voice Changer: $preset (Long-press to change)", Toast.LENGTH_SHORT).show()
+                    } else {
+                        holder.updateState(false)
+                        Toast.makeText(context, "Microphone permission required for Voice Changer", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    HardwareSystemController.stopVoiceProcessing()
+                    isVoiceChangerActive = false
+                    holder.updateState(false)
+                    Toast.makeText(context, "Voice Changer: OFF", Toast.LENGTH_SHORT).show()
+                }
+            }
+            voiceHolderRef = voiceHolder
+            addView(voiceHolder.root)
         }
         card.addView(toolsRow)
+    }
+
+    private class ToolButtonHolder(
+        val root: LinearLayout,
+        val iconView: LucideIconView,
+        val labelView: TextView,
+        val badgeView: TextView,
+        var isActive: Boolean,
+        val iconType: Int,
+        val activeColor: Int,
+        val isLightMode: Boolean
+    ) {
+        fun updateState(active: Boolean, badgeText: String? = null) {
+            isActive = active
+            val inactiveBgColor = if (isLightMode) Color.parseColor("#F1F5F9") else Color.parseColor("#14FFFFFF")
+            val inactiveBorderColor = if (isLightMode) Color.parseColor("#CBD5E1") else Color.parseColor("#1FFFFFFF")
+            val inactiveIconColor = if (isLightMode) Color.parseColor("#475569") else Color.parseColor("#99FFFFFF")
+            val density = root.resources.displayMetrics.density
+            val dp1 = (1f * density).toInt()
+
+            root.background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = 10f * density
+                if (isActive) {
+                    val alphaValue = if (isLightMode) 35 else 45
+                    val alphaBg = Color.argb(alphaValue, Color.red(activeColor), Color.green(activeColor), Color.blue(activeColor))
+                    setColor(alphaBg)
+                    setStroke(dp1, activeColor)
+                } else {
+                    setColor(inactiveBgColor)
+                    setStroke(dp1, inactiveBorderColor)
+                }
+            }
+            iconView.setIcon(iconType, if (isActive) activeColor else inactiveIconColor)
+            val labelActiveColor = if (isLightMode) Color.parseColor("#0F172A") else Color.WHITE
+            labelView.setTextColor(if (isActive) labelActiveColor else inactiveIconColor)
+            if (badgeText != null) {
+                badgeView.text = badgeText
+                badgeView.visibility = View.VISIBLE
+                badgeView.setTextColor(if (isActive) activeColor else inactiveIconColor)
+            } else {
+                badgeView.visibility = View.GONE
+            }
+        }
     }
 
     private fun createToggleToolButton(
@@ -729,70 +1176,700 @@ class GameTurboOverlayService : Service() {
         labelText: String,
         initialActive: Boolean,
         activeColor: Int,
-        onToggle: (Boolean) -> Unit
-    ): View {
-        var isActive = initialActive
-        val inactiveBgColor = Color.parseColor("#14FFFFFF")
-        val inactiveBorderColor = Color.parseColor("#1FFFFFFF")
-        val inactiveIconColor = Color.parseColor("#99FFFFFF")
+        initialBadge: String? = null,
+        onLongClick: (() -> Unit)? = null,
+        onToggle: (Boolean, ToolButtonHolder) -> Unit
+    ): Pair<View, ToolButtonHolder> {
+        val inactiveIconColor = if (isLightMode) Color.parseColor("#475569") else Color.parseColor("#99FFFFFF")
+        val labelActiveColor = if (isLightMode) Color.parseColor("#0F172A") else Color.WHITE
 
-        return LinearLayout(this).apply {
+        val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-
-            val iconView = LucideIconView(
-                context,
-                iconType,
-                if (isActive) activeColor else inactiveIconColor,
-                1.6f
-            ).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(15f), dp(15f))
-            }
-
-            val label = TextView(context).apply {
-                text = labelText
-                textSize = 7.5f
-                typeface = Typeface.DEFAULT_BOLD
-                setTextColor(if (isActive) Color.WHITE else inactiveIconColor)
-                gravity = Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply { topMargin = dp(3f) }
-            }
-
-            fun updateBtnBg() {
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.RECTANGLE
-                    cornerRadius = dp(10f).toFloat()
-                    if (isActive) {
-                        val alphaBg = Color.argb(45, Color.red(activeColor), Color.green(activeColor), Color.blue(activeColor))
-                        setColor(alphaBg)
-                        setStroke(dp(1f), activeColor)
-                    } else {
-                        setColor(inactiveBgColor)
-                        setStroke(dp(1f), inactiveBorderColor)
-                    }
-                }
-                iconView.setIcon(iconType, if (isActive) activeColor else inactiveIconColor)
-                label.setTextColor(if (isActive) Color.WHITE else inactiveIconColor)
-            }
-
-            updateBtnBg()
-            setPadding(dp(4f), dp(6f), dp(4f), dp(6f))
+            setPadding(dp(4f), dp(5f), dp(4f), dp(5f))
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
                 marginStart = dp(2f)
                 marginEnd = dp(2f)
             }
+        }
 
-            addView(iconView)
-            addView(label)
+        val iconView = LucideIconView(
+            this,
+            iconType,
+            if (initialActive) activeColor else inactiveIconColor,
+            1.6f
+        ).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(15f), dp(15f))
+        }
+        root.addView(iconView)
 
-            setOnClickListener {
-                isActive = !isActive
-                updateBtnBg()
-                onToggle(isActive)
+        val label = TextView(this).apply {
+            text = labelText
+            textSize = 7.5f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(if (initialActive) labelActiveColor else inactiveIconColor)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(2.5f) }
+        }
+        root.addView(label)
+
+        val badge = TextView(this).apply {
+            text = initialBadge ?: ""
+            textSize = 6.5f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(if (initialActive) activeColor else inactiveIconColor)
+            gravity = Gravity.CENTER
+            visibility = if (initialBadge != null) View.VISIBLE else View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(1f) }
+        }
+        root.addView(badge)
+
+        val holder = ToolButtonHolder(
+            root = root,
+            iconView = iconView,
+            labelView = label,
+            badgeView = badge,
+            isActive = initialActive,
+            iconType = iconType,
+            activeColor = activeColor,
+            isLightMode = isLightMode
+        )
+        holder.updateState(initialActive, initialBadge)
+
+        root.setOnClickListener {
+            onToggle(!holder.isActive, holder)
+        }
+
+        if (onLongClick != null) {
+            root.setOnLongClickListener {
+                onLongClick()
+                true
             }
+        }
+
+        return Pair(root, holder)
+    }
+
+    private fun showVoicePresetDialog(voiceHolder: ToolButtonHolder) {
+        val presets = arrayOf(
+            "Commander (Deep Heavy Pitch)",
+            "Cybernetic (Robotic Ring-Mod)",
+            "Tactical Radio (Walkie-Talkie)",
+            "Studio (Enhanced Broadcast)"
+        )
+        val keys = arrayOf("commander", "cybernetic", "radio", "studio")
+
+        try {
+            val builder = AlertDialog.Builder(
+                ContextThemeWrapper(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            )
+            builder.setTitle("Voice Changer Preset")
+            builder.setItems(presets) { _, which ->
+                val chosenKey = keys[which]
+                HardwareSystemController.setVoicePreset(chosenKey)
+                val displayName = chosenKey.replaceFirstChar {
+                    if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+                }
+                voiceHolder.updateState(isVoiceChangerActive, if (isVoiceChangerActive) displayName else null)
+                Toast.makeText(this, "Voice Preset: $displayName", Toast.LENGTH_SHORT).show()
+            }
+            val dialog = builder.create()
+            dialog.window?.let { w ->
+                val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                } else {
+                    @Suppress("DEPRECATION")
+                    WindowManager.LayoutParams.TYPE_PHONE
+                }
+                w.setType(type)
+            }
+            dialog.show()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private val visionThread = HandlerThread("OwlVisionCapture").apply { start() }
+    private val visionHandler = Handler(visionThread.looper)
+
+    fun captureScreenFrame(onCaptured: (String?) -> Unit) {
+        val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as? MediaProjectionManager
+        val data = projectionData
+        val resCode = projectionResultCode
+        if (mpm == null || data == null || resCode == 0 || !isVisionEnabled) {
+            onCaptured(null)
+            return
+        }
+
+        visionHandler.post {
+            var imageReader: ImageReader? = null
+            var virtualDisplay: VirtualDisplay? = null
+            var projection: MediaProjection? = null
+            var completed = false
+
+            fun finish(result: String?) {
+                if (completed) return
+                completed = true
+                try { virtualDisplay?.release() } catch (_: Exception) {}
+                try { imageReader?.close() } catch (_: Exception) {}
+                try { projection?.stop() } catch (_: Exception) {}
+                onCaptured(result)
+            }
+
+            visionHandler.postDelayed({ finish(null) }, 1500L)
+
+            try {
+                if (Build.VERSION.SDK_INT >= 34) {
+                    try {
+                        val notification = Notification.Builder(this, CHANNEL_ID)
+                            .setContentTitle("Owl Game Turbo")
+                            .setContentText("Tactical Overlay & Guardian Vision Active")
+                            .setSmallIcon(android.R.drawable.ic_menu_compass)
+                            .build()
+                        val serviceTypes = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or
+                                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                        startForeground(NOTIFICATION_ID, notification, serviceTypes)
+                    } catch (_: Exception) {}
+                }
+
+                projection = mpm.getMediaProjection(resCode, data.clone() as Intent)
+                if (projection == null) {
+                    finish(null)
+                    return@post
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    projection.registerCallback(object : MediaProjection.Callback() {
+                        override fun onStop() {
+                            super.onStop()
+                            finish(null)
+                        }
+                    }, visionHandler)
+                }
+
+                val width = 640
+                val height = 360
+                val metrics = resources.displayMetrics
+                val dpi = metrics.densityDpi
+
+                imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+                virtualDisplay = projection.createVirtualDisplay(
+                    "OwlVisionVirtualDisplay",
+                    width,
+                    height,
+                    dpi,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                    imageReader.surface,
+                    null,
+                    visionHandler
+                )
+
+                imageReader.setOnImageAvailableListener({ reader ->
+                    try {
+                        val image = reader.acquireLatestImage()
+                        if (image != null) {
+                            val planes = image.planes
+                            val buffer = planes[0].buffer
+                            val pixelStride = planes[0].pixelStride
+                            val rowStride = planes[0].rowStride
+                            val rowPadding = rowStride - pixelStride * width
+
+                            val bmp = Bitmap.createBitmap(
+                                width + rowPadding / pixelStride,
+                                height,
+                                Bitmap.Config.ARGB_8888
+                            )
+                            bmp.copyPixelsFromBuffer(buffer)
+                            image.close()
+
+                            val cleanBitmap = if (rowPadding > 0) {
+                                val cropped = Bitmap.createBitmap(bmp, 0, 0, width, height)
+                                bmp.recycle()
+                                cropped
+                            } else {
+                                bmp
+                            }
+
+                            val baos = ByteArrayOutputStream()
+                            cleanBitmap.compress(Bitmap.CompressFormat.JPEG, 75, baos)
+                            cleanBitmap.recycle()
+
+                            val base64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+                            finish(base64)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("GameTurbo", "Frame process error: ${e.message}")
+                        finish(null)
+                    }
+                }, visionHandler)
+
+            } catch (e: Exception) {
+                android.util.Log.e("GameTurbo", "MediaProjection init error: ${e.message}")
+                finish(null)
+            }
+        }
+    }
+
+    fun queryGeminiTacticalDirectives(
+        onSuccess: (TacticalDirective, Boolean) -> Unit,
+        onError: () -> Unit
+    ) {
+        val key = aiApiKey ?: getEffectiveAiApiKey()
+        if (key.isNullOrEmpty()) {
+            onError()
+            return
+        }
+        aiApiKey = key
+
+        // Dynamically re-check foreground game so advice is 100% accurate to the active game
+        detectForegroundGame()?.let { currentGameName = it }
+
+        if (isAnalyzingAi) return
+        isAnalyzingAi = true
+
+        fun executeInference(base64Frame: String?) {
+            aiExecutor.execute {
+                val candidateModels = listOf(
+                    "gemini-3-flash-preview",
+                    aiModel.ifEmpty { "gemini-3-flash-preview" },
+                    "gemini-2.5-flash"
+                ).distinct()
+
+                var resolvedDirective: TacticalDirective? = null
+
+                for (model in candidateModels) {
+                    var conn: java.net.HttpURLConnection? = null
+                    try {
+                        val urlString = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$key"
+                        val url = java.net.URL(urlString)
+                        conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                            requestMethod = "POST"
+                            connectTimeout = 8000
+                            readTimeout = 8000
+                            doOutput = true
+                            setRequestProperty("Content-Type", "application/json")
+                        }
+
+                        val prompt = if (base64Frame != null) {
+                            """
+                            You are Guardian AI In-Game Tactical Coach for a player currently playing '$currentGameName'.
+                            Target: ${currentTargetFps} FPS. Mode: ${if (isPerformanceMode) "Turbo" else "Balanced"}.
+                            Inspect the live in-game match screenshot attached:
+                            1. Accurately identify the player's champion/hero (e.g. Balmond, Layla, Saber, etc.), active battle spell (Flicker, Retribution, Purify, Sprint, etc.), lane, and match timer.
+                            2. Read the minimap to assess enemy positions, missing laners, and upcoming objective timers.
+                            3. Provide actionable advice for the next 15-30 seconds.
+                            Output valid JSON in this exact schema:
+                            {"action": "<short bold tactical action, max 6 words>", "reason": "<1 sentence rationale specifying hero/spell/objective>", "warning": "<short warning or radar callout, max 8 words>"}
+                            """.trimIndent()
+                        } else {
+                            """
+                            You are Guardian AI In-Game Tactical Coach for a player currently playing '$currentGameName'.
+                            Target: ${currentTargetFps} FPS. Mode: ${if (isPerformanceMode) "Turbo" else "Balanced"}.
+                            Output valid JSON in this exact schema:
+                            {"action": "<short bold tactical action, max 6 words>", "reason": "<1 sentence rationale>", "warning": "<short warning or radar callout, max 8 words>"}
+                            """.trimIndent()
+                        }
+
+                        val requestJson = org.json.JSONObject().apply {
+                            val contentsArr = org.json.JSONArray().apply {
+                                val partsArr = org.json.JSONArray()
+                                if (base64Frame != null) {
+                                    val imgPart = org.json.JSONObject().apply {
+                                        val inlineData = org.json.JSONObject().apply {
+                                            put("mimeType", "image/jpeg")
+                                            put("data", base64Frame)
+                                        }
+                                        put("inlineData", inlineData)
+                                    }
+                                    partsArr.put(imgPart)
+                                }
+                                val textPart = org.json.JSONObject().apply {
+                                    put("text", prompt)
+                                }
+                                partsArr.put(textPart)
+                                put(org.json.JSONObject().apply { put("parts", partsArr) })
+                            }
+                            put("contents", contentsArr)
+                            put("generationConfig", org.json.JSONObject().apply {
+                                put("temperature", 0.3)
+                                put("maxOutputTokens", 300)
+                                put("responseMimeType", "application/json")
+                            })
+                        }
+
+                        val bytes = requestJson.toString().toByteArray(Charsets.UTF_8)
+                        conn.outputStream.use { os ->
+                            os.write(bytes)
+                            os.flush()
+                        }
+
+                        val code = conn.responseCode
+                        if (code in 200..299) {
+                            val respStr = conn.inputStream.bufferedReader().use { it.readText() }
+                            val root = org.json.JSONObject(respStr)
+                            val candidates = root.optJSONArray("candidates")
+                            val candidate = candidates?.optJSONObject(0)
+                            val content = candidate?.optJSONObject("content")
+                            val parts = content?.optJSONArray("parts")
+                            val rawText = parts?.optJSONObject(0)?.optString("text") ?: ""
+
+                            val jsonStart = rawText.indexOf('{')
+                            val jsonEnd = rawText.lastIndexOf('}')
+                            val cleanJson = if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
+                                rawText.substring(jsonStart, jsonEnd + 1)
+                            } else {
+                                rawText.trim()
+                                    .removePrefix("```json")
+                                    .removePrefix("```")
+                                    .removeSuffix("```")
+                                    .trim()
+                            }
+
+                            val directiveJson = org.json.JSONObject(cleanJson)
+                            val action = directiveJson.optString("action", "Hold Objective Position")
+                            val reason = directiveJson.optString("reason", "Awaiting tactical opening; maintain perimeter.")
+                            val warning = directiveJson.optString("warning", "Radar scanning active threats.")
+
+                            resolvedDirective = TacticalDirective(action, reason, warning)
+                            android.util.Log.d("GameTurbo", "Gemini ${if (base64Frame != null) "Vision" else "Text"} Directive ($model) for $currentGameName: ${resolvedDirective.action}")
+                            break
+                        } else {
+                            val err = try { conn.errorStream?.bufferedReader()?.use { it.readText() } } catch (_: Exception) { null }
+                            android.util.Log.w("GameTurbo", "Gemini Model $model returned HTTP $code: $err. Trying next candidate...")
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w("GameTurbo", "Gemini Model $model Exception: ${e.message}")
+                    } finally {
+                        try { conn?.disconnect() } catch (_: Exception) {}
+                    }
+                }
+
+                mainHandler.post {
+                    isAnalyzingAi = false
+                    val dir = resolvedDirective
+                    if (dir != null) {
+                        onSuccess(dir, base64Frame != null)
+                    } else {
+                        onError()
+                    }
+                }
+            }
+        }
+
+        if (isVisionEnabled && hasMediaProjectionPermission()) {
+            captureScreenFrame { frame ->
+                executeInference(frame)
+            }
+        } else {
+            executeInference(null)
+        }
+    }
+
+    fun showGuardianOverlay() {
+        if (guardianOverlayView != null) return
+        val wm = getSystemService(WINDOW_SERVICE) as? WindowManager ?: return
+        windowManager = wm
+
+        val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+
+        val overlayWidth = dp(195f)
+        val params = WindowManager.LayoutParams(
+            overlayWidth,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            layoutFlag,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = guardianX
+            y = guardianY
+        }
+
+        detectForegroundGame()?.let { currentGameName = it }
+        val directives = HardwareSystemController.getTacticalDirectives(currentGameName)
+        if (directives.isEmpty()) return
+
+        var cycleDirectiveFn: (() -> Unit)? = null
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = if (isLightMode) {
+                GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    intArrayOf(Color.parseColor("#F7FFFFFF"), Color.parseColor("#EEF8FAFC"))
+                ).apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = dp(12f).toFloat()
+                    setStroke(dp(1.2f), Color.parseColor("#CBD5E1"))
+                }
+            } else {
+                GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    intArrayOf(Color.parseColor("#F5090B12"), Color.parseColor("#FA06070B"))
+                ).apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = dp(12f).toFloat()
+                    setStroke(dp(1f), Color.parseColor("#33389BFF"))
+                }
+            }
+            setPadding(dp(9f), dp(5f), dp(9f), dp(5f))
+            tag = "guardian_overlay_container"
+
+            val hasKey = !getEffectiveAiApiKey().isNullOrEmpty()
+
+            // Header row with pulse dot, title badge, and close button (refresh button removed for ultra-compact HUD)
+            val dotView = View(context).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(if (hasKey) Color.parseColor("#30D158") else Color.parseColor("#F59E0B"))
+                }
+                layoutParams = LinearLayout.LayoutParams(dp(5f), dp(5f)).apply {
+                    marginEnd = dp(5f)
+                }
+            }
+
+            val badgeText = TextView(context).apply {
+                text = if (hasKey) "GUARDIAN AI • LIVE" else "GUARDIAN AI • HEURISTIC"
+                textSize = 7f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(if (hasKey) (if (isLightMode) Color.parseColor("#0284C7") else Color.parseColor("#389BFF")) else (if (isLightMode) Color.parseColor("#64748B") else Color.parseColor("#94A3B8")))
+                letterSpacing = 0.05f
+                tag = "guardian_badge"
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val closeBtn = FrameLayout(context).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(16f), dp(16f))
+                val icon = LucideIconView(
+                    context,
+                    LucideIconView.TYPE_CLOSE,
+                    if (isLightMode) Color.parseColor("#64748B") else Color.parseColor("#8E9BAE"),
+                    1.4f
+                ).apply {
+                    layoutParams = FrameLayout.LayoutParams(dp(8f), dp(8f), Gravity.CENTER)
+                    tag = "guardian_close_icon"
+                }
+                addView(icon)
+                setOnClickListener {
+                    hideGuardianOverlay()
+                    isAiActive = false
+                    updateAiToolButtonState(false)
+                    Toast.makeText(context, "Guardian AI: Closed", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            val topRow = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+                addView(dotView)
+                addView(badgeText)
+                addView(closeBtn)
+            }
+            addView(topRow)
+
+            val safeIndex = currentDirectiveIndex.coerceIn(0, directives.size - 1)
+            val actionText = TextView(context).apply {
+                text = directives[safeIndex].action
+                textSize = 8.5f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(if (isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
+                maxLines = 1
+                tag = "guardian_action"
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dp(1.5f) }
+            }
+            addView(actionText)
+
+            val reasonText = TextView(context).apply {
+                val d = directives[safeIndex]
+                text = d.warning ?: d.reason
+                textSize = 7.5f
+                setTextColor(if (isLightMode) Color.parseColor("#475569") else Color.parseColor("#94A3B8"))
+                maxLines = 2
+                tag = "guardian_reason"
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dp(1f) }
+            }
+            addView(reasonText)
+
+            fun cycleNextDirective() {
+                detectForegroundGame()?.let { currentGameName = it }
+                val activeDirectives = HardwareSystemController.getTacticalDirectives(currentGameName)
+                val effectiveKey = getEffectiveAiApiKey()
+                if (!effectiveKey.isNullOrEmpty()) {
+                    aiApiKey = effectiveKey
+                    dotView.background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(Color.parseColor("#38BDF8"))
+                    }
+                    queryGeminiTacticalDirectives(
+                        onSuccess = { directive, hasVision ->
+                            badgeText.text = if (hasVision) "GUARDIAN AI • VISION" else "GUARDIAN AI • LIVE"
+                            badgeText.setTextColor(if (hasVision) Color.parseColor("#00E5FF") else (if (isLightMode) Color.parseColor("#0284C7") else Color.parseColor("#389BFF")))
+                            dotView.background = GradientDrawable().apply {
+                                shape = GradientDrawable.OVAL
+                                setColor(if (hasVision) Color.parseColor("#00E5FF") else Color.parseColor("#30D158"))
+                            }
+                            actionText.text = directive.action
+                            actionText.setTextColor(if (isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
+                            reasonText.text = directive.warning ?: directive.reason
+                        },
+                        onError = {
+                            // Keep LIVE status because API key is active; cycle tactical cache seamlessly
+                            badgeText.text = "GUARDIAN AI • LIVE"
+                            badgeText.setTextColor(if (isLightMode) Color.parseColor("#0284C7") else Color.parseColor("#389BFF"))
+                            dotView.background = GradientDrawable().apply {
+                                shape = GradientDrawable.OVAL
+                                setColor(Color.parseColor("#30D158"))
+                            }
+                            if (activeDirectives.isNotEmpty()) {
+                                currentDirectiveIndex = (currentDirectiveIndex + 1) % activeDirectives.size
+                                val next = activeDirectives[currentDirectiveIndex]
+                                actionText.text = next.action
+                                actionText.setTextColor(if (isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
+                                reasonText.text = next.warning ?: next.reason
+                            }
+                        }
+                    )
+                } else {
+                    badgeText.text = "GUARDIAN AI • HEURISTIC"
+                    badgeText.setTextColor(if (isLightMode) Color.parseColor("#64748B") else Color.parseColor("#94A3B8"))
+                    dotView.background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(Color.parseColor("#F59E0B"))
+                    }
+                    if (activeDirectives.isNotEmpty()) {
+                        currentDirectiveIndex = (currentDirectiveIndex + 1) % activeDirectives.size
+                        val next = activeDirectives[currentDirectiveIndex]
+                        actionText.text = next.action
+                        actionText.setTextColor(if (isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
+                        reasonText.text = next.warning ?: next.reason
+                    }
+                }
+                startGuardianAutoRefresh(35000L) { cycleDirectiveFn?.invoke() }
+            }
+
+            cycleDirectiveFn = { cycleNextDirective() }
+
+            var initialX = 0
+            var initialY = 0
+            var initialTouchX = 0f
+            var initialTouchY = 0f
+            var isDrag = false
+
+            setOnTouchListener { v, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = params.x
+                        initialY = params.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        isDrag = false
+                        true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = (event.rawX - initialTouchX).toInt()
+                        val dy = (event.rawY - initialTouchY).toInt()
+                        if (Math.abs(dx) > dp(5f) || Math.abs(dy) > dp(5f)) {
+                            isDrag = true
+                        }
+                        params.x = initialX + dx
+                        params.y = initialY + dy
+                        guardianX = params.x
+                        guardianY = params.y
+                        wm.updateViewLayout(v, params)
+                        true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        if (!isDrag) {
+                            cycleNextDirective()
+                        }
+                        true
+                    }
+                    else -> false
+                }
+            }
+        }
+
+        try {
+            wm.addView(container, params)
+            guardianOverlayView = container
+            startGuardianAutoRefresh(35000L) { cycleDirectiveFn?.invoke() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun hideGuardianOverlay() {
+        stopGuardianAutoRefresh()
+        val wm = windowManager ?: return
+        guardianOverlayView?.let {
+            try {
+                wm.removeView(it)
+            } catch (e: Exception) {}
+            guardianOverlayView = null
+        }
+    }
+
+    fun updateAiToolButtonState(active: Boolean) {
+        mainHandler.post {
+            aiHolderRef?.updateState(active)
+        }
+    }
+
+    fun refreshGuardianOverlayTheme() {
+        val root = guardianOverlayView as? LinearLayout ?: return
+        root.background = if (isLightMode) {
+            GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.parseColor("#F7FFFFFF"), Color.parseColor("#EEF8FAFC"))
+            ).apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(12f).toFloat()
+                setStroke(dp(1.2f), Color.parseColor("#CBD5E1"))
+            }
+        } else {
+            GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.parseColor("#F5090B12"), Color.parseColor("#FA06070B"))
+            ).apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(12f).toFloat()
+                setStroke(dp(1f), Color.parseColor("#33389BFF"))
+            }
+        }
+        (root.findViewWithTag<TextView>("guardian_badge"))?.setTextColor(
+            if (isLightMode) Color.parseColor("#0284C7") else Color.parseColor("#389BFF")
+        )
+        (root.findViewWithTag<TextView>("guardian_action"))?.setTextColor(
+            if (isLightMode) Color.parseColor("#0F172A") else Color.WHITE
+        )
+        (root.findViewWithTag<TextView>("guardian_reason"))?.setTextColor(
+            if (isLightMode) Color.parseColor("#475569") else Color.parseColor("#94A3B8")
+        )
+        (root.findViewWithTag<LucideIconView>("guardian_close_icon"))?.let {
+            it.setIcon(LucideIconView.TYPE_CLOSE, if (isLightMode) Color.parseColor("#64748B") else Color.parseColor("#8E9BAE"))
         }
     }
 
@@ -857,9 +1934,19 @@ class GameTurboOverlayService : Service() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
         stopAutonomousTicker()
+        stopGuardianAutoRefresh()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (_: Exception) {}
+        } else {
+            @Suppress("DEPRECATION")
+            try { stopForeground(true) } catch (_: Exception) {}
+        }
         instance = null   // clear singleton
+        pingListener?.let {
+            HardwareSystemController.removePingListener(it)
+            pingListener = null
+        }
         val wm = windowManager
         collapsedHandleView?.let {
             try {
@@ -873,23 +1960,127 @@ class GameTurboOverlayService : Service() {
             } catch (e: Exception) {}
             expandedToolboxView = null
         }
+        hideGuardianOverlay()
+        super.onDestroy()
     }
 
     companion object {
         // Singleton reference so MainActivity can push live stats
         @Volatile private var instance: GameTurboOverlayService? = null
+        @Volatile var cachedAiApiKey: String? = null
+        @Volatile var cachedAiProvider: String = "gemini"
+        @Volatile var cachedAiModel: String = "gemini-3-flash-preview"
 
-        fun start(context: Context, gameName: String = "Mobile Legends: Bang Bang", targetFps: Int = 120) {
-            val intent = Intent(context, GameTurboOverlayService::class.java).apply {
-                putExtra("EXTRA_GAME_NAME", gameName)
-                putExtra("EXTRA_TARGET_FPS", targetFps)
+        @Volatile var projectionResultCode: Int = 0
+        @Volatile var projectionData: Intent? = null
+        @Volatile var isVisionEnabled: Boolean = true
+
+        fun setMediaProjectionData(resultCode: Int, data: Intent) {
+            projectionResultCode = resultCode
+            projectionData = data
+        }
+
+        fun hasMediaProjectionPermission(): Boolean {
+            return projectionResultCode != 0 && projectionData != null
+        }
+
+        fun start(
+            context: Context,
+            gameName: String? = null,
+            targetFps: Int = 120,
+            isLight: Boolean? = null,
+            aiApiKey: String? = null,
+            aiProvider: String = "gemini",
+            aiModel: String = "gemini-3-flash-preview"
+        ) {
+            val key = aiApiKey ?: cachedAiApiKey ?: try {
+                context.getSharedPreferences("owl_overlay_prefs", Context.MODE_PRIVATE).getString("ai_api_key", null)
+            } catch (_: Exception) { null }
+            if (!key.isNullOrEmpty()) {
+                cachedAiApiKey = key
             }
-            context.startService(intent)
+            val intent = Intent(context, GameTurboOverlayService::class.java).apply {
+                if (!gameName.isNullOrEmpty()) {
+                    putExtra("EXTRA_GAME_NAME", gameName)
+                }
+                putExtra("EXTRA_TARGET_FPS", targetFps)
+                if (isLight != null) {
+                    putExtra("EXTRA_IS_LIGHT_MODE", isLight)
+                }
+                if (!key.isNullOrEmpty()) {
+                    putExtra("EXTRA_AI_API_KEY", key)
+                }
+                putExtra("EXTRA_AI_PROVIDER", aiProvider)
+                putExtra("EXTRA_AI_MODEL", aiModel)
+                putExtra("EXTRA_SHOW_GUARDIAN", true)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+
+        fun setAiCredentials(context: Context? = null, apiKey: String?, provider: String = "gemini", model: String = "gemini-3-flash-preview") {
+            cachedAiApiKey = apiKey
+            cachedAiProvider = provider
+            cachedAiModel = model
+            if (context != null && !apiKey.isNullOrEmpty()) {
+                try {
+                    context.getSharedPreferences("owl_overlay_prefs", Context.MODE_PRIVATE)
+                        .edit()
+                        .putString("ai_api_key", apiKey)
+                        .putString("ai_provider", provider)
+                        .putString("ai_model", model)
+                        .apply()
+                } catch (_: Exception) {}
+            }
+            val svc = instance ?: return
+            Handler(Looper.getMainLooper()).post {
+                svc.aiApiKey = apiKey
+                svc.aiProvider = provider
+                svc.aiModel = model
+            }
         }
 
         fun stop(context: Context) {
             val intent = Intent(context, GameTurboOverlayService::class.java)
             context.stopService(intent)
+        }
+
+        fun showGuardianOverlay() {
+            val svc = instance ?: return
+            Handler(Looper.getMainLooper()).post {
+                svc.isAiActive = true
+                svc.updateAiToolButtonState(true)
+                svc.showGuardianOverlay()
+            }
+        }
+
+        fun hideGuardianOverlay() {
+            val svc = instance ?: return
+            Handler(Looper.getMainLooper()).post {
+                svc.isAiActive = false
+                svc.updateAiToolButtonState(false)
+                svc.hideGuardianOverlay()
+            }
+        }
+
+        fun setThemeMode(isLight: Boolean) {
+            val svc = instance ?: return
+            Handler(Looper.getMainLooper()).post {
+                if (svc.isLightMode == isLight) return@post
+                svc.isLightMode = isLight
+                if (svc.collapsedHandleView != null) {
+                    svc.refreshCollapsedHandleTheme()
+                }
+                if (svc.expandedToolboxView != null) {
+                    svc.refreshExpandedToolboxTheme()
+                }
+                if (svc.guardianOverlayView != null) {
+                    svc.refreshGuardianOverlayTheme()
+                }
+            }
         }
 
         fun setPerformanceMode(isPerf: Boolean, targetFps: Int) {
@@ -923,6 +2114,7 @@ class GameTurboOverlayService : Service() {
                             val child = handleRoot.getChildAt(i)
                             if (child is TextView && (child.tag == "handle_fps_text" || child.text.toString().startsWith("TURBO"))) {
                                 child.text = "TURBO $displayFps FPS"
+                                child.setTextColor(if (svc.isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
                             }
                         }
                     }
@@ -941,18 +2133,30 @@ class GameTurboOverlayService : Service() {
                         return null
                     }
 
-                    (findByTag(toolboxRoot, "cpu_val") as? TextView)?.text = "${cpu}%"
-                    (findByTag(toolboxRoot, "gpu_val") as? TextView)?.text = "${gpu}%"
-                    (findByTag(toolboxRoot, "cpu_bar") as? TelemetryProgressBarView)?.updateProgress(
-                        cpu / 100f,
-                        if (svc.isPerformanceMode) Color.parseColor("#FF3B30") else Color.parseColor("#007AFF"),
-                        if (svc.isPerformanceMode) Color.parseColor("#FF6961") else Color.parseColor("#60A5FA")
-                    )
-                    (findByTag(toolboxRoot, "gpu_bar") as? TelemetryProgressBarView)?.updateProgress(
-                        gpu / 100f,
-                        Color.parseColor("#8B5CF6"),
-                        Color.parseColor("#C084FC")
-                    )
+                    (findByTag(toolboxRoot, "cpu_val") as? TextView)?.apply {
+                        text = "${cpu}%"
+                        setTextColor(if (svc.isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
+                    }
+                    (findByTag(toolboxRoot, "gpu_val") as? TextView)?.apply {
+                        text = "${gpu}%"
+                        setTextColor(if (svc.isLightMode) Color.parseColor("#0F172A") else Color.WHITE)
+                    }
+                    (findByTag(toolboxRoot, "cpu_bar") as? TelemetryProgressBarView)?.let { bar ->
+                        bar.isLightMode = svc.isLightMode
+                        bar.updateProgress(
+                            cpu / 100f,
+                            if (svc.isPerformanceMode) Color.parseColor("#FF3B30") else (if (svc.isLightMode) Color.parseColor("#0284C7") else Color.parseColor("#007AFF")),
+                            if (svc.isPerformanceMode) Color.parseColor("#FF6961") else (if (svc.isLightMode) Color.parseColor("#38BDF8") else Color.parseColor("#60A5FA"))
+                        )
+                    }
+                    (findByTag(toolboxRoot, "gpu_bar") as? TelemetryProgressBarView)?.let { bar ->
+                        bar.isLightMode = svc.isLightMode
+                        bar.updateProgress(
+                            gpu / 100f,
+                            if (svc.isLightMode) Color.parseColor("#7C3AED") else Color.parseColor("#8B5CF6"),
+                            if (svc.isLightMode) Color.parseColor("#A78BFA") else Color.parseColor("#C084FC")
+                        )
+                    }
                     // Update FPS gauge
                     val triple = toolboxRoot.let { vg ->
                         for (i in 0 until vg.childCount) {
@@ -965,6 +2169,7 @@ class GameTurboOverlayService : Service() {
                         null
                     }
                     (triple?.first as? ReactorGaugeView)?.let { gauge ->
+                        gauge.isLightMode = svc.isLightMode
                         gauge.setMode(svc.isPerformanceMode, displayFps)
                     }
                 } catch (_: Exception) {}
@@ -992,6 +2197,7 @@ class LucideIconView @JvmOverloads constructor(
         const val TYPE_WIFI = 5
         const val TYPE_BOT = 6
         const val TYPE_MIC = 7
+        const val TYPE_REFRESH = 8
     }
 
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1119,6 +2325,16 @@ class LucideIconView @JvmOverloads constructor(
                 // Base
                 canvas.drawLine(w * 0.32f, h * 0.86f, w * 0.68f, h * 0.86f, strokePaint)
             }
+            TYPE_REFRESH -> {
+                val r = RectF(w * 0.18f, h * 0.18f, w * 0.82f, h * 0.82f)
+                canvas.drawArc(r, 45f, 270f, false, strokePaint)
+                path.reset()
+                path.moveTo(w * 0.68f, h * 0.20f)
+                path.lineTo(w * 0.86f, h * 0.38f)
+                path.lineTo(w * 0.62f, h * 0.44f)
+                path.close()
+                canvas.drawPath(path, fillPaint)
+            }
         }
     }
 }
@@ -1130,8 +2346,15 @@ class LucideIconView @JvmOverloads constructor(
  * - High-contrast central numerical FPS readout & accent unit tag
  */
 class ReactorGaugeView(context: Context) : View(context) {
-    private var isPerformanceMode: Boolean = true
-    private var fpsValue: Int = 120
+    var isPerformanceMode: Boolean = true
+    var fpsValue: Int = 120
+    var isLightMode: Boolean = false
+        set(value) {
+            field = value
+            bgPaint.color = if (value) Color.parseColor("#FFFFFF") else Color.parseColor("#F2070A10")
+            fpsTextPaint.color = if (value) Color.parseColor("#0F172A") else Color.WHITE
+            invalidate()
+        }
 
     private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#F2070A10")
@@ -1179,9 +2402,18 @@ class ReactorGaugeView(context: Context) : View(context) {
         val cy = h / 2f
         val radius = 33f * density
 
-        val accentColor = if (isPerformanceMode) Color.parseColor("#FF3B30") else Color.parseColor("#007AFF")
-        val accentCore = if (isPerformanceMode) Color.parseColor("#FF5A5F") else Color.parseColor("#64B5F6")
-        val accentGlow = Color.argb(120, Color.red(accentColor), Color.green(accentColor), Color.blue(accentColor))
+        val accentColor = if (isPerformanceMode) {
+            Color.parseColor("#FF3B30")
+        } else {
+            if (isLightMode) Color.parseColor("#0284C7") else Color.parseColor("#007AFF")
+        }
+        val accentCore = if (isPerformanceMode) {
+            Color.parseColor("#FF5A5F")
+        } else {
+            if (isLightMode) Color.parseColor("#38BDF8") else Color.parseColor("#64B5F6")
+        }
+        val flareAlpha = if (isLightMode) 55 else 120
+        val accentGlow = Color.argb(flareAlpha, Color.red(accentColor), Color.green(accentColor), Color.blue(accentColor))
 
         // 1. Horizontal Laser Beam Flare
         val beamH = 1.6f * density
@@ -1197,7 +2429,11 @@ class ReactorGaugeView(context: Context) : View(context) {
         canvas.drawCircle(cx, cy, radius, bgPaint)
 
         // 3. Outer Ring Border
-        ringPaint.color = Color.argb(160, Color.red(accentColor), Color.green(accentColor), Color.blue(accentColor))
+        ringPaint.color = if (isLightMode) {
+            Color.parseColor("#CBD5E1")
+        } else {
+            Color.argb(160, Color.red(accentColor), Color.green(accentColor), Color.blue(accentColor))
+        }
         ringPaint.strokeWidth = 1.2f * density
         canvas.drawCircle(cx, cy, radius - (0.6f * density), ringPaint)
 
@@ -1214,7 +2450,7 @@ class ReactorGaugeView(context: Context) : View(context) {
             style = Paint.Style.STROKE
             strokeWidth = 2.2f * density
             strokeCap = Paint.Cap.ROUND
-            color = Color.parseColor("#26FFFFFF")
+            color = if (isLightMode) Color.parseColor("#E2E8F0") else Color.parseColor("#26FFFFFF")
         }
         canvas.drawArc(arcRect, startAngle, totalSweep, false, trackPaint)
 
@@ -1248,6 +2484,7 @@ class ReactorGaugeView(context: Context) : View(context) {
         tickPaint.strokeWidth = 1.0f * density
         val tickCount = 25
         val rOuter = arcRadius - (1.5f * density)
+        val inactiveTickColor = if (isLightMode) Color.parseColor("#CBD5E1") else Color.parseColor("#4DFFFFFF")
         for (i in 0 until tickCount) {
             val fraction = i.toFloat() / (tickCount - 1).toFloat()
             val angleDeg = startAngle + fraction * totalSweep
@@ -1256,7 +2493,7 @@ class ReactorGaugeView(context: Context) : View(context) {
 
             val tickLength = if (isActive) 4.2f * density else 2.5f * density
             val rInner = rOuter - tickLength
-            tickPaint.color = if (isActive) accentColor else Color.parseColor("#4DFFFFFF")
+            tickPaint.color = if (isActive) accentColor else inactiveTickColor
             tickPaint.strokeWidth = if (isActive) 1.3f * density else 0.9f * density
 
             val x1 = cx + rOuter * Math.cos(angleRad).toFloat()
@@ -1273,7 +2510,11 @@ class ReactorGaugeView(context: Context) : View(context) {
 
         // 7. FPS Unit Tag
         unitTextPaint.textSize = 7.5f * density
-        unitTextPaint.color = if (isPerformanceMode) Color.parseColor("#FF5A5F") else Color.parseColor("#389BFF")
+        unitTextPaint.color = if (isPerformanceMode) {
+            Color.parseColor("#E11D48")
+        } else {
+            if (isLightMode) Color.parseColor("#0284C7") else Color.parseColor("#389BFF")
+        }
         canvas.drawText("FPS", cx, cy + (12f * density), unitTextPaint)
     }
 }
@@ -1285,11 +2526,12 @@ class TelemetryProgressBarView @JvmOverloads constructor(
     context: Context,
     var progress: Float = 0.5f,
     var startColor: Int = Color.parseColor("#007AFF"),
-    var endColor: Int = Color.parseColor("#60A5FA")
+    var endColor: Int = Color.parseColor("#60A5FA"),
+    var isLightMode: Boolean = false
 ) : View(context) {
 
     private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#24FFFFFF")
+        color = if (isLightMode) Color.parseColor("#E2E8F0") else Color.parseColor("#24FFFFFF")
         style = Paint.Style.FILL
     }
 
@@ -1301,6 +2543,7 @@ class TelemetryProgressBarView @JvmOverloads constructor(
         progress = p
         startColor = start
         endColor = end
+        bgPaint.color = if (isLightMode) Color.parseColor("#E2E8F0") else Color.parseColor("#24FFFFFF")
         invalidate()
     }
 
@@ -1311,6 +2554,7 @@ class TelemetryProgressBarView @JvmOverloads constructor(
         if (w <= 0 || h <= 0) return
 
         val corner = h / 2f
+        bgPaint.color = if (isLightMode) Color.parseColor("#E2E8F0") else Color.parseColor("#24FFFFFF")
         canvas.drawRoundRect(0f, 0f, w, h, corner, corner, bgPaint)
 
         val fillW = (w * progress.coerceIn(0f, 1f)).coerceAtLeast(corner * 2)
