@@ -1,7 +1,7 @@
-name: owl
-description: "A new Flutter project."
+name: owl_workspace
+description: "Owl Multi-Package Monorepo Workspace"
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.1.0
 
 environment:
   sdk: ^3.12.2
@@ -9,13 +9,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  http: ^1.2.0
-  http: ^1.2.2
 
 dev_dependencies:
+  melos: ^6.3.2
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-
-flutter:
-  uses-material-design: true

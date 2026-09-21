@@ -1,0 +1,19 @@
+name: owl_workspace
+repository: https://github.com/owl/owl
+
+packages:
+  - apps/**
+  - packages/**
+
+command:
+  bootstrap:
+    usePubspecOverrides: true
+
+scripts:
+  analyze:
+    run: melos exec -- flutter analyze .
+    description: Run flutter analyze across all packages and apps.
+
+  test:
+    run: melos exec --dir-exists=test -- flutter test
+    description: Run flutter test in all packages containing a test directory.

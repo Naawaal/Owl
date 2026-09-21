@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Owl - Next-Gen Game Companion</title>
+    <!-- Modern Typography: Plus Jakarta Sans & JetBrains Mono for telemetry -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css?v=6">
+</head>
+<body>
+    <div class="app-container">
+        
+        <!-- Onboarding Flow -->
+        <div id="onboarding" class="onboarding-container">
+            <div class="onboarding-slides">
+                <div class="onboarding-track" id="ob-track">
+                    <div class="ob-slide">
+                        <div class="ob-graphic">
+                            <div class="ob-circle">
+                                <i class="fa-solid fa-gamepad"></i>
+                            </div>
+                        </div>
+                        <h2>Next-Gen Companion</h2>
+                        <p>Launch any game with safe external overlays, zero memory tampering, and zero ban risk.</p>
+                    </div>
+                    <div class="ob-slide">
+                        <div class="ob-graphic">
+                            <div class="ob-circle">
+                                <i class="fa-solid fa-crosshairs"></i>
+                            </div>
+                        </div>
+                        <h2>Vision & Aim Tools</h2>
+                        <p>Real-time physics raycasting for Carrom, 8 Ball, and custom tactical HUDs via screen overlays.</p>
+                    </div>
+                    <div class="ob-slide">
+                        <div class="ob-graphic">
+                            <div class="ob-circle">
+                                <i class="fa-solid fa-layer-group"></i>
+                            </div>
+                        </div>
+                        <h2>Any Game. Any Mod.</h2>
+                        <p>Import any installed game from your phone and activate universal performance tuning.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="ob-controls">
+                <div class="ob-dots" id="ob-dots">
+                    <span class="dot active" data-index="0"></span>
+                    <span class="dot" data-index="1"></span>
+                    <span class="dot" data-index="2"></span>
+                </div>
+                <button class="btn-primary" id="ob-next-btn">Continue</button>
+            </div>
+        </div>
+
+        <!-- Main Application Shell -->
+        <div id="main-app" class="main-app-container">
+            
+            <!-- Modern Top Bar & System Telemetry -->
+            <header class="app-header">
+                <div class="header-branding">
+                    <div class="brand-badge">
+                        <span class="status-pulse"></span>
+                        <h1 class="brand-title">OWL</h1>
+                        <span class="engine-tag">ENGINE v2.4</span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="action-btn add-btn" id="open-add-game-btn" title="Add Game from Device">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Add</span>
+                    </button>
+                    <button class="icon-btn theme-toggle" id="theme-toggle" aria-label="Toggle Theme" title="Toggle Theme">
+                        <i class="fa-solid fa-moon dark-icon"></i>
+                        <i class="fa-solid fa-sun light-icon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Scrollable Dynamic Viewport -->
+            <main class="app-content" id="app-content">
+                <!-- Injected dynamically via script.js: Home, Library, or Mod Studio -->
+            </main>
+
+            <!-- Ultra-Clean Floating Bottom Dock -->
+            <div class="nav-wrapper">
+                <nav class="bottom-nav">
+                    <div class="nav-indicator" id="nav-indicator"></div>
+                    <button class="nav-item active" data-target="home">
+                        <i class="fa-solid fa-compass"></i>
+                        <span>Deck</span>
+                    </button>
+                    <button class="nav-item" data-target="library">
+                        <i class="fa-solid fa-grid-2"></i>
+                        <span>Games</span>
+                    </button>
+                    <button class="nav-item" data-target="plugins">
+                        <i class="fa-solid fa-sliders"></i>
+                        <span>Studio</span>
+                    </button>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Game Mod & Launch Bottom Sheet -->
+        <div class="bottom-sheet-overlay" id="detail-sheet">
+            <div class="bottom-sheet">
+                <div class="sheet-handle"></div>
+                <div class="sheet-content" id="sheet-content">
+                    <!-- Injected dynamically based on selected game -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Custom Game Modal (Scanner from Device) -->
+        <div class="bottom-sheet-overlay" id="add-game-modal">
+            <div class="bottom-sheet add-game-sheet">
+                <div class="sheet-handle"></div>
+                <div class="sheet-header">
+                    <div>
+                        <h3>Add Game to Library</h3>
+                        <p class="sheet-subtitle">Select an installed package or import custom patch</p>
+                    </div>
+                    <button class="close-sheet-btn" id="close-add-modal"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="add-game-search" placeholder="Search installed packages on device...">
+                </div>
+                <div class="device-apps-list" id="device-apps-list">
+                    <!-- Injected by script.js -->
+                </div>
+            </div>
+        </div>
+
+        <!-- In-Game Companion Overlay Simulation Window -->
+        <div class="game-sim-overlay" id="game-sim-overlay">
+            <div class="sim-game-viewport">
+                <div class="sim-game-header">
+                    <span id="sim-game-title">Running Game</span>
+                    <button class="sim-exit-btn" id="sim-exit-btn"><i class="fa-solid fa-arrow-left"></i> Exit to Owl</button>
+                </div>
+                
+                <!-- Simulated Aim Line / Screen Analysis Canvas -->
+                <div class="sim-guideline-canvas" id="sim-guideline-canvas">
+                    <div class="sim-striker"></div>
+                    <div class="sim-trajectory-line"></div>
+                    <div class="sim-target-puck"></div>
+                    <div class="sim-pocket-marker"></div>
+                </div>
+
+                <!-- Floating Draggable Owl HUD Dock -->
+                <div class="floating-hud-dock" id="floating-hud">
+                    <div class="hud-pill">
+                        <i class="fa-solid fa-bolt text-accent"></i>
+                        <span class="hud-stat">119.8 FPS</span>
+                    </div>
+                    <div class="hud-pill">
+                        <span class="hud-label">DND:</span>
+                        <span class="hud-stat text-success">LOCKED</span>
+                    </div>
+                    <div class="hud-pill">
+                        <span class="hud-label">RAYCAST:</span>
+                        <span class="hud-stat text-accent" id="sim-hud-aim-status">ACTIVE</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    
+    <script src="script.js?v=6"></script>
+</body>
+</html>

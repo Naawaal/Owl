@@ -1,0 +1,194 @@
+{
+  "games": [
+    {
+      "id": "subway-surfers",
+      "name": "Subway Surfers",
+      "packageName": "com.kiloo.subwaysurf",
+      "minVersion": "3.15.0",
+      "category": "Runner",
+      "icon": "train",
+      "description": "Dash as fast as you can through subway tracks and dodge oncoming trains."
+    },
+    {
+      "id": "free-fire",
+      "name": "Garena Free Fire",
+      "packageName": "com.dts.freefireth",
+      "minVersion": "1.100.0",
+      "category": "Battle Royale",
+      "icon": "local_fire_department",
+      "description": "Survival shooter game where players compete in 10-minute battle royale matches."
+    },
+    {
+      "id": "pubg-mobile",
+      "name": "PUBG MOBILE",
+      "packageName": "com.tencent.ig",
+      "minVersion": "2.8.0",
+      "category": "Battle Royale",
+      "icon": "shield",
+      "description": "Original battle royale mobile game with realistic tactical shooting."
+    },
+    {
+      "id": "eight-ball-pool",
+      "name": "8 Ball Pool",
+      "packageName": "com.miniclip.eightballpool",
+      "minVersion": "55.0.0",
+      "category": "Sports",
+      "icon": "sports_baseball",
+      "description": "Top online multiplayer pool simulator game with competitive tournaments."
+    },
+    {
+      "id": "candy-crush",
+      "name": "Candy Crush Saga",
+      "packageName": "com.king.candycrushsaga",
+      "minVersion": "1.250.0",
+      "category": "Puzzle",
+      "icon": "cake",
+      "description": "Match three puzzle adventure through thousands of sweet candy levels."
+    },
+    {
+      "id": "carrom-pool",
+      "name": "Carrom Pool: Disc Game",
+      "packageName": "com.miniclip.carrom",
+      "minVersion": "15.0.0",
+      "category": "Board",
+      "icon": "circle",
+      "description": "Classic tabletop multiplayer disc pool game with smooth physical controls."
+    }
+  ],
+  "plugins": [
+    {
+      "id": "subway-fps-boost",
+      "name": "60 FPS Smooth Booster",
+      "description": "Optimizes frame pacing and touch sampling response for high-refresh screens.",
+      "version": "1.2.0",
+      "gameIds": ["subway-surfers"],
+      "compatibleVersions": ["3.15.0", "3.16.0", "3.17.0"],
+      "category": "Performance"
+    },
+    {
+      "id": "subway-hud-cleaner",
+      "name": "Minimalist HUD",
+      "description": "Reduces peripheral UI clutter for an unobstructed track sightline.",
+      "version": "1.0.4",
+      "gameIds": ["subway-surfers"],
+      "compatibleVersions": ["3.15.0", "3.16.0", "3.17.0"],
+      "category": "Interface"
+    },
+    {
+      "id": "ff-crosshair-assist",
+      "name": "Static Crosshair Guide",
+      "description": "Displays an accessibility center-dot reticle for hip-fire alignment.",
+      "version": "2.0.1",
+      "gameIds": ["free-fire"],
+      "compatibleVersions": ["1.100.0", "1.101.0"],
+      "category": "Utility"
+    },
+    {
+      "id": "ff-network-stabilizer",
+      "name": "Ping & Network Priority",
+      "description": "Prioritizes game socket packets and locks Wi-Fi low-latency mode.",
+      "version": "1.4.2",
+      "gameIds": ["free-fire", "pubg-mobile"],
+      "compatibleVersions": ["1.100.0", "1.101.0", "2.8.0", "2.9.0"],
+      "category": "Network"
+    },
+    {
+      "id": "pubg-audio-enhancer",
+      "name": "Tactical Footstep Equalizer",
+      "description": "Enhances mid-high frequencies to clearly highlight footsteps and vehicle audio.",
+      "version": "2.3.0",
+      "gameIds": ["pubg-mobile"],
+      "compatibleVersions": ["2.8.0", "2.9.0"],
+      "category": "Audio"
+    },
+    {
+      "id": "pubg-incompatible-sample",
+      "name": "Legacy Engine Patch (v2.5)",
+      "description": "Legacy graphics compatibility layer (kept for older engine branches).",
+      "version": "0.9.0",
+      "gameIds": ["pubg-mobile"],
+      "compatibleVersions": ["2.5.0"],
+      "category": "Legacy"
+    },
+    {
+      "id": "pool-guideline-dimmer",
+      "name": "High-Contrast Table Theme",
+      "description": "Softens table glare and improves cushion contrast for night gaming.",
+      "version": "1.1.0",
+      "gameIds": ["eight-ball-pool", "carrom-pool"],
+      "compatibleVersions": ["55.0.0", "15.0.0"],
+      "category": "Display"
+    },
+    {
+      "id": "candy-screen-timeout",
+      "name": "Wakelock & Screen Keep-Alive",
+      "description": "Prevents screen auto-dimming during contemplation on hard puzzle boards.",
+      "version": "1.0.1",
+      "gameIds": ["candy-crush"],
+      "compatibleVersions": ["1.250.0"],
+      "category": "Utility"
+    }
+  ],
+  "skinPacks": [
+    {
+      "id": "subway-cyber-neon",
+      "gameId": "subway-surfers",
+      "name": "Cyber Neon Visual Theme",
+      "description": "User-contributed visual shader config featuring neon blue and purple accents.",
+      "version": "1.1.0",
+      "author": "Community Creator Neo",
+      "accentColor": "#00E5FF",
+      "previewTags": ["Cyberpunk", "Neon", "Night"]
+    },
+    {
+      "id": "subway-retro-gold",
+      "gameId": "subway-surfers",
+      "name": "Golden Era Palette",
+      "description": "Warm retro golden lighting configuration with enhanced coin sparkles.",
+      "version": "2.0.0",
+      "author": "VaultArchiver",
+      "accentColor": "#FFD700",
+      "previewTags": ["Gold", "Retro", "Warm"]
+    },
+    {
+      "id": "ff-obsidian-carbon",
+      "gameId": "free-fire",
+      "name": "Obsidian Stealth HUD Preset",
+      "description": "Dark graphite UI overlay and streamlined inventory button borders.",
+      "version": "1.3.1",
+      "author": "TacticalDesigns",
+      "accentColor": "#37474F",
+      "previewTags": ["Stealth", "Dark", "Matte"]
+    },
+    {
+      "id": "ff-crimson-vortex",
+      "gameId": "free-fire",
+      "name": "Crimson Vortex Profile",
+      "description": "Vibrant scarlet theme config for competitive match streaming.",
+      "version": "1.0.0",
+      "author": "ApexConfigs",
+      "accentColor": "#FF1744",
+      "previewTags": ["Red", "Aggressive", "Streamer"]
+    },
+    {
+      "id": "pubg-military-camo",
+      "gameId": "pubg-mobile",
+      "name": "Desert Camo Interface",
+      "description": "Military matte sand color palette with low-contrast compass indicators.",
+      "version": "1.2.0",
+      "author": "SquadLeader",
+      "accentColor": "#C2B280",
+      "previewTags": ["Military", "Camo", "Tactical"]
+    },
+    {
+      "id": "pool-midnight-velvet",
+      "gameId": "eight-ball-pool",
+      "name": "Midnight Velvet Cloth Config",
+      "description": "Deep navy felt color scheme tailored to reduce eye fatigue during long sessions.",
+      "version": "1.0.2",
+      "author": "ChalkMaster",
+      "accentColor": "#1A237E",
+      "previewTags": ["Navy", "Velvet", "Relaxed"]
+    }
+  ]
+}

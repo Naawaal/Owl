@@ -1,0 +1,28 @@
+name: owl_library
+description: "Game catalog and library management for Owl."
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.2
+  owl_core:
+    path: ../owl_core
+  owl_mod_studio:
+    path: ../owl_mod_studio
+  owl_skins:
+    path: ../owl_skins
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  assets:
+    - assets/catalog.json

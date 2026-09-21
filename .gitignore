@@ -33,6 +33,10 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Melos generated
+.melos_tool/
+pubspec_overrides.yaml
+
 # Symbolication related
 app.*.symbols
 

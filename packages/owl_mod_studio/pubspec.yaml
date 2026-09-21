@@ -1,0 +1,20 @@
+name: owl_mod_studio
+description: "Mod studio, game plugins, and injector management for Owl."
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.2
+  owl_core:
+    path: ../owl_core
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
